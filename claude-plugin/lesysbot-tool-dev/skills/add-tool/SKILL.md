@@ -98,10 +98,10 @@ the installer, so a collection repo can keep those alongside packages.
 - Files starting with `_` are ignored by the loader — helpers only.
 - A registered tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in the repo you're in (or the bundled
-  ones: https://github.com/syan-dev/lesysbot/tree/main/tools).
+  ones: https://github.com/lesysbot/lesysbot/tree/main/tools).
 - The folder shape above is exactly what `lesysbot tools install owner/repo[/subdir]`
   downloads, so a package pushed to GitHub is installable as-is — see
-  https://github.com/syan-dev/lesysbot/blob/main/docs/sharing-tools.md.
+  https://github.com/lesysbot/lesysbot/blob/main/docs/sharing-tools.md.
 
 ## Verify
 
@@ -123,5 +123,5 @@ the installer, so a collection repo can keep those alongside packages.
   here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up
   saves while the bot is running.
 
-Full reference: https://github.com/syan-dev/lesysbot/blob/main/docs/writing-tools.md
-and https://github.com/syan-dev/lesysbot/blob/main/docs/sharing-tools.md.
+Full reference: https://github.com/lesysbot/lesysbot/blob/main/docs/writing-tools.md
+and https://github.com/lesysbot/lesysbot/blob/main/docs/sharing-tools.md.

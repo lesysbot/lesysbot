@@ -109,7 +109,7 @@ LeSysBot - standalone Windows build
 2. Double-click lesysbot.exe, or run it from a terminal:  .\lesysbot.exe
 3. Add your own tools by dropping .py files into the tools\ folder.
 
-Full docs: https://github.com/syan-dev/lesysbot
+Full docs: https://github.com/lesysbot/lesysbot
 '@ | Set-Content -Path (Join-Path $Staging "README.txt") -Encoding UTF8
 
 Ok "assembled $Staging"

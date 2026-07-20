@@ -35,12 +35,12 @@ These are destructive and prompt for confirmation when the LLM triggers them.
 ## Power off with automatic wake-up?
 
 That's the optional **`shutdown-wake`** package in
-[lesysbot-linux-tools-official](https://github.com/syan-dev/lesysbot-linux-tools-official)
+[lesysbot-linux-tools-official](https://github.com/lesysbot/lesysbot-linux-tools-official)
 — it arms the motherboard's RTC wake alarm so the firmware powers the machine
 back on later. Linux-only, needs `rtcwake` + RTC wake-alarm hardware:
 
 ```bash
-lesysbot tools install syan-dev/lesysbot-linux-tools-official/tools/shutdown-wake
+lesysbot tools install lesysbot/lesysbot-linux-tools-official/tools/shutdown-wake
 ```
 
 ## Copy-paste

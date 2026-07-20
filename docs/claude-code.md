@@ -17,7 +17,7 @@ one source of truth, no per-repo drift.
 ## 1. Official tool repos — zero setup
 
 The official tool-collection repos (e.g.
-[lesysbot-linux-tools-official](https://github.com/syan-dev/lesysbot-linux-tools-official))
+[lesysbot-linux-tools-official](https://github.com/lesysbot/lesysbot-linux-tools-official))
 commit a `.claude/settings.json` that references this marketplace. Clone one,
 open Claude Code inside it, and trust the folder when asked — Claude Code then
 prompts you to install the `lesysbot` marketplace and enables `lesysbot-tool-dev`
@@ -29,7 +29,7 @@ systemd unit is running"*.
 From any Claude Code session:
 
 ```
-/plugin marketplace add syan-dev/lesysbot
+/plugin marketplace add lesysbot/lesysbot
 /plugin install lesysbot-tool-dev@lesysbot
 ```
 
@@ -56,7 +56,7 @@ contributors to get the skill automatically, commit this as
 {
   "extraKnownMarketplaces": {
     "lesysbot": {
-      "source": { "source": "github", "repo": "syan-dev/lesysbot" }
+      "source": { "source": "github", "repo": "lesysbot/lesysbot" }
     }
   },
   "enabledPlugins": {

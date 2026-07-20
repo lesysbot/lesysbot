@@ -67,7 +67,7 @@ curl http://localhost:11434/
 Both install paths start from a local clone of the repository:
 
 ```bash
-git clone https://github.com/syan-dev/lesysbot.git
+git clone https://github.com/lesysbot/lesysbot.git
 cd lesysbot
 ```
 

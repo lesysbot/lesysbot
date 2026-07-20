@@ -9,7 +9,7 @@ These packages can also be installed straight from this repo, so instead of copy
 folders you can install them by name:
 
 ```bash
-lesysbot tools install syan-dev/lesysbot/tools/gpu-temp
+lesysbot tools install lesysbot/lesysbot/tools/gpu-temp
 ```
 
 See [docs/installing-tools.md](../docs/installing-tools.md).
@@ -35,9 +35,9 @@ OS-specific packages live in the official per-platform companion repos —
 install the one matching your machine:
 
 ```bash
-lesysbot tools install syan-dev/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), RTC shutdown-wake, hwmon temps
-lesysbot tools install syan-dev/lesysbot-windows-tools-official   # ping/tracert, wake-timer shutdown-wake, WMI temps
-lesysbot tools install syan-dev/lesysbot-macos-tools-official     # battery, pmset shutdown-wake, SMC temps
+lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), RTC shutdown-wake, hwmon temps
+lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping/tracert, wake-timer shutdown-wake, WMI temps
+lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, pmset shutdown-wake, SMC temps
 ```
 
 ## Package layout

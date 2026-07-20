@@ -60,7 +60,7 @@ writing. A running bot with hot-reload activates new packages immediately.
   create (hand-written tools are safe); `--force` overrides.
 - **Updating:** re-install a package the lock already owns and it's replaced
   in place — that *is* the update path.
-- Bundled packages install by path: `lesysbot tools install syan-dev/lesysbot/tools/gpu-temp`.
+- Bundled packages install by path: `lesysbot tools install lesysbot/lesysbot/tools/gpu-temp`.
 
 What counts as a package in a repo: a root `tool.py` makes the repo itself one
 package; otherwise every immediate subdir holding a non-`_` `.py` is one —

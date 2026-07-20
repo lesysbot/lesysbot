@@ -2,9 +2,9 @@
   "name": "lesysbot-tool-dev",
   "description": "Scaffold and verify LeSysBot tool packages (README + tool.py) following project conventions, in any tools repo or ~/.lesysbot/tools",
   "author": {
-    "name": "syan-dev"
+    "name": "lesysbot"
   },
-  "homepage": "https://github.com/syan-dev/lesysbot/blob/main/docs/claude-code.md",
-  "repository": "https://github.com/syan-dev/lesysbot",
+  "homepage": "https://github.com/lesysbot/lesysbot/blob/main/docs/claude-code.md",
+  "repository": "https://github.com/lesysbot/lesysbot",
   "license": "MIT"
 }

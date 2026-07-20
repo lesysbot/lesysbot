@@ -125,7 +125,7 @@ Hot reload means you can edit → save → retry without restarting.
 
 **Step 3 — Update the catalog.** Add a row to
 [tools/README.md](tools/README.md) so people browsing the repo can find it
-(bundled packages install via `lesysbot tools install syan-dev/lesysbot/tools/<name>`).
+(bundled packages install via `lesysbot tools install lesysbot/lesysbot/tools/<name>`).
 
 **Step 4 — Lint, then open the PR** ([§8](#8-open-the-pull-request)). Tool
 packages don't require unit tests, but the tool must load cleanly (step 2) and

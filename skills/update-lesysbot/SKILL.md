@@ -16,7 +16,7 @@ cd /path/to/lesysbot        # the original git clone
 git pull
 ```
 
-(If the clone is gone, `git clone https://github.com/syan-dev/lesysbot.git` fresh —
+(If the clone is gone, `git clone https://github.com/lesysbot/lesysbot.git` fresh —
 nothing in `~/.lesysbot` depends on the old checkout.)
 
 ## 2. Reinstall — pick one

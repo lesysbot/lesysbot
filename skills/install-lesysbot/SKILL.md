@@ -34,7 +34,7 @@ curl http://localhost:11434/  # → "Ollama is running"
 ## 2. Get the code
 
 ```bash
-git clone https://github.com/syan-dev/lesysbot.git
+git clone https://github.com/lesysbot/lesysbot.git
 cd lesysbot
 ```
 
@@ -93,7 +93,7 @@ The prompts, in order:
    a plain **"Apply these settings?" `[Y/n]`**.
 
 The wizard never uses `sudo`. (The optional `shutdown-wake` tool package —
-`lesysbot tools install syan-dev/lesysbot-linux-tools-official/tools/shutdown-wake` —
+`lesysbot tools install lesysbot/lesysbot-linux-tools-official/tools/shutdown-wake` —
 needs a one-time sudoers rule for `rtcwake`; its bundled `setup-sudoers.sh`
 handles that after you install it.)
 

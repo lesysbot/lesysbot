@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "lesysbot",
   "owner": {
-    "name": "syan-dev"
+    "name": "lesysbot"
   },
   "description": "Claude Code skills for developing LeSysBot tool packages",
   "plugins": [
@@ -12,8 +12,8 @@
       "description": "Scaffold and verify LeSysBot tool packages (README + tool.py) following project conventions, in any tools repo or ~/.lesysbot/tools",
       "category": "development",
       "keywords": ["lesysbot", "tools", "skills"],
-      "homepage": "https://github.com/syan-dev/lesysbot/blob/main/docs/claude-code.md",
-      "repository": "https://github.com/syan-dev/lesysbot",
+      "homepage": "https://github.com/lesysbot/lesysbot/blob/main/docs/claude-code.md",
+      "repository": "https://github.com/lesysbot/lesysbot",
       "license": "MIT"
     }
   ]

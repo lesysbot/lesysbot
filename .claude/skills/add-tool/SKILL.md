@@ -82,7 +82,7 @@ dropped straight in `tools/` also still works for quick local tools.)
 - Add a row to `tools/README.md` (the catalog table).
 - The same folder shape is what `lesysbot tools install owner/repo` downloads,
   so a package pushed to its own GitHub repo is installable as-is (and the
-  bundled ones install via `lesysbot tools install syan-dev/lesysbot/tools/<name>`)
+  bundled ones install via `lesysbot tools install lesysbot/lesysbot/tools/<name>`)
   — see [docs/sharing-tools.md](../../../docs/sharing-tools.md).
 
 ## Verify
