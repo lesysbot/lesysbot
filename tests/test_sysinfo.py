@@ -218,6 +218,10 @@ def test_uptime_linux_reads_proc(tmp_path, monkeypatch):
     assert sysinfo.uptime() == "3h 25m"
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="ctypes.windll exists on Windows, so the branch returns a real uptime, not None",
+)
 def test_uptime_windows_branch_degrades_gracefully(monkeypatch):
     """On a non-Windows host ctypes has no windll — the branch must return None."""
     monkeypatch.setattr(sysinfo.platform, "system", lambda: "Windows")
