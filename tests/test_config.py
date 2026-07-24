@@ -3,6 +3,35 @@ from __future__ import annotations
 from pathlib import Path
 
 from lesysbot.core.config import Settings, resolve_paths
+from lesysbot.core.paths import load_grafana_env, parse_env_file
+
+
+def test_parse_env_file(tmp_path: Path) -> None:
+    p = tmp_path / "grafana.env"
+    p.write_text('# comment\nLESYSBOT_GRAFANA_USER=bob\nLESYSBOT_GRAFANA_PASSWORD="p w"\nbad line\n')
+    pairs = parse_env_file(p)
+    assert pairs == {"LESYSBOT_GRAFANA_USER": "bob", "LESYSBOT_GRAFANA_PASSWORD": "p w"}
+    assert parse_env_file(tmp_path / "missing.env") == {}  # missing → {}
+
+
+def test_load_grafana_env_sets_env_and_respects_override(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "grafana.env").write_text(
+        "LESYSBOT_GRAFANA_URL=http://gf:3000\n"
+        "LESYSBOT_GRAFANA_USER=bob\n"
+        "LESYSBOT_GRAFANA_PASSWORD=filepw\n"
+    )
+    monkeypatch.setenv("LESYSBOT_HOME", str(home))
+    monkeypatch.delenv("LESYSBOT_GRAFANA_URL", raising=False)
+    monkeypatch.delenv("LESYSBOT_GRAFANA_USER", raising=False)
+    monkeypatch.setenv("LESYSBOT_GRAFANA_PASSWORD", "already-set")  # explicit env wins
+    load_grafana_env()
+    import os
+
+    assert os.environ["LESYSBOT_GRAFANA_URL"] == "http://gf:3000"     # from file
+    assert os.environ["LESYSBOT_GRAFANA_USER"] == "bob"               # from file
+    assert os.environ["LESYSBOT_GRAFANA_PASSWORD"] == "already-set"   # not overwritten
 
 
 def test_defaults() -> None:

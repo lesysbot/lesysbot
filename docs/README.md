@@ -22,7 +22,7 @@ working bot in about five minutes.
 |---|---|
 | [Everyday use](usage.md) | Chatting, running tools directly, history, confirmations |
 | [Telegram & Slack](adapters.md) | Reach the bot from your phone or your workspace |
-| [Management UI](management-ui.md) | Edit settings and toggle tools from a local web page |
+| [Control panel](management-ui.md) | Edit settings and toggle tools from a local web page — always on |
 | [Settings](configuration.md) | Every option, and the three ways to set it |
 | [Troubleshooting](troubleshooting.md) | When something doesn't work |
 

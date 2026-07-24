@@ -7,8 +7,8 @@ description: Install LeSysBot from scratch on Linux, macOS, or Windows — prere
 
 LeSysBot is a local AI assistant: an LLM (Ollama by default) plus a set of tools it
 can call, reachable from the terminal, Telegram, or Slack. Installing it means:
-install the Python package, write a config, and (for Telegram/Slack) register a
-background service.
+install the Python package, write a config, and register the background service
+that serves the control panel (and any Telegram/Slack bot).
 
 ## 1. Prerequisites
 
@@ -80,15 +80,15 @@ The prompts, in order:
    `3) Slack` (asks `xoxb-…` bot token + `xapp-…` app token),
    `4) ← Back` (re-pick the LLM backend).
    The terminal always works regardless: `lesysbot --provider cli`.
-4. **"Service"** — Telegram/Slack only (a service: systemd / launchd / Task
-   Scheduler; CLI installs none): `1) Start now and automatically after
-   reboot` (default; "at login" on Windows), `2) Start now only`,
-   `3) ← Back` (re-pick how to reach LeSysBot).
+4. **"Service"** — asked for **every** provider (systemd / launchd / Task
+   Scheduler), because the service also serves the always-on control panel:
+   `1) Start now and automatically after reboot` (default; "at login" on
+   Windows), `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
    On the kept-config path this is a plain
    **"Start LeSysBot automatically after reboot?" `[Y/n]`** instead.
 5. **Summary menu** — `1) Apply these settings` (default; only now is
    anything written), `2) Change LLM backend`, `3) Change how to reach
-   LeSysBot`, `4) Change startup behaviour` (Telegram/Slack only),
+   LeSysBot`, `4) Change startup behaviour`,
    last) `Quit — exit without writing config`. On the kept-config path it's
    a plain **"Apply these settings?" `[Y/n]`**.
 
@@ -98,12 +98,28 @@ privileged follow-up step: install a package and it works.
 
 What the wizard does: writes **`~/.lesysbot/config.yaml`**, seeds
 **`~/.lesysbot/tools/`** (never clobbers an existing one), installs the `lesysbot`
-command, and for Telegram/Slack
-installs + starts the background service
-running from `~/.lesysbot`. Re-running it stops and replaces an existing service.
-If you switch back to Terminal-only and an old Telegram/Slack service is still
-present, it offers to stop and remove it — answer `y`.
-`LESYSBOT_HOME` overrides the `~/.lesysbot` location.
+command, and installs + starts the background service running from
+`~/.lesysbot` — for every provider, since that service hosts the control panel
+(`http://127.0.0.1:8700`) as well as any Telegram/Slack bot. Re-running it stops
+and replaces an existing service. `LESYSBOT_HOME` overrides the `~/.lesysbot`
+location.
+
+It also seeds **`~/.lesysbot/monitoring/`** (the Grafana/Prometheus dashboard) and
+sets it up — a standard part of LeSysBot. It first **asks for the Grafana username
+and password** LeSysBot should use (defaults `admin`/`admin`), saving them to
+**`~/.lesysbot/grafana.env`** (loaded into the bot's environment at startup, so
+`share_dashboard`/status authenticate automatically). Then, OS-specific and never
+fatal:
+- **Linux** — if Docker is running, it **asks** whether to auto-start the bundled
+  stack now or set it up manually; if Docker isn't ready it prints the exact
+  no-`sudo` steps to get it going (or run Grafana natively).
+- **macOS/Windows** — it does **not** require Docker Desktop; it warns and
+  instructs a native Grafana install from `https://grafana.com/grafana/download`
+  and how to connect it (auto-detected on `localhost:3000`, else
+  `LESYSBOT_GRAFANA_URL`), mentioning the one-command Docker stack only as a
+  shortcut when Docker is already running.
+
+Set `LESYSBOT_SKIP_MONITORING=1` to skip this step on an unattended install.
 
 ## 4. Path B — manual install (scriptable, full control)
 
@@ -131,8 +147,9 @@ mcp:
 Run it:
 
 ```bash
-lesysbot                          # uses ./config.yaml (or built-in defaults)
-lesysbot --provider cli -v        # force CLI + verbose logging
+lesysbot                          # health + metrics for ./config.yaml, then exit
+lesysbot run                      # the service: control panel + bot
+lesysbot --provider cli -v        # force CLI chat + verbose logging
 lesysbot -c /path/to/config.yaml  # explicit config
 lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
 ```

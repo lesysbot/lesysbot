@@ -85,7 +85,7 @@ listed before you confirm.
 To **update** a package, install it again. To update to a newer pinned version,
 install it again with the new ref.
 
-You can do all of this from the [management UI](management-ui.md) too.
+You can do all of this from the [control panel](management-ui.md) too.
 
 ---
 

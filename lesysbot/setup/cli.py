@@ -3,9 +3,9 @@
 The install scripts bootstrap (Python check + pip install) and then exec this
 command; it also runs standalone at any time to reconfigure an existing
 install. Flow: fresh config → wizard chain + summary (nothing written until
-Apply); existing config kept → only the service question. Then bundled-tools
-seeding (never clobbers), platform service setup for Telegram/Slack, or
-stale-service cleanup for Terminal-only.
+Apply); existing config kept → only the autostart question. Then bundled-tools
+seeding (never clobbers) and platform service setup — installed for every setup,
+because the service is what keeps the control panel online.
 """
 
 from __future__ import annotations
@@ -65,17 +65,16 @@ def run(args: argparse.Namespace) -> int:
         apply.write_config(st, data_dir)
         ui.ok(f"config.yaml written to {config_file}")
     else:
-        # Existing config kept — read the provider back from it. Only Telegram
-        # and Slack need an always-on background service; only the service
-        # question applies here, so there is no step navigation.
+        # Existing config kept — read the provider back from it. The background
+        # service is installed either way (it serves the control panel), so only
+        # the autostart question applies here; no step navigation.
         st = wizard.WizardState()
         provider = apply.read_provider(config_file)
         st.msg_provider = provider
-        needs_service = st.needs_service = provider in ("telegram", "slack")
-        st.auto_start = False
-        if needs_service:
-            ui.say(f"\n  A {provider} bot runs in the background, so it installs as a service.\n")
-            st.auto_start = ui.confirm_yn("Start LeSysBot automatically after reboot?", default=True)
+        needs_service = st.needs_service = True
+        ui.say("\n  LeSysBot runs in the background as a service so the control panel "
+               "stays online.\n")
+        st.auto_start = ui.confirm_yn("Start LeSysBot automatically after reboot?", default=True)
 
         wizard.show_summary(ui, st, data_dir)
         if not ui.confirm_yn("Apply these settings?", default=True):
@@ -84,14 +83,16 @@ def run(args: argparse.Namespace) -> int:
 
     if apply.seed_tools(repo_dir, data_dir):
         ui.ok(f"tools copied to {data_dir / 'tools'}")
+    if apply.seed_monitoring(repo_dir, data_dir):
+        ui.ok(f"monitoring stack copied to {data_dir / 'monitoring'}")
 
-    if needs_service:
-        ui.say("")
-        apply.setup_service(ui, st, data_dir)
-    else:
-        # Terminal-only: no daemon needed. Clean up any leftover service so it
-        # doesn't keep running in the background with stale settings.
-        apply.remove_stale_service(ui)
+    ui.say("")
+    apply.setup_service(ui, st, data_dir)
+
+    # The Grafana dashboard ships with LeSysBot — bring it up as part of setup
+    # (idempotent; no-ops when already running). Never optional, but never fatal:
+    # a machine without Docker gets clear finish-it instructions, not a failure.
+    apply.start_monitoring(ui, data_dir)
 
     apply.print_epilogue(ui, provider, needs_service, data_dir)
     return 0

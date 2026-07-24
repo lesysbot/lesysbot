@@ -328,16 +328,24 @@ Two independent records of what happened
 
 ---
 
-## 10. The management UI and CLI dispatch
+## 10. The control panel and CLI dispatch
 
-The bot process opens **no network listener**. The one exception is opt-in and
-deliberately fenced: the management UI in
-[lesysbot/webui/](../lesysbot/webui/), a stdlib `ThreadingHTTPServer` bound to
+The one network listener in the project is the control panel in
+[lesysbot/webui/](../lesysbot/webui/) — a stdlib `ThreadingHTTPServer` bound to
 `127.0.0.1` only, with a DNS-rebinding guard that rejects any request whose
 `Host` header isn't loopback. It has no authentication because the trust
 boundary is having a shell on the machine — the same access as editing
 `config.yaml`. The whole single-page UI is inlined as a Python string so it
 survives a PyInstaller build, and it adds no dependencies.
+
+**It runs inside the service.** `lesysbot run` calls `serve_background()`, which
+binds the configured port and serves from a daemon thread sharing the bot's own
+`ToolRegistry` — so the panel is up for exactly as long as LeSysBot is, and a
+toggle in the browser hits the registry the LLM is using. It binds that one port
+exactly (no walking to the next free one), so the panel is always at the address
+people bookmark; a busy port is logged and skipped rather than taking the
+service down with it. `lesysbot manage` is the fallback for when no service is
+running — it serves the panel in the foreground, and steps past a busy port.
 
 It exposes `GET /api/status`, `/api/tools`, `/api/config` and
 `POST /api/config`, `/api/tools/{toggle,install,remove}`. Config writes are
@@ -350,20 +358,21 @@ watches, which is why a toggle applies live while other settings need a restart.
 
 | You type | You get |
 |---|---|
-| `lesysbot run` | the bot |
-| `lesysbot --provider …` | the bot |
-| `lesysbot manage` | the management UI |
-| `lesysbot` **in a terminal** | the management UI |
-| `lesysbot` **with no TTY** (a service) | the bot |
+| `lesysbot run` | the service: control panel + bot (what every service template runs) |
+| `lesysbot --provider …` | the bot in the foreground, no panel |
+| `lesysbot manage` | the panel — or just its URL, when the service already serves it |
+| `lesysbot` | health and metrics, then exit — starts nothing |
 
-That TTY test is what lets bare `lesysbot` be the human front door without
-breaking a background service, which has no terminal. Installed services are
-explicit anyway — the wizard writes `lesysbot run` into every service template.
+Bare `lesysbot` is a read-only view precisely because the panel no longer needs
+starting: it's already there. With a `cli` provider the service has no channel to
+poll, so it serves the panel and idles.
 
-The status snapshot behind both the terminal panel and `/api/status` lives in
-[lesysbot/core/status.py](../lesysbot/core/status.py); it also probes for a
-running [monitoring stack](../monitoring/README.md) so the panel can link to
-Grafana.
+The status snapshot behind both the terminal view and `/api/status` lives in
+[lesysbot/core/status.py](../lesysbot/core/status.py). It probes the panel
+(`/api/ping`, which identifies our server rather than trusting whatever holds the
+port) and the [monitoring stack](../monitoring/README.md), and reports the
+service by testing the single-instance lock — a leftover lock *file* with a stale
+PID must not read as "running".
 
 ---
 
@@ -379,7 +388,7 @@ Grafana.
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the management UI | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-management-ui-and-cli-dispatch) |
+| Change the control panel | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
 
 ---
 

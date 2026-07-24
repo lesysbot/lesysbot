@@ -20,10 +20,9 @@ Type a message to chat, or use /commands directly. Type 'exit' to quit.
 You:
 ```
 
-> **`lesysbot` on its own does something different** — in a terminal it opens the
-> [management UI](management-ui.md), a status screen plus a local web panel. To
-> chat, use `lesysbot --provider cli`. To run the bot with whatever your config
-> says, use `lesysbot run`.
+> **`lesysbot` on its own does something different** — it prints health and
+> metrics (backend, tools, service, [control panel](management-ui.md), Grafana)
+> and exits. To chat, use `lesysbot --provider cli`.
 
 Already running as a Telegram or Slack service? A terminal chat runs happily
 alongside it, with its own separate conversation.
@@ -192,7 +191,7 @@ lesysbot tools install owner/repo  # add tools from GitHub
 **Removing** deletes the tool's whole folder, including any sibling tools defined
 alongside it; those are listed before you confirm.
 
-You can do all of this from the [management UI](management-ui.md) too, if you'd
+You can do all of this from the [control panel](management-ui.md) too, if you'd
 rather click.
 
 Installing is covered properly in [Install tools](installing-tools.md).

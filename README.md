@@ -29,9 +29,10 @@ stay with you. No account, no cloud service, nothing to sign up for.
   `df -h | grep -v tmpfs`.
 - **Teach it new tricks.** A tool is a folder with a small Python file in it.
   Drop it in and it works — no restart, no registration, no plugin API to learn.
-- **Watch the machine over time.** One command starts an optional
+- **Watch the machine over time.** Installing LeSysBot also sets up a
   [Grafana dashboard](monitoring/README.md) of CPU, memory, disk, network and
-  GPU — and the bot can share a snapshot of it as a link.
+  GPU (running at http://localhost:3000) — and the bot can share a snapshot of
+  it as a link.
 - **It asks first.** Anything drastic (reboot, power off) waits for your yes.
 
 ---
@@ -70,6 +71,10 @@ You: /help
       …lists every tool it can run
 ```
 
+**4. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
+health in a browser. The background service keeps it online; `lesysbot` on its
+own prints the same health summary in your terminal.
+
 That's it. The full walkthrough — including how to reach it from Telegram or
 Slack — is in **[Getting started](docs/getting-started.md)**.
 
@@ -83,7 +88,7 @@ Slack — is in **[Getting started](docs/getting-started.md)**.
 | Message it from my phone | [Telegram & Slack](docs/adapters.md) |
 | Give it a new ability | [Write a tool](docs/writing-tools.md) |
 | Install tools other people wrote | [Install tools](docs/installing-tools.md) |
-| Manage it from a browser | [Management UI](docs/management-ui.md) |
+| Manage it from a browser | [Control panel](docs/management-ui.md) |
 | Keep it running in the background | [Run as a service](docs/service.md) |
 | Graph my machine's health | [System monitoring](monitoring/README.md) |
 | Fix something that's broken | [Troubleshooting](docs/troubleshooting.md) |
@@ -157,12 +162,13 @@ logging — is in **[How it works](docs/architecture.md)**.
 - **Confirmation prompts** — destructive tools wait for your approval
 - **Terminal tool management** — `lesysbot tools list/enable/disable/remove`,
   applied to a running bot within a second
-- **Local web control panel** — `lesysbot` in a terminal opens a
-  [localhost-only UI](docs/management-ui.md) for config and tools
+- **Always-on local control panel** — the service serves a
+  [localhost-only UI](docs/management-ui.md) for config, tools and health at
+  `http://127.0.0.1:8700`
 - **Boot notification** — a Telegram/Slack bot pings you with a system report
   when the machine comes up
-- **Prometheus + Grafana stack** — one command, all three OSes, plus
-  `share_dashboard` to publish an expiring public snapshot link
+- **Prometheus + Grafana stack** — set up by the installer on all three OSes,
+  plus `share_dashboard` to publish an expiring public snapshot link
 - **Structured traces** — every request logged to `logs/traces.jsonl`
 - **Secrets redacted** — tokens never reach a log file
 

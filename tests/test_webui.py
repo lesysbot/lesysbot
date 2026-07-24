@@ -1,8 +1,9 @@
-"""Tests for the management UI server and the shared status snapshot."""
+"""Tests for the control-panel server and the shared status snapshot."""
 import json
 import threading
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -53,6 +54,29 @@ class _Live:
     def stop(self):
         self.srv.shutdown()
         self.srv.server_close()
+
+
+class _Foreign(ThreadingHTTPServer):
+    """Some *other* service holding the panel's port — must not be mistaken for it."""
+
+    class _H(BaseHTTPRequestHandler):
+        def log_message(self, *_a):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+    def __init__(self):
+        super().__init__(("127.0.0.1", 0), self._H)
+        self.port = self.server_address[1]
+        threading.Thread(target=self.serve_forever, daemon=True).start()
+
+    def stop(self):
+        self.shutdown()
+        self.server_close()
 
 
 @pytest.fixture
@@ -111,25 +135,67 @@ def test_rejects_forged_host(live):
     assert code == 200
 
 
-def test_cli_dispatch_decision(monkeypatch):
-    """Bare `lesysbot` opens the UI only in a TTY; the service (non-TTY) and
-    `run`/`--provider` always run the bot."""
-    import types
+def test_cli_dispatch_decision():
+    """Bare `lesysbot` is the read-only status view — it starts nothing. Only
+    `run` (the service) and an explicit `--provider` run a long-lived process."""
     from argparse import Namespace
 
-    from lesysbot.__main__ import _wants_management_ui
+    from lesysbot.__main__ import _runs_the_bot
 
-    assert _wants_management_ui("manage", Namespace(provider=None)) is True
-    assert _wants_management_ui("run", Namespace(provider=None)) is False
-    assert _wants_management_ui(None, Namespace(provider="cli")) is False  # explicit provider
+    assert _runs_the_bot("run", Namespace(provider=None)) is True
+    assert _runs_the_bot(None, Namespace(provider="cli")) is True   # foreground chat
+    assert _runs_the_bot(None, Namespace(provider=None)) is False   # bare → status only
+    assert _runs_the_bot("manage", Namespace(provider=None)) is False
 
-    # bare + interactive terminal → management UI
-    monkeypatch.setattr("sys.stdin", types.SimpleNamespace(isatty=lambda: True))
-    monkeypatch.setattr("sys.stdout", types.SimpleNamespace(isatty=lambda: True))
-    assert _wants_management_ui(None, Namespace(provider=None)) is True
-    # bare + no terminal (the background service) → run the bot, unchanged
-    monkeypatch.setattr("sys.stdin", types.SimpleNamespace(isatty=lambda: False))
-    assert _wants_management_ui(None, Namespace(provider=None)) is False
+
+def test_ping_identifies_the_panel(live):
+    code, body = live.req("GET", "/api/ping")
+    assert code == 200 and json.loads(body)["service"] == "lesysbot-webui"
+
+
+def test_detect_webui_finds_a_running_panel(live):
+    """The status screen's liveness probe: our panel answers, a stranger on the
+    same port doesn't count, and a dead port reads as offline."""
+    from lesysbot.core.status import detect_webui
+
+    settings = live.srv.settings
+    got = detect_webui(settings, port=live.port)
+    assert got == {"url": f"http://127.0.0.1:{live.port}", "port": live.port, "running": True}
+
+    # something else on the port → not our panel
+    other = _Foreign()
+    try:
+        assert detect_webui(settings, port=other.port)["running"] is False
+    finally:
+        other.stop()
+    # nothing listening at all
+    assert detect_webui(settings, port=other.port)["running"] is False
+
+
+def test_serve_background_binds_once(tmp_path, monkeypatch):
+    """The service's panel: a daemon thread on the configured port, and a second
+    copy backs off (None) instead of quietly serving somewhere else."""
+    import socket
+
+    from lesysbot.webui.server import serve_background
+
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
+    settings = _make_settings(tmp_path)
+    with socket.socket() as s:            # borrow a free port number
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    settings.webui.port = port
+
+    ui = serve_background(settings)
+    assert ui is not None
+    try:
+        assert ui.url == f"http://127.0.0.1:{port}"
+        assert ui.thread.is_alive()
+        with urllib.request.urlopen(ui.url + "/api/ping", timeout=5) as r:
+            assert json.load(r)["ok"] is True
+        assert serve_background(settings) is None      # port already ours
+    finally:
+        ui.stop()
 
 
 async def test_probe_health_always_closes_client(monkeypatch):
@@ -154,26 +220,51 @@ async def test_probe_health_always_closes_client(monkeypatch):
     assert closed["n"] == 1  # closed even though health() raised
 
 
-def test_detect_grafana(monkeypatch):
+def test_detect_grafana(monkeypatch, tmp_path):
     from lesysbot.core import status
 
-    # explicit env override wins
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))   # no bundled .env to read
+    # explicit env override wins when Grafana really answers there
     monkeypatch.setenv("LESYSBOT_GRAFANA_URL", "http://gf:3000")
     monkeypatch.setattr(status, "_grafana_version", lambda u, **k: "11.5.1" if "gf" in u else None)
-    assert status.detect_grafana() == {"url": "http://gf:3000", "version": "11.5.1"}
+    assert status.detect_grafana() == {
+        "url": "http://gf:3000", "version": "11.5.1", "reachable": True}
+    # a *stale* override (stack moved off 3000) must not outrank the real Grafana
+    monkeypatch.setattr(status, "_grafana_version", lambda u, **k: "11.5.1" if "3001" in u else None)
+    assert status.detect_grafana()["url"] == "http://localhost:3001"
     # no env: skip whatever's on 3000 (not Grafana), pick the real one on 3001
     monkeypatch.delenv("LESYSBOT_GRAFANA_URL", raising=False)
-    monkeypatch.setattr(status, "_grafana_version", lambda u, **k: "11.5.1" if "3001" in u else None)
     assert status.detect_grafana()["url"] == "http://localhost:3001"
     # nothing answers → no link
     monkeypatch.setattr(status, "_grafana_version", lambda u, **k: None)
     assert status.detect_grafana() is None
+    # …but a configured URL is still reported, flagged unreachable
+    monkeypatch.setenv("LESYSBOT_GRAFANA_URL", "http://gf:3000")
+    assert status.detect_grafana() == {
+        "url": "http://gf:3000", "version": None, "reachable": False}
 
 
-async def test_gather_status_shape(tmp_path):
+def test_grafana_candidates_prefer_the_configured_port(monkeypatch, tmp_path):
+    """A stack moved off 3000 (GRAFANA_PORT in monitoring/.env) is probed first."""
+    from lesysbot.core import status
+
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
+    (tmp_path / "monitoring").mkdir()
+    (tmp_path / "monitoring" / ".env").write_text("GRAFANA_PORT=3007\n", encoding="utf-8")
+    cands = status.grafana_candidates()
+    assert cands[:2] == ["http://localhost:3007", "http://127.0.0.1:3007"]
+    assert "http://localhost:3000" in cands and len(cands) == len(set(cands))
+
+
+async def test_gather_status_shape(tmp_path, monkeypatch):
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
     settings = _make_settings(tmp_path)
     st = await gather_status(settings, check_health=False)
     assert st["provider"] == "cli"
     assert st["tools"]["total"] >= 1 and st["tools"]["enabled"] >= 1
     assert st["webui_port"] == settings.webui.port
-    assert st["health"] is None and st["grafana"] is None  # check_health=False
+    # probes are skipped with check_health=False…
+    assert st["health"] is None and st["grafana"] is None and st["webui"] is None
+    # …but the service is reported for every provider, cli included, since it is
+    # what serves the control panel (nothing running here → stopped).
+    assert st["daemon"] == {"provider": "cli", "pid": None, "running": False}

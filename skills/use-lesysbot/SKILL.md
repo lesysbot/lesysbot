@@ -11,13 +11,17 @@ Everything here works the same in CLI, Telegram, and Slack.
 
 ```bash
 lesysbot --provider cli     # force a terminal chat (works even if config says telegram/slack)
-lesysbot run                # run the bot using the config's provider
-lesysbot                    # in a terminal: opens the management UI (status + web panel), NOT a chat
+lesysbot run                # the service: control panel + bot (what systemd/launchd runs)
+lesysbot                    # health + metrics, then exits — NOT a chat, starts nothing
 ```
 
-Bare `lesysbot` in a terminal now opens the management UI, so use `--provider
-cli` (or `run`) to actually chat. A CLI session can run *alongside* a
-Telegram/Slack background service — separate history; they don't conflict.
+Bare `lesysbot` only prints status (backend, tools, service, control panel,
+Grafana), so use `--provider cli` to chat. `lesysbot run` is the service, not a
+chat: with `provider: cli` it serves the control panel and idles. A CLI session
+runs *alongside* the service — separate history; they don't conflict.
+
+The control panel is always on at **http://127.0.0.1:8700** (`webui.port`),
+served by the service.
 
 ## Two ways to interact
 

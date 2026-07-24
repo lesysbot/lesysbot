@@ -1,13 +1,20 @@
 # System Overview — Prometheus + Grafana
 
-A drop-in monitoring stack that records your machine's **CPU, memory, disk,
+The monitoring stack that records your machine's **CPU, memory, disk,
 network (Ethernet & Wifi) and GPU** as time series and shows them on a
 ready-made Grafana dashboard. Runs on **Linux, macOS and Windows**.
 
-It is **separate from the LeSysBot bot** — the bot still opens no network
-listener. This stack is an optional companion you start when you want graphs,
-and everything it exposes is bound to **`127.0.0.1` only** (nothing on your LAN)
-and needs **no sudo/admin**.
+**This ships as a standard part of LeSysBot, not an add-on.** `lesysbot setup`
+(run by the installer) seeds this stack into `~/.lesysbot/monitoring` and starts
+it for you, so a normal install leaves Grafana running at
+**http://localhost:3000**. It just needs Docker present (see below); if Docker
+isn't ready at install time the setup prints the one command that finishes the
+job. The steps here are for starting/stopping and reconfiguring it by hand.
+
+It is **separate from LeSysBot itself** — it runs as its own containers, and
+LeSysBot's only listener is its localhost control panel. Everything this stack
+exposes is bound to **`127.0.0.1` only** (nothing on your LAN) and needs **no
+sudo/admin**.
 
 ```mermaid
 flowchart LR
@@ -50,6 +57,35 @@ If that fails, install it — pick your OS:
 That's the whole install. Everything else below downloads automatically the
 first time you start the stack — **no manual Prometheus/Grafana/exporter setup,
 no config to write.**
+
+<details>
+<summary><b>macOS / Windows without Docker — install Grafana natively</b></summary>
+
+`lesysbot setup` doesn't force Docker Desktop on macOS/Windows. If you'd rather
+not run Docker, install Grafana as a native package instead:
+
+1. **Install Grafana:** [grafana.com/grafana/download](https://grafana.com/grafana/download)
+   (pick your OS — `.dmg`/`brew` on macOS, installer/`.zip` on Windows). Start it
+   and open **http://localhost:3000** (login `admin` / `admin`).
+2. **Give it data.** Grafana only draws graphs — it still needs Prometheus + the
+   host exporters underneath. The easy way is the native exporters this repo ships
+   plus a local Prometheus; the turnkey way is the Docker stack below. Point
+   Grafana at Prometheus (`http://localhost:9090`) as a data source and import
+   `grafana/dashboards/system-overview-linux-macos.json` (macOS) or
+   `…-windows.json` (Windows).
+3. **Connect it to LeSysBot.** On the default port **3000**, LeSysBot finds
+   Grafana automatically (the status screen links to it and the `share_dashboard`
+   tool works). `lesysbot setup` asks for the Grafana **username and password** and
+   saves them to `~/.lesysbot/grafana.env` (`LESYSBOT_GRAFANA_URL/_USER/_PASSWORD`),
+   which LeSysBot loads at startup — set your native Grafana's admin login to
+   match. If Grafana runs on another host/port, set `LESYSBOT_GRAFANA_URL` there
+   (edit the file or export the variable).
+
+The Docker stack below is still the least-effort option — it wires the data
+source and dashboard up for you. Native Grafana is here for people who'd rather
+not install Docker Desktop.
+
+</details>
 
 ### Get the files
 
@@ -201,9 +237,10 @@ you no longer need. Two caveats: raintank may keep serving a *cached* copy for u
 to ~1h after you delete, and a snapshot you publish from Grafana's own browser
 button (rather than through the bot) can't be deleted by the tool — share through
 the bot to keep it cleanable. The tool **finds Grafana automatically** (it probes
-the usual local ports 3000/3001), so it works even if the stack landed on 3001
-because 3000 was taken; set `LESYSBOT_GRAFANA_URL` only if Grafana runs somewhere
-unusual. Full details: [`tools/share-dashboard/README.md`](../tools/share-dashboard/README.md).
+the `GRAFANA_PORT` from `.env` first, then the usual 3000/3001, and checks each
+answers as Grafana), so it works even if the stack landed on 3001 because 3000 was
+taken; set `LESYSBOT_GRAFANA_URL` only if Grafana runs somewhere unusual — and
+even then it's verified, falling back to probing if nothing answers there. Full details: [`tools/share-dashboard/README.md`](../tools/share-dashboard/README.md).
 
 ---
 
@@ -236,6 +273,10 @@ PROM_RETENTION=15d        # how long Prometheus keeps data
 GRAFANA_PORT=3000         # change if 3000 is taken
 PROM_PORT=9090            # change if 9090 is taken
 ```
+
+`GRAFANA_PORT` is the single place the port is set: LeSysBot reads it back when it
+looks for Grafana, so a stack moved to 3001 is still found by the status screen and
+by *"share me the dashboard"* — no extra configuration.
 
 - **Add another machine or exporter:** add its `host:port` to the relevant job in
   `prometheus/prometheus.yml` (macOS/Windows) or `prometheus/prometheus.linux.yml`

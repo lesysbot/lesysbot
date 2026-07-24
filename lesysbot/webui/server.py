@@ -1,16 +1,21 @@
-"""Dependency-free management UI server (stdlib ``http.server``).
+"""Dependency-free control-panel server (stdlib ``http.server``).
 
 Serves a single-page control panel plus a small JSON API for LeSysBot's config
 and tools. It is bound to **loopback only** and rejects requests whose ``Host``
 header isn't localhost (DNS-rebinding protection), so it is never reachable from
 the network. There is no auth — the trust boundary is "you have a shell on this
 machine", the same as editing ``config.yaml`` by hand.
+
+Two ways to run it: :func:`serve_background` (what the always-on service uses —
+a daemon thread beside the bot, so the panel answers whenever LeSysBot runs) and
+:func:`serve` (foreground, for ``lesysbot manage`` when no service is around).
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import threading
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -24,6 +29,10 @@ from lesysbot.webui.page import PAGE
 
 # Host header must resolve to loopback — blocks DNS-rebinding from a web page.
 _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", ""}
+
+# Answered by /api/ping so a probe can tell *our* panel from whatever else may
+# have taken the port (see core/status.detect_webui).
+PING = {"ok": True, "service": "lesysbot-webui"}
 
 
 class _Server(ThreadingHTTPServer):
@@ -73,6 +82,10 @@ class _Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             return self._send(200, PAGE, "text/html")
+        if path == "/api/ping":
+            # Deliberately touches nothing (no registry, no lock): it exists so a
+            # liveness probe stays cheap enough to run on every status screen.
+            return self._send(200, PING)
         if path == "/api/status":
             return self._status()
         if path == "/api/tools":
@@ -110,6 +123,9 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception as e:
             st["health"] = {"ok": False, "error": str(e)}
         st["grafana"] = detect_grafana()
+        # We are the panel — no need to probe ourselves to answer "is it up?".
+        port = self.server.server_address[1]
+        st["webui"] = {"url": f"http://127.0.0.1:{port}", "port": port, "running": True}
         self._send(200, st)
 
     def _rows(self):
@@ -146,7 +162,8 @@ class _Handler(BaseHTTPRequestHandler):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         self._send(200, {"ok": True, "path": str(path),
-                         "note": "Saved. Restart the bot to apply (tool enable/disable is live)."})
+                         "note": "Saved. Restart the LeSysBot service to apply "
+                                 "(tool enable/disable is live)."})
 
     def _toggle(self):
         body = self._body()
@@ -193,26 +210,65 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, {"ok": True, "removed": name})
 
 
+def _bind(settings: Settings, registry, want: int, *, step: bool) -> _Server | None:
+    """Bind the panel on loopback. ``step`` walks past a busy port (foreground
+    use); the service binds its configured port exactly, so the panel always
+    lives at the one URL people bookmark — and a second copy fails fast instead
+    of quietly serving a duplicate somewhere else."""
+    for candidate in range(want, want + 20 if step else want + 1):
+        try:
+            return _Server(("127.0.0.1", candidate), _Handler, settings, registry)
+        except OSError:
+            continue
+    return None
+
+
+@dataclass
+class BackgroundUI:
+    """A control panel running in a daemon thread beside the bot."""
+
+    server: _Server
+    thread: threading.Thread
+    url: str
+
+    def stop(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def serve_background(settings: Settings, *, registry=None,
+                     port: int | None = None) -> BackgroundUI | None:
+    """Serve the panel from a daemon thread and return immediately.
+
+    Used by ``lesysbot run`` so the control panel is online for as long as the
+    service is. Returns ``None`` (never raises) when the port is unavailable:
+    the panel is a companion to the bot, so a busy port must not take the whole
+    service down — usually it means a second copy is already serving it.
+    """
+    reg = registry if registry is not None else build_registry(settings)
+    httpd = _bind(settings, reg, port or settings.webui.port, step=False)
+    if httpd is None:
+        return None
+    thread = threading.Thread(target=httpd.serve_forever, name="lesysbot-webui",
+                              daemon=True)
+    thread.start()
+    return BackgroundUI(httpd, thread, f"http://127.0.0.1:{httpd.server_address[1]}")
+
+
 def serve(settings: Settings, *, registry=None, port: int | None = None,
           open_browser: bool = False) -> None:
-    """Start the management UI on loopback and serve until interrupted."""
+    """Start the control panel on loopback and serve until interrupted."""
     import webbrowser
 
     want = port or settings.webui.port
     reg = registry if registry is not None else build_registry(settings)
 
-    httpd = None
-    for candidate in range(want, want + 20):     # step past a busy port
-        try:
-            httpd = _Server(("127.0.0.1", candidate), _Handler, settings, reg)
-            break
-        except OSError:
-            continue
+    httpd = _bind(settings, reg, want, step=True)
     if httpd is None:
-        raise OSError(f"No free port in {want}..{want + 19} for the management UI.")
+        raise OSError(f"No free port in {want}..{want + 19} for the control panel.")
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
-    print(f"\n  \033[1mManagement UI:\033[0m {url}   (localhost only · Ctrl-C to stop)\n")
+    print(f"\n  \033[1mControl panel:\033[0m {url}   (localhost only · Ctrl-C to stop)\n")
     if open_browser:
         try:
             webbrowser.open(url)
@@ -221,7 +277,7 @@ def serve(settings: Settings, *, registry=None, port: int | None = None,
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nManagement UI stopped.")
+        print("\nControl panel stopped.")
     finally:
         httpd.shutdown()
         httpd.server_close()

@@ -25,6 +25,7 @@ class FakeUI:
     def __init__(self, answers):
         self.answers = list(answers)
         self.calls = []  # (kind, label, offered_default)
+        self.messages = []  # everything printed via say/note/ok/warn
         self.eof = False
 
     def _pop(self, kind, label, default):
@@ -39,14 +40,14 @@ class FakeUI:
     def menu(self, title, options, default=1):
         return self._pop("menu", title, default)
 
-    def text(self, prompt, default=""):
+    def text(self, prompt, default="", secret=False):
         return self._pop("text", prompt, default)
 
     def confirm_yn(self, prompt, default=True):
         return self._pop("confirm", prompt, default)
 
-    def say(self, *_args, **_kw):
-        pass
+    def say(self, text="", *_args, **_kw):
+        self.messages.append(str(text))
 
     note = ok = warn = say
 
@@ -65,6 +66,7 @@ def test_back_from_messaging_preserves_llm_answers():
             ("text", DEFAULT),
             ("text", DEFAULT),
             ("menu", 1),           # Terminal only
+            ("menu", 1),           # service: start now + at reboot
         ]
     )
     st = WizardState()
@@ -72,7 +74,8 @@ def test_back_from_messaging_preserves_llm_answers():
     assert st.llm_choice == 4
     assert (st.llm_base_url, st.llm_model, st.llm_api_key) == ("http://x:1/v1", "m1", "k1")
     assert st.msg_provider == "cli"
-    assert st.needs_service is False
+    # The service is installed for every provider — it serves the control panel.
+    assert st.needs_service is True
     # The revisited LLM menu offered the previous choice as its default…
     revisit_menu = [c for c in ui.calls if c[0] == "menu" and c[1].startswith("Step 1")][1]
     assert revisit_menu[2] == 4
@@ -90,6 +93,7 @@ def test_backend_switch_clears_followup_answers():
             ("text", DEFAULT),     # base URL — must offer the vLLM default
             ("text", DEFAULT),     # model — must offer the vLLM default
             ("menu", 1),           # Terminal only
+            ("menu", 1),           # service
         ]
     )
     st = WizardState()
@@ -110,7 +114,8 @@ def test_esc_at_prompt_reshows_step_menu():
             ("text", "http://y/v1"),
             ("text", "m"),
             ("text", "k"),
-            ("menu", 1),
+            ("menu", 1),           # Terminal only
+            ("menu", 1),           # service
         ]
     )
     st = WizardState()
@@ -172,7 +177,7 @@ def test_summary_change_reach_and_apply(tmp_path):
 
 def test_summary_quit_without_writing(tmp_path):
     st = WizardState()
-    ui = FakeUI([("menu", 4)])  # no service → Quit is option 4
+    ui = FakeUI([("menu", 5)])  # Apply / LLM / reach / startup / Quit
     assert wizard.step_summary(ui, st, tmp_path) is False
 
 
@@ -218,6 +223,250 @@ def test_seed_tools_copies_once_and_skips_pycache(tmp_path):
     assert apply_mod.seed_tools(None, data) is False
 
 
+def _fake_monitoring(data_dir: Path) -> Path:
+    """A minimal seeded monitoring/ dir with a start script, for start tests."""
+    mon = data_dir / "monitoring"
+    (mon / "scripts").mkdir(parents=True)
+    (mon / "scripts" / "start.sh").write_text("#!/usr/bin/env bash\n")
+    (mon / "scripts" / "start.ps1").write_text("")
+    return mon
+
+
+def test_seed_monitoring_copies_once_and_skips_runtime(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "monitoring" / "scripts").mkdir(parents=True)
+    (repo / "monitoring" / "scripts" / "start.sh").write_text("#!/usr/bin/env bash\n")
+    (repo / "monitoring" / ".env.example").write_text("GRAFANA_PORT=3000\n")
+    (repo / "monitoring" / "bin").mkdir()          # downloaded exporter binaries
+    (repo / "monitoring" / "bin" / "node_exporter").write_text("ELF")
+    (repo / "monitoring" / "__pycache__").mkdir()
+    data = tmp_path / "home"
+    data.mkdir()
+    assert apply_mod.seed_monitoring(repo, data) is True
+    assert (data / "monitoring" / "scripts" / "start.sh").exists()
+    assert not (data / "monitoring" / "bin").exists()        # runtime dir skipped
+    assert not (data / "monitoring" / "__pycache__").exists()
+    assert (data / "monitoring" / ".env").read_text() == "GRAFANA_PORT=3000\n"  # seeded
+    # Never clobber an existing copy on re-install; None repo is a no-op.
+    assert apply_mod.seed_monitoring(repo, data) is False
+    assert apply_mod.seed_monitoring(None, data) is False
+
+
+def test_start_monitoring_env_skip(tmp_path, monkeypatch):
+    monkeypatch.setenv("LESYSBOT_SKIP_MONITORING", "1")
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/bin/docker")
+    _fake_monitoring(tmp_path)
+    runner = Recorder(returncode=0)
+    assert apply_mod.start_monitoring(FakeUI([]), tmp_path, runner=runner) is False
+    assert runner.calls == []  # skipped before any docker call
+
+
+def test_start_monitoring_no_dir_is_noop(tmp_path):
+    runner = Recorder(returncode=0)
+    assert apply_mod.start_monitoring(FakeUI([]), tmp_path, runner=runner) is False
+    assert runner.calls == []
+
+
+class DockerRunner:
+    """Docker present; `docker info` (the daemon probe) rc follows ``daemon_up``.
+    Everything else (compose version, bash start.sh) returns 0."""
+
+    def __init__(self, daemon_up=True):
+        self.calls = []
+        self.daemon_up = daemon_up
+
+    def __call__(self, cmd, **_kw):
+        import subprocess
+
+        self.calls.append(cmd)
+        rc = 0 if (cmd[:2] != ["docker", "info"] or self.daemon_up) else 1
+        return subprocess.CompletedProcess(cmd, rc, stdout="", stderr="")
+
+
+def _said(ui, needle: str) -> bool:
+    return any(needle in m for m in ui.messages)
+
+
+def _ran_stack(runner) -> bool:
+    return any(c and c[0] == "bash" and "start" in " ".join(c) for c in runner.calls)
+
+
+# Every start_monitoring path first asks the Grafana username + password; accept
+# the admin/admin defaults unless a test wants specific values.
+CREDS = [("text", DEFAULT), ("text", DEFAULT)]
+
+
+# ── Grafana credential prompt + persistence ───────────────────────────────────
+def test_interactive_text_masks_secret(monkeypatch):
+    import io
+    from contextlib import nullcontext
+
+    from rich.console import Console
+
+    from lesysbot.setup import ui as ui_mod
+
+    keys = iter(["s", "e", "c", "r", "e", "t", "enter"])
+    monkeypatch.setattr(ui_mod, "raw_mode", nullcontext)
+    monkeypatch.setattr(ui_mod, "read_key", lambda: next(keys))
+    console = Console(file=io.StringIO(), record=True, force_terminal=False, width=100)
+    value = ui_mod.InteractiveUI(console=console).text(
+        "Grafana password", default="admin", secret=True)
+    assert value == "secret"
+    out = console.export_text()
+    assert "secret" not in out   # the typed password never appears in cleartext
+    assert "admin" not in out    # nor does the (masked) default
+    assert "*" in out            # a masked echo is shown instead
+
+
+def test_write_grafana_env_roundtrip(tmp_path):
+    path = apply_mod.write_grafana_env(tmp_path, "http://gf:3000", "bob", "s3cret-pass-1")
+    from lesysbot.core.paths import parse_env_file
+
+    pairs = parse_env_file(path)
+    assert pairs["LESYSBOT_GRAFANA_URL"] == "http://gf:3000"
+    assert pairs["LESYSBOT_GRAFANA_USER"] == "bob"
+    assert pairs["LESYSBOT_GRAFANA_PASSWORD"] == "s3cret-pass-1"
+
+
+def test_ask_grafana_credentials_defaults_then_prev(tmp_path):
+    # No file yet → admin/admin defaults offered and accepted.
+    ui = FakeUI(CREDS)
+    assert apply_mod.ask_grafana_credentials(ui, tmp_path) == (
+        "http://localhost:3000", "admin", "admin")
+    # Save custom values, then a later run offers them as the defaults.
+    apply_mod.write_grafana_env(tmp_path, "http://gf:3000", "bob", "pw-123456789")
+    ui = FakeUI(CREDS)
+    assert apply_mod.ask_grafana_credentials(ui, tmp_path) == (
+        "http://gf:3000", "bob", "pw-123456789")
+
+
+def test_grafana_url_follows_the_stacks_port(tmp_path):
+    """A stack moved off 3000 must be advertised on its real port, and a saved
+    localhost URL from an earlier run must not pin it back to 3000."""
+    mon = _fake_monitoring(tmp_path)
+    (mon / ".env").write_text("GRAFANA_PORT=3001\n", encoding="utf-8")
+    assert apply_mod.monitoring_port(mon) == "3001"
+    assert apply_mod.default_grafana_url(tmp_path) == "http://localhost:3001"
+
+    apply_mod.write_grafana_env(tmp_path, "http://localhost:3000", "bob", "pw-123456789")
+    assert apply_mod.default_grafana_url(tmp_path) == "http://localhost:3001"
+    assert apply_mod.ask_grafana_credentials(FakeUI(CREDS), tmp_path)[0] == "http://localhost:3001"
+
+    # a remote Grafana is a deliberate choice — keep it
+    apply_mod.write_grafana_env(tmp_path, "http://gf.example:3000", "bob", "pw-123456789")
+    assert apply_mod.default_grafana_url(tmp_path) == "http://gf.example:3000"
+
+    # no/garbled GRAFANA_PORT → the documented default
+    (mon / ".env").write_text("GRAFANA_PORT=\n", encoding="utf-8")
+    assert apply_mod.monitoring_port(mon) == "3000"
+
+
+def test_start_monitoring_saves_grafana_env_and_docker_env(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/bin/docker")
+    monkeypatch.setattr(apply_mod.sys, "platform", "linux")
+    mon = _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=True)
+    # Way (menu) first, then the Grafana username + password.
+    ui = FakeUI([("menu", 1), ("text", "bob"), ("text", "pw-123456789")])
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is True
+    from lesysbot.core.paths import parse_env_file
+
+    saved = parse_env_file(tmp_path / "grafana.env")
+    assert (saved["LESYSBOT_GRAFANA_USER"], saved["LESYSBOT_GRAFANA_PASSWORD"]) == (
+        "bob", "pw-123456789")
+    # The bundled Docker Grafana is pointed at the same admin login.
+    docker_env = (mon / ".env").read_text()
+    assert "GRAFANA_ADMIN_USER=bob" in docker_env
+    assert "GRAFANA_ADMIN_PASSWORD=pw-123456789" in docker_env
+
+
+# ── Linux: ask auto-start vs. manual (when Docker is running) ──────────────────
+def test_start_monitoring_linux_auto_start(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/bin/docker")
+    monkeypatch.setattr(apply_mod.sys, "platform", "linux")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=True)
+    ui = FakeUI([("menu", 1), *CREDS])  # way first, then login
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is True
+    assert _ran_stack(runner)
+
+
+def test_start_monitoring_linux_manual_choice(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/bin/docker")
+    monkeypatch.setattr(apply_mod.sys, "platform", "linux")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=True)
+    ui = FakeUI([("menu", 2), *CREDS])  # way first (manual), then login
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert not _ran_stack(runner)  # nothing started; just told how
+
+
+def test_start_monitoring_linux_docker_not_installed(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
+    monkeypatch.setattr(apply_mod.sys, "platform", "linux")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner()
+    ui = FakeUI([*CREDS])  # no menu asked when Docker isn't ready
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert not _ran_stack(runner)
+    assert _said(ui, "docker.com/engine/install")
+    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)  # native-Grafana alternative offered
+
+
+def test_start_monitoring_linux_daemon_down(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/bin/docker")
+    monkeypatch.setattr(apply_mod.sys, "platform", "linux")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=False)
+    ui = FakeUI([*CREDS])
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert not _ran_stack(runner)
+    assert _said(ui, "daemon isn't reachable")
+
+
+# ── macOS / Windows: warn + instruct native Grafana ───────────────────────────
+def test_start_monitoring_macos_instructs_native_grafana(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
+    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=False)
+    ui = FakeUI([*CREDS])  # never asks a menu on macOS/Windows
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert not _ran_stack(runner)
+    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)          # how to install Grafana
+    assert _said(ui, "LESYSBOT_GRAFANA_URL")              # how to connect it
+
+
+def test_start_monitoring_macos_with_docker_mentions_shortcut(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/local/bin/docker")
+    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=True)  # Docker running → mention the shortcut
+    ui = FakeUI([*CREDS])
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert not _ran_stack(runner)  # still doesn't auto-run on macOS/Windows
+    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)
+    assert _said(ui, "start.sh")   # the bundled-stack shortcut command
+
+
+def test_start_monitoring_windows_instructs(tmp_path, monkeypatch):
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
+    monkeypatch.setattr(apply_mod.sys, "platform", "win32")
+    _fake_monitoring(tmp_path)
+    runner = DockerRunner(daemon_up=False)
+    ui = FakeUI([*CREDS])
+    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
+    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)
+
+
 class Recorder:
     def __init__(self, returncode=0):
         self.calls = []
@@ -244,18 +493,13 @@ def test_setup_service_linux_writes_unit_and_enables(tmp_path, monkeypatch):
     assert any("restart lesysbot" in c for c in flat)
 
 
-def test_remove_stale_service_linux_confirm_no_keeps_unit(tmp_path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path))
-    unit = tmp_path / ".config" / "systemd" / "user" / "lesysbot.service"
-    unit.parent.mkdir(parents=True)
-    unit.write_text("[Unit]\n")
-    runner = Recorder(returncode=1)  # is-active probe: not running
-    ui = FakeUI([("confirm", False)])
-    apply_mod.remove_stale_service_linux(ui, runner=runner)
-    assert unit.exists()
-    ui = FakeUI([("confirm", True)])
-    apply_mod.remove_stale_service_linux(ui, runner=runner)
-    assert not unit.exists()
+def _no_real_service(monkeypatch) -> list:
+    """Record service setup instead of touching systemd/launchd/Task Scheduler."""
+    installed: list = []
+    monkeypatch.setattr(apply_mod, "setup_service",
+                        lambda ui, st, data_dir, **_kw: installed.append((st.msg_provider,
+                                                                         st.auto_start)))
+    return installed
 
 
 def test_cli_run_fresh_config(tmp_path, monkeypatch):
@@ -264,11 +508,13 @@ def test_cli_run_fresh_config(tmp_path, monkeypatch):
     from lesysbot.setup import cli as setup_cli
 
     monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("HOME", str(tmp_path))  # keep stale-service checks hermetic
+    monkeypatch.setenv("HOME", str(tmp_path))
+    installed = _no_real_service(monkeypatch)
     ui = FakeUI(
         [
             *custom_llm_answers(),
             ("menu", 1),           # Terminal only
+            ("menu", 2),           # service: start now only
             ("menu", 1),           # summary: Apply
         ]
     )
@@ -278,6 +524,39 @@ def test_cli_run_fresh_config(tmp_path, monkeypatch):
     cfg = yaml.safe_load((tmp_path / "home" / "config.yaml").read_text())
     assert cfg["messaging"]["provider"] == "cli"
     assert cfg["llm"]["model"] == "m1"
+    # Even a terminal-only install gets the service — it serves the control panel.
+    assert installed == [("cli", False)]
+
+
+def test_cli_run_seeds_and_attempts_monitoring(tmp_path, monkeypatch):
+    import argparse
+
+    from lesysbot.setup import cli as setup_cli
+
+    # A repo checkout with a monitoring/ stack to seed from.
+    repo = tmp_path / "repo"
+    (repo / "monitoring" / "scripts").mkdir(parents=True)
+    (repo / "monitoring" / "scripts" / "start.sh").write_text("#!/usr/bin/env bash\n")
+    (repo / "monitoring" / ".env.example").write_text("GRAFANA_PORT=3000\n")
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("LESYSBOT_HOME", str(home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
+    _no_real_service(monkeypatch)
+    # Docker not ready → start_monitoring only prints instructions (no subprocess).
+    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
+    # LLM (custom) → messaging (terminal) → service → summary Apply → Grafana login.
+    ui = FakeUI([*custom_llm_answers(), ("menu", 1), ("menu", 1), ("menu", 1),
+                 ("text", DEFAULT), ("text", DEFAULT)])
+    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
+    args = argparse.Namespace(command="setup", repo=str(repo))
+    assert setup_cli.run(args) == 0
+    # The dashboard stack was seeded into the installed home as a standard part.
+    assert (home / "monitoring" / "scripts" / "start.sh").exists()
+    assert (home / "monitoring" / ".env").exists()
+    # And the Grafana login LeSysBot will use was saved for startup.
+    assert (home / "grafana.env").exists()
 
 
 def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
@@ -290,9 +569,11 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
     (home / "config.yaml").write_text("messaging:\n  provider: cli\n")
     monkeypatch.setenv("LESYSBOT_HOME", str(home))
     monkeypatch.setenv("HOME", str(tmp_path))
+    installed = _no_real_service(monkeypatch)
     ui = FakeUI(
         [
             ("confirm", False),    # don't overwrite
+            ("confirm", True),     # start automatically after reboot
             ("confirm", True),     # apply
         ]
     )
@@ -300,3 +581,5 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
     args = argparse.Namespace(command="setup", repo=None)
     assert setup_cli.run(args) == 0
     assert (home / "config.yaml").read_text() == "messaging:\n  provider: cli\n"
+    # The service is (re)installed on the kept-config path too.
+    assert installed == [("cli", True)]

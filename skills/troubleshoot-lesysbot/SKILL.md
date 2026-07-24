@@ -45,6 +45,8 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | `/tool` returns "disabled" | It was disabled — `lesysbot tools enable NAME`. It applies live (the bot watches `tool_state.json`). |
 | `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, add it (Windows: Python `Scripts\` dir). |
 | Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Slack tokens. |
+| Control panel unreachable (`lesysbot` shows it offline) | The service isn't running — start it (see [manage-service](../manage-service/SKILL.md)); or serve it ad-hoc with `lesysbot manage`. |
+| Log: `Control panel not started — port … already in use` | Something else owns `webui.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |
 | Telegram: `Unauthorized.` | Your ID isn't in `allowed_user_ids` — re-check via @userinfobot. |
 | Telegram: no response at all | Wrong token or the bot isn't running. |
 | Telegram: raw `*markdown*` in replies | Harmless fallback — unformattable Markdown is sent as plain text. |

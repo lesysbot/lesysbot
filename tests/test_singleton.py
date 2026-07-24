@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 
 from lesysbot.core import singleton
 from lesysbot.core.config import Settings
@@ -46,6 +47,41 @@ def test_holder_pid_records_owner(tmp_path, monkeypatch):
     assert singleton.acquire_instance_lock("testbot")
     try:
         assert singleton.holder_pid("testbot") == os.getpid()
+    finally:
+        singleton.release_instance_lock("testbot")
+
+
+def test_is_running_ignores_a_stale_lock_file(tmp_path, monkeypatch):
+    """The status screen asks "is the service up?" — a leftover file with a dead
+    PID must answer no, or a crashed service reads as running forever."""
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
+    assert singleton.is_running("testbot") is False          # no file at all
+
+    # A live holder in another process → running.
+    env = dict(os.environ, LESYSBOT_HOME=str(tmp_path))
+    hold = "from lesysbot.core.singleton import acquire_instance_lock as a; a('testbot'); input()"
+    child = subprocess.Popen([sys.executable, "-c", hold], env=env, stdin=subprocess.PIPE)
+    try:
+        # Wait for the child to have taken the lock (it writes its PID first).
+        for _ in range(100):
+            if singleton.is_running("testbot"):
+                break
+            time.sleep(0.05)
+        assert singleton.is_running("testbot") is True
+        assert singleton.holder_pid("testbot") == child.pid
+    finally:
+        child.stdin.close()
+        child.wait(timeout=10)
+
+    # Process gone, lock file (and its stale PID) left behind → not running.
+    assert (tmp_path / "testbot.lock").exists()
+    assert singleton.holder_pid("testbot") == child.pid
+    assert singleton.is_running("testbot") is False
+
+    # Our own lock counts as running without disturbing it.
+    assert singleton.acquire_instance_lock("testbot")
+    try:
+        assert singleton.is_running("testbot") is True
     finally:
         singleton.release_instance_lock("testbot")
 

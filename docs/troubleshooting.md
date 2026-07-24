@@ -202,15 +202,18 @@ Full setup for both: [Telegram & Slack](adapters.md).
 
 ---
 
-## Management UI and monitoring
+## Control panel and monitoring
 
 | Symptom | Fix |
 |---|---|
-| `lesysbot` opens the UI when you wanted a chat | Use `lesysbot --provider cli` to chat, or `lesysbot run` to run the bot in the foreground. |
+| `lesysbot` prints status when you wanted a chat | Use `lesysbot --provider cli`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
+| The panel says **offline** | The service isn't running — start it (`systemctl --user start lesysbot`, `launchctl start com.lesysbot.lesysbot`, `Start-ScheduledTask -TaskName 'LeSysBot'`). To use it without a service: `lesysbot manage`. |
+| The log says `Control panel not started — port … already in use` | Something else owns `webui.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
 | The UI port is taken | `lesysbot manage --port 9000`, or change `webui.port`. |
 | The UI isn't reachable from another machine | Correct — it binds `127.0.0.1` only, deliberately, and rejects non-localhost `Host` headers. Use SSH port forwarding if you need remote access. |
 | Grafana shows empty panels | The exporters need a minute of data. If it stays empty, check `docker compose ps` in `monitoring/`. |
-| "share me the dashboard" fails | The [monitoring stack](../monitoring/README.md) has to be running, and Grafana reachable at `localhost:3000`. |
+| "share me the dashboard" fails | The [monitoring stack](../monitoring/README.md) has to be running. LeSysBot finds Grafana itself (the `GRAFANA_PORT` from `monitoring/.env`, then `localhost:3000`/`3001`); set `LESYSBOT_GRAFANA_URL` only if it runs on another host. |
+| The status screen shows Grafana on the wrong port | It probes `GRAFANA_PORT` from `~/.lesysbot/monitoring/.env` first and verifies each candidate answers as Grafana, so a stack moved to 3001 is reported there. If you pinned `LESYSBOT_GRAFANA_URL` in `~/.lesysbot/grafana.env` to a port Grafana left, clear or correct that line — an unreachable pin is reported as "not answering", not as a link. |
 
 ---
 

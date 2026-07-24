@@ -1,4 +1,4 @@
-"""The management UI single page, inlined so it always ships with the package
+"""The control panel single page, inlined so it always ships with the package
 (no package-data wiring, works in a PyInstaller build too).
 
 The brand mark and favicon are rendered to SVG here from the sprite in
@@ -250,16 +250,17 @@ async function loadStatus(){
     ['LLM backend', `<span class="dot ${hd}"></span>${h.ok?'Reachable':'Down'}`, esc(hsub)],
     ['Provider', esc(st.provider), 'model: '+esc(st.model)],
     ['Tools', st.tools.enabled+' / '+st.tools.total+' on', st.tools.unavailable? st.tools.unavailable+' unavailable here':'all available'],
-    ['Bot service', dm? `<span class="dot ${dm.running?'ok':'off'}"></span>${dm.running?'running':'stopped'}` : '<span class="dot off"></span>CLI (on demand)',
-       dm&&dm.pid? 'PID '+dm.pid : (st.provider==='cli'?'no daemon':'') ],
+    ['Service', dm? `<span class="dot ${dm.running?'ok':'off'}"></span>${dm.running?'running':'stopped'}` : '<span class="dot off"></span>unknown',
+       dm&&dm.pid? 'PID '+dm.pid+' · serves this panel' : 'serves this panel' ],
     ['Grafana',
-       gf? `<a href="${esc(gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
+       (gf&&gf.reachable)? `<a href="${esc(gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
          : '<span class="dot off"></span>not running',
-       gf? esc(gf.url)+(gf.version?(' · v'+gf.version):'') : 'start monitoring/scripts/start.sh'],
+       (gf&&gf.reachable)? esc(gf.url)+(gf.version?(' · v'+gf.version):'')
+         : (gf? 'not answering at '+esc(gf.url) : 'start monitoring/scripts/start.sh')],
   ];
   $('#statusCards').innerHTML=cards.map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]||''}</div></div>`).join('');
   const meta=[['Base URL',st.base_url],['Config file',st.config_path||'(built-in defaults)'],
-    ['Home',st.home],['Tools dir',st.tools_dir],['Management UI port',st.webui_port]];
+    ['Home',st.home],['Tools dir',st.tools_dir],['Control panel port',st.webui_port]];
   $('#statusMeta').innerHTML='<tr><th>Key</th><th>Value</th></tr>'+meta.map(m=>`<tr><td>${m[0]}</td><td class="mono">${esc(m[1])}</td></tr>`).join('');
   if(st.registry_error) toast('Tool registry warning: '+st.registry_error,'bad');
 }

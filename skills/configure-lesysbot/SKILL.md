@@ -5,10 +5,11 @@ description: Change any LeSysBot setting — where the config file lives, the fu
 
 # Configure LeSysBot
 
-> **Prefer a UI?** Running `lesysbot` in a terminal (or `lesysbot manage`) opens a
-> localhost-only web panel with a validating `config.yaml` editor and live
-> tool toggles — see the management-UI guide. This skill covers the file itself,
-> which the UI reads and writes.
+> **Prefer a UI?** The control panel at **http://127.0.0.1:8700** (served by the
+> background service; `lesysbot manage` if it's stopped) is a localhost-only web
+> panel with a validating `config.yaml` editor and live tool toggles. This skill
+> covers the file itself, which the panel reads and writes. Bare `lesysbot`
+> prints health and metrics — including whether the panel is up — and exits.
 
 ## Which config file is active?
 
@@ -117,6 +118,29 @@ LESYSBOT_MESSAGING__TELEGRAM__TOKEN=1234567890:ABCDEFabcdef
 LESYSBOT_AGENT__MAX_HISTORY=100
 LESYSBOT_LOGGING__LEVEL=DEBUG
 ```
+
+## Grafana connection (`~/.lesysbot/grafana.env`)
+
+The monitoring dashboard's connection is **not** in `config.yaml`. `lesysbot
+setup` asks for the Grafana username/password and writes
+`~/.lesysbot/grafana.env`; the bot loads it into its environment at startup, so
+the `share_dashboard` tool and the status screen authenticate:
+
+```ini
+LESYSBOT_GRAFANA_URL=http://localhost:3000
+LESYSBOT_GRAFANA_USER=admin
+LESYSBOT_GRAFANA_PASSWORD=admin
+# LESYSBOT_GRAFANA_TOKEN=...   # a Grafana API token wins over user/password
+```
+
+Edit the file (or set the same env vars directly — an explicit env var wins over
+the file) to change the login or point at another host/port.
+
+The **URL** rarely needs editing: LeSysBot probes `GRAFANA_PORT` from
+`~/.lesysbot/monitoring/.env` first, then `localhost:3000`/`3001`, verifying each
+answers as Grafana (`/api/health`). `LESYSBOT_GRAFANA_URL` is honoured **when
+Grafana answers there**; a stale value (stack moved off that port) falls back to
+probing, so the status screen never advertises another service as Grafana.
 
 ## CLI flags (beat env vars and the file)
 

@@ -112,10 +112,10 @@ messaging:
 
 ## 4. Back to terminal-only
 
-Set `provider: cli` (or re-run the wizard and pick Terminal). If a leftover
-Telegram/Slack service keeps polling, stop and remove it — see
-[manage-service](../manage-service/SKILL.md) (the wizard offers this cleanup
-automatically).
+Set `provider: cli` (or re-run the wizard and pick Terminal) and restart the
+service. It keeps running — it still serves the control panel — but stops polling
+Telegram/Slack; chat with `lesysbot --provider cli`. See
+[manage-service](../manage-service/SKILL.md).
 
 ## Related
 

@@ -50,12 +50,34 @@ class _StackDown(Exception):
 
 
 # --------------------------------------------------------------------------- config
-# Where Grafana usually lives. If LESYSBOT_GRAFANA_URL isn't set, the tool probes
-# these and uses the first that actually answers as Grafana — so it "just works"
-# whether the stack is on the default 3000 or was bumped to 3001 (e.g. when 3000
-# was already taken), without any configuration.
-_CANDIDATES = ["http://localhost:3000", "http://localhost:3001",
-               "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+# Where Grafana usually lives. The tool probes these and uses the first that
+# actually answers as Grafana — so it "just works" whether the stack is on the
+# default 3000 or was bumped to 3001 (e.g. when 3000 was already taken), without
+# any configuration.
+_PORTS = ["3000", "3001"]
+_HOSTS = ["localhost", "127.0.0.1"]
+
+
+def _home() -> Path:
+    return Path(os.environ.get("LESYSBOT_HOME", str(Path.home() / ".lesysbot")))
+
+
+def _monitoring_port():
+    """GRAFANA_PORT from the bundled stack's .env — the one place the port is set."""
+    try:
+        text = (_home() / "monitoring" / ".env").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        key, _, val = line.strip().partition("=")
+        if key.strip() == "GRAFANA_PORT" and val.strip().isdigit():
+            return val.strip()
+    return None
+
+
+def _candidates() -> list:
+    ports = _PORTS if (p := _monitoring_port()) is None else [p, *_PORTS]
+    return list(dict.fromkeys(f"http://{h}:{port}" for port in ports for h in _HOSTS))
 
 
 def _is_grafana(url, timeout=1.5) -> bool:
@@ -68,10 +90,17 @@ def _is_grafana(url, timeout=1.5) -> bool:
 
 
 def _resolve_grafana(cfg) -> str:
-    """The Grafana URL to use: an explicit env override wins; otherwise auto-detect."""
-    if cfg["grafana_explicit"]:
+    """The Grafana URL to use: an explicit env override wins *if it answers there*.
+
+    The override is verified rather than trusted, because a saved
+    LESYSBOT_GRAFANA_URL goes stale the moment the stack moves off 3000 (when
+    something else owns that port) — and posting snapshots to whatever else sits
+    on 3000 fails confusingly. An override that doesn't answer as Grafana falls
+    through to probing the local ports.
+    """
+    if cfg["grafana_explicit"] and _is_grafana(cfg["grafana"]):
         return cfg["grafana"]
-    for url in _CANDIDATES:
+    for url in _candidates():
         if _is_grafana(url):
             return url
     return cfg["grafana"]   # none answered — keep the default for a sensible error
@@ -92,8 +121,7 @@ def _cfg():
 
 
 def _state_file() -> Path:
-    home = Path(os.environ.get("LESYSBOT_HOME", str(Path.home() / ".lesysbot")))
-    return home / "dashboard_snapshots.json"
+    return _home() / "dashboard_snapshots.json"
 
 
 # --------------------------------------------------------------------------- http
@@ -404,7 +432,8 @@ async def share_dashboard(expiration: str = "1h") -> str:
                      {"dashboard": model, "name": name, "expires": secs, "external": True},
                      headers=_auth(cfg))
     except _StackDown:
-        where = cfg["grafana"] if cfg["grafana_explicit"] else "Grafana on the usual ports (3000, 3001)"
+        where = f"Grafana at {cfg['grafana']}" if cfg["grafana_explicit"] else \
+            "Grafana on the usual ports (" + ", ".join(_PORTS) + ")"
         return (f"Can't reach {where}. Start the monitoring stack first "
                 f"(./scripts/start.sh), or set LESYSBOT_GRAFANA_URL if Grafana runs elsewhere.")
     except urllib.error.HTTPError as e:

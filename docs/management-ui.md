@@ -1,15 +1,24 @@
-# Management UI
+# Control panel
 
 A small web page for the two things you change most — your **settings** and your
 **tools** — plus a status screen that answers "is it working?" at a glance.
 
-It runs on your machine only. Nothing about it is reachable from your network.
+**It is always on.** The LeSysBot background service serves it, so it is there
+whenever your machine is, at the same address every time:
+
+```
+http://127.0.0.1:8700
+```
+
+Bookmark it. It runs on your machine only — nothing about it is reachable from
+your network.
 
 ---
 
-## Opening it
+## Checking it's up
 
-Run `lesysbot` with no arguments in a terminal:
+Run `lesysbot` with no arguments. That prints health and metrics and exits — it
+starts nothing, because the panel is already running:
 
 ```bash
 lesysbot
@@ -19,32 +28,32 @@ lesysbot
 [the LeSysBot mark, in colour]  LeSysBot
                                 v0.1.0
 
-  LLM backend  reachable · 42 ms
-     Provider  cli · model llama3.2
-        Tools  12/13 enabled
-  Bot service  running (PID 12934)
-      Grafana  http://localhost:3001 · v11.5.1
-       Config  /home/you/.lesysbot/config.yaml
-
-  Management UI: http://127.0.0.1:8700   (localhost only · Ctrl-C to stop)
+    LLM backend  reachable · 42 ms
+    Backend URL  http://localhost:11434/v1
+       Provider  cli · model llama3.2
+          Tools  12/13 enabled
+        Service  running (PID 12934)
+  Control panel  online · http://127.0.0.1:8700
+        Grafana  http://localhost:3001 · v11.5.1
+         Config  /home/you/.lesysbot/config.yaml
 ```
 
 The mark is drawn in colour when your terminal supports it. It disappears on its
 own under `NO_COLOR`, a plain `TERM`, or when you pipe the output somewhere —
 so `lesysbot > status.txt` stays readable.
 
-Ctrl-C stops it. A few variations:
+If the panel says **offline**, the service isn't running — start it the way
+[Background service](service.md) describes, or open the panel by hand for as
+long as your terminal stays open:
 
 ```bash
-lesysbot manage             # the same thing, said explicitly
+lesysbot manage             # serve it here (or just point at the running one)
 lesysbot manage --open      # and open it in your browser
-lesysbot manage --port 9000 # if 8700 is taken
+lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 ```
 
-> **Looking for a chat?** Bare `lesysbot` opens this UI, not a conversation. Use
-> `lesysbot --provider cli` to chat, or `lesysbot run` to run the bot in the
-> foreground. The background service uses `lesysbot run` already — nothing to
-> change there.
+> **Looking for a chat?** None of these are a conversation. Use
+> `lesysbot --provider cli` to chat in your terminal.
 
 ---
 
@@ -74,7 +83,8 @@ system setting until you pick one, then remembers your choice.
 
 ## Is this safe to leave running?
 
-Yes, on a machine only you use — that's the assumption it's built on.
+Yes, on a machine only you use — that's the assumption it's built on, and it is
+why the panel can stay up permanently.
 
 - **It's localhost-only.** The server binds `127.0.0.1`. The host isn't
   configurable, only the port, so it can't accidentally end up on your LAN. It
@@ -90,8 +100,8 @@ Yes, on a machine only you use — that's the assumption it's built on.
 Don't forward the port or put it behind a reverse proxy unless you add
 authentication and TLS yourself.
 
-The bot process itself still opens no listener at all. This UI is a separate
-server you start on purpose.
+The panel lives inside the LeSysBot service process — it is the one listener in
+the project, and it only ever listens on loopback.
 
 ---
 
@@ -103,3 +113,8 @@ Only the port:
 webui:
   port: 8700
 ```
+
+Change it and restart the service; the panel moves with it, and `lesysbot`
+reports the new address. If something else already owns the port when the
+service starts, the panel is skipped (a line in the log says so) and the bot
+keeps running — see [Troubleshooting](troubleshooting.md).

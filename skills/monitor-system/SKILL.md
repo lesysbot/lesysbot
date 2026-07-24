@@ -1,20 +1,36 @@
 ---
 name: monitor-system
-description: Run LeSysBot's optional Prometheus + Grafana "System Overview" stack that records CPU, memory, disk, network (Ethernet/Wifi), temperatures (CPU/disk/GPU/sensors) and NVIDIA GPU as time series on ready-made Grafana dashboards. Cross-platform (Linux/macOS/Windows), localhost-only, no sudo. Use when asked to "monitor my system", "see CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard", or "record hardware metrics over time".
+description: Run LeSysBot's default Prometheus + Grafana "System Overview" stack that records CPU, memory, disk, network (Ethernet/Wifi), temperatures (CPU/disk/GPU/sensors) and NVIDIA GPU as time series on ready-made Grafana dashboards. Cross-platform (Linux/macOS/Windows), localhost-only, no sudo. Use when asked to "monitor my system", "see CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard", or "record hardware metrics over time".
 ---
 
 # System Overview — Prometheus + Grafana
 
-LeSysBot ships an **optional, self-contained monitoring stack** in the
+LeSysBot ships a **standard, self-contained monitoring stack** in the
 `monitoring/` folder of the repo. It records the machine's **CPU, memory, disk,
 network (per interface — Ethernet & Wifi), temperatures and GPU** as Prometheus
 time series and shows them on two pre-built Grafana dashboards.
 
+`lesysbot setup` (run by the installer) seeds this stack into
+`~/.lesysbot/monitoring` and gets the user to a Grafana dashboard at
+**http://localhost:3000** — the mechanism is OS-specific:
+- **Linux** — if Docker is running, setup *asks* whether to auto-start the
+  bundled stack now or leave it for manual start; otherwise it prints the no-sudo
+  steps to get Docker ready.
+- **macOS/Windows** — setup does *not* require Docker Desktop; it instructs a
+  **native Grafana install** from `https://grafana.com/grafana/download` and how
+  to connect it (auto-detected on `localhost:3000`, else `LESYSBOT_GRAFANA_URL`),
+  and mentions the Docker stack only as a shortcut when Docker is already running.
+
+Use the steps below to start/stop the Docker stack by hand, seed it on a box
+where Docker arrived later, or reconfigure it. `LESYSBOT_SKIP_MONITORING=1`
+before setup skips the step entirely.
+
 Key properties to know before you start:
 
-- **Separate from the bot.** The LeSysBot process still opens no network
-  listener; this is a companion the user starts by hand. Everything it exposes
-  binds to **`127.0.0.1` only** (nothing on the LAN) and needs **no sudo/admin**.
+- **Separate from the bot.** This stack runs as its own containers; LeSysBot's
+  only listener is its localhost control panel (port 8700). Everything it
+  exposes binds to **`127.0.0.1` only** (nothing on the LAN) and needs **no
+  sudo/admin**.
 - **Standard components only** — Prometheus, Grafana, `node_exporter`,
   `windows_exporter`, `nvidia_gpu_exporter`. Nothing custom to trust.
 - **The only prerequisite is Docker** (Compose v2). Prometheus, Grafana and the
@@ -152,7 +168,8 @@ the UI to experiment, then fold the change back into the generator.
   isn't running or the user isn't in the `docker` group — start Docker Desktop /
   `sudo systemctl start docker`, or `sudo usermod -aG docker $USER` then re-login.
 - **Grafana won't start / "address already in use".** Something holds 3000 or
-  9090 — set `GRAFANA_PORT` / `PROM_PORT` in `.env` and start again.
+  9090 — set `GRAFANA_PORT` / `PROM_PORT` in `.env` and start again. LeSysBot reads
+  `GRAFANA_PORT` back, so the status screen and `share_dashboard` follow the move.
 - **Linux metrics missing despite an exporter running.** A firewall (`ufw`)
   blocks container→host; that's why Linux uses the **host-network** stack. Use
   `./scripts/start.sh` (or `docker-compose.linux.yml`), never the bridge
@@ -177,9 +194,14 @@ point-in-time **snapshot** (current graphs baked in as data) *through Grafana* t
 - `list_snapshots()` — the snapshots Grafana currently holds (its `/dashboard/snapshots` registry), plus any still-live ones Grafana has pruned but the tool still tracks, each with its link and time left.
 - `delete_snapshot(which)` — by number (from the list), snapshot key, or `all`; removes it from Grafana **and** raintank.
 
-It needs the monitoring stack running and reaches Grafana at `http://localhost:3000`
-by default (auto-probing 3001 too). If Grafana runs on another port/host, set
-`LESYSBOT_GRAFANA_URL` in the bot's environment. Shares are a **public** copy of the
+It needs the monitoring stack running and finds Grafana by probing `GRAFANA_PORT`
+from `monitoring/.env`, then `localhost:3000`/`3001`, verifying each answers as
+Grafana (a stale `LESYSBOT_GRAFANA_URL` falls back to the same probe),
+authenticating with `LESYSBOT_GRAFANA_USER` /
+`LESYSBOT_GRAFANA_PASSWORD` (default `admin`/`admin`). `lesysbot setup` prompts for
+these and saves them to **`~/.lesysbot/grafana.env`**, which the bot loads into its
+environment at startup — so edit that file (or set the vars directly) to change the
+Grafana login or point `LESYSBOT_GRAFANA_URL` at another port/host. Shares are a **public** copy of the
 metrics. Two caveats worth relaying to users: raintank may serve a *cached* copy for
 up to ~1h after deletion, and a snapshot published from Grafana's own browser button
 (not through the bot) has no delete key the tool can use, so it only clears at its

@@ -21,18 +21,22 @@ powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1   # if blocked
 It undoes everything the installer set up, in order:
 
 1. **Stops and removes the background service** (systemd / launchd / Task
-   Scheduler) — skipped with a note for Terminal-only setups. On Linux it also
-   offers to disable `loginctl` linger if the installer enabled it.
+   Scheduler) — every install has one, since it serves the control panel. On
+   Linux it also offers to disable `loginctl` linger if the installer enabled it.
 2. **Reports leftover sudoers rules** from older versions
    (`/etc/sudoers.d/lesysbot-rtcwake`, `…-shutdown-wake`) and prints the `rm`
    command — it does *not* delete them, which would make uninstall prompt for a
    password. Nothing LeSysBot ships needs root any more, so on a current
    install this step prints nothing.
 3. **Uninstalls the `lesysbot` Python package** via pip.
-4. **Asks before deleting `~/.lesysbot`** (config, tools, logs; honours
-   `LESYSBOT_HOME`). Default is **No** — keeping it means a later re-install
-   finds settings and custom tools exactly as left. Answer `y` only for a
-   completely clean machine.
+4. **Offers to stop the Grafana monitoring dashboard** (the Docker containers
+   setup started) when a seeded `~/.lesysbot/monitoring` and `docker` are
+   present. It runs `start.sh down` (no `-v`), so the Docker volumes with stored
+   history survive a re-install.
+5. **Asks before deleting `~/.lesysbot`** (config, tools, monitoring, logs;
+   honours `LESYSBOT_HOME`). Default is **No** — keeping it means a later
+   re-install finds settings and custom tools exactly as left. Answer `y` only
+   for a completely clean machine.
 
 Works for both wizard and manual installs — with no service present, step 1
 skips itself.

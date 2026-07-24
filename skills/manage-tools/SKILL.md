@@ -5,8 +5,8 @@ description: Install, list, enable/disable, and remove LeSysBot tools — from G
 
 # Manage LeSysBot tools
 
-You can also do all of this from the **management UI** (`lesysbot manage`, or bare
-`lesysbot` in a terminal): a Tools tab lists every tool with enable/disable
+You can also do all of this from the **control panel** (always on at
+`http://127.0.0.1:8700`): a Tools tab lists every tool with enable/disable
 toggles, an install box (paste `owner/repo`), and a remove button. It writes the
 same state file and tools dir as the CLI below, so the two are interchangeable.
 

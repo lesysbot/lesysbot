@@ -108,8 +108,23 @@ else
     warn "Python not found — package not removed"
 fi
 
-# ── 3. Per-user data home (config, tools, logs) ───────────────────────────────
+# ── 2b. Monitoring stack (Grafana/Prometheus containers) ──────────────────────
+# Setup starts this by default, so uninstall offers to take it down. `start.sh
+# down` stops the containers without -v, so stored history in the Docker volumes
+# survives unless you remove them yourself. No sudo — docker runs unprivileged.
 DATA_DIR="${LESYSBOT_HOME:-$HOME/.lesysbot}"
+MON_START="$DATA_DIR/monitoring/scripts/start.sh"
+if [[ -x "$MON_START" ]] && command -v docker &>/dev/null; then
+    read -r -p "  Stop the Grafana monitoring dashboard (docker containers)? [y/N] " ans
+    if [[ "${ans,,}" == "y" ]]; then
+        "$MON_START" down 2>/dev/null && ok "Monitoring stack stopped" \
+            || warn "Could not stop the monitoring stack (is Docker running?)"
+    else
+        info "Left the monitoring stack running"
+    fi
+fi
+
+# ── 3. Per-user data home (config, tools, logs) ───────────────────────────────
 if [[ -d "$DATA_DIR" ]]; then
     read -r -p "  Remove your config, tools and logs in $DATA_DIR? [y/N] " ans
     if [[ "${ans,,}" == "y" ]]; then

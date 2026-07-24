@@ -111,8 +111,9 @@ class LogConfig(BaseModel):
 
 
 class WebUIConfig(BaseModel):
-    # The local management UI (`lesysbot manage`, or bare `lesysbot` in a
-    # terminal). It is bound to loopback only — the host is deliberately NOT
+    # The local control panel, served by the LeSysBot service for as long as it
+    # runs (`lesysbot run`; `lesysbot manage` serves it ad-hoc when the service
+    # is stopped). It is bound to loopback only — the host is deliberately NOT
     # configurable, so it can never be exposed on the LAN. Only the port is.
     port: int = 8700
 

@@ -16,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from lesysbot.core.paths import parse_env_file
 from lesysbot.setup.wizard import WizardState
 
 CONFIG_TEMPLATE = """\
@@ -92,6 +93,302 @@ def seed_tools(repo_dir: Path | None, data_dir: Path) -> bool:
     return True
 
 
+def seed_monitoring(repo_dir: Path | None, data_dir: Path) -> bool:
+    """Copy the repo's monitoring/ stack into ~/.lesysbot on first install.
+
+    The Grafana dashboard is a standard part of LeSysBot, so — like ``tools/`` —
+    it is seeded into the installed home, self-contained and re-runnable there
+    even without the source checkout. Never clobbers an existing copy (preserves
+    user edits to ``.env`` / dashboards); runtime dirs (``bin/``, ``run/``) and
+    caches are skipped, and a ``.env`` is seeded from the example so ports/login
+    are editable in one place.
+    """
+    if repo_dir is None:
+        return False
+    src = repo_dir / "monitoring"
+    dst = data_dir / "monitoring"
+    if dst.exists() or not src.is_dir():
+        return False
+    shutil.copytree(
+        src, dst, ignore=shutil.ignore_patterns("__pycache__", "bin", "run")
+    )
+    env, example = dst / ".env", dst / ".env.example"
+    if not env.exists() and example.exists():
+        shutil.copyfile(example, env)
+    return True
+
+
+def monitoring_dir(data_dir: Path) -> Path:
+    return data_dir / "monitoring"
+
+
+GRAFANA_DOWNLOAD = "https://grafana.com/grafana/download"
+
+
+def _grafana_env_path(data_dir: Path) -> Path:
+    return data_dir / "grafana.env"
+
+
+DEFAULT_GRAFANA_PORT = "3000"
+
+
+def monitoring_port(mon: Path) -> str:
+    """Grafana's host port from the bundled stack's ``.env``, else 3000.
+
+    That file is the one place the port is set (``GRAFANA_PORT``), and it gets
+    moved off 3000 whenever something else on the machine already owns it — so
+    it, not a fixed 3000, decides where LeSysBot expects Grafana.
+    """
+    port = parse_env_file(mon / ".env").get("GRAFANA_PORT", "")
+    return port if port.isdigit() else DEFAULT_GRAFANA_PORT
+
+
+def grafana_local_url(data_dir: Path) -> str:
+    """``http://localhost:<the bundled stack's Grafana port>``."""
+    return f"http://localhost:{monitoring_port(monitoring_dir(data_dir))}"
+
+
+def default_grafana_url(data_dir: Path) -> str:
+    """Where a (re)run should expect Grafana to be.
+
+    A previously saved **non-local** URL is a deliberate choice (Grafana on
+    another host) and is kept. A saved *localhost* one is only a port away from
+    the bundled stack, so the stack's own ``GRAFANA_PORT`` wins — otherwise a
+    stack moved to 3001 keeps being advertised on 3000, where something else
+    answers.
+    """
+    from urllib.parse import urlsplit
+
+    prev = parse_env_file(_grafana_env_path(data_dir)).get("LESYSBOT_GRAFANA_URL", "")
+    if prev and urlsplit(prev).hostname not in ("localhost", "127.0.0.1", "::1", None):
+        return prev
+    return grafana_local_url(data_dir)
+
+
+def ask_grafana_credentials(ui, data_dir: Path) -> tuple[str, str, str]:
+    """Ask which Grafana login LeSysBot should use to reach the dashboard.
+
+    Returns ``(url, user, password)``. Defaults are the standard admin/admin, and
+    the URL follows the bundled stack's configured port (see
+    ``default_grafana_url``); a previous run's user/password are offered so
+    reconfiguring keeps them. Esc/empty keeps the default (this is an apply-time
+    prompt, not a step with back-navigation).
+    """
+    prev = parse_env_file(_grafana_env_path(data_dir))
+    ui.say("\n  Grafana login LeSysBot will use to reach the dashboard "
+           "(match it in Grafana):")
+    user = ui.text("Grafana username", prev.get("LESYSBOT_GRAFANA_USER") or "admin") or "admin"
+    password = ui.text("Grafana password",
+                       prev.get("LESYSBOT_GRAFANA_PASSWORD") or "admin",
+                       secret=True) or "admin"
+    return default_grafana_url(data_dir), user, password
+
+
+def write_grafana_env(data_dir: Path, url: str, user: str, password: str) -> Path:
+    """Persist the Grafana connection to ``~/.lesysbot/grafana.env``.
+
+    ``lesysbot`` loads this into the environment at startup, so the
+    ``share_dashboard`` tool and the status screen authenticate with it. Written
+    0600 because it holds a password.
+    """
+    path = _grafana_env_path(data_dir)
+    path.write_text(
+        "# Grafana connection for LeSysBot — loaded into the environment at startup.\n"
+        "# Used by the share_dashboard tool and the status screen's Grafana probe.\n"
+        f"LESYSBOT_GRAFANA_URL={url}\n"
+        f"LESYSBOT_GRAFANA_USER={user}\n"
+        f"LESYSBOT_GRAFANA_PASSWORD={password}\n",
+        encoding="utf-8",
+    )
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return path
+
+
+def _apply_creds_to_monitoring_env(mon: Path, user: str, password: str) -> None:
+    """Point the bundled Docker Grafana at the same admin login (fresh installs).
+
+    Grafana only honours ``GF_SECURITY_ADMIN_*`` on first boot of an empty
+    ``grafana-data`` volume, so this matches the login on a clean install; an
+    already-initialised volume keeps its old password (change it in the Grafana UI).
+    """
+    env = mon / ".env"
+    try:
+        existing = env.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        existing = []
+    lines, seen_user, seen_pw = [], False, False
+    for line in existing:
+        if line.startswith("GRAFANA_ADMIN_USER="):
+            lines.append(f"GRAFANA_ADMIN_USER={user}")
+            seen_user = True
+        elif line.startswith("GRAFANA_ADMIN_PASSWORD="):
+            lines.append(f"GRAFANA_ADMIN_PASSWORD={password}")
+            seen_pw = True
+        else:
+            lines.append(line)
+    if not seen_user:
+        lines.append(f"GRAFANA_ADMIN_USER={user}")
+    if not seen_pw:
+        lines.append(f"GRAFANA_ADMIN_PASSWORD={password}")
+    env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _compose_ok(runner=subprocess.run) -> bool:
+    """Compose v2 present? (client-side — works even with the daemon down)."""
+    try:
+        return runner(["docker", "compose", "version"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _daemon_ok(runner=subprocess.run) -> bool:
+    """Is the Docker daemon reachable? False when Desktop isn't started yet."""
+    try:
+        return runner(["docker", "info"], capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _docker_running(runner=subprocess.run) -> bool:
+    """Docker installed, Compose v2 present, and the daemon reachable."""
+    return (
+        shutil.which("docker") is not None
+        and _compose_ok(runner)
+        and _daemon_ok(runner)
+    )
+
+
+def _run_bundled_stack(ui, mon: Path, start: Path, finish_cmd: str, runner,
+                       user: str, url: str) -> bool:
+    """Run the bundled Docker stack (Linux ``start.sh up``) and report."""
+    ui.say("\n  Starting the Grafana monitoring dashboard "
+           "(first run pulls images — may take a few minutes)…\n")
+    try:
+        rc = runner(["bash", str(start), "up"], cwd=str(mon)).returncode
+    except OSError as e:
+        ui.warn(f"Could not start the dashboard: {e}")
+        ui.note(f"Finish it later with:  {finish_cmd}")
+        return False
+    if rc == 0:
+        ui.ok(f"Grafana dashboard is up at {url}  "
+              f"(log in as {user} with the password you set)")
+        return True
+    ui.warn("The dashboard didn't start cleanly — see the output above.")
+    ui.note(f"Retry with:  {finish_cmd}")
+    return False
+
+
+def _persist_grafana(ui, data_dir: Path, mon: Path, url: str, user: str, password: str) -> None:
+    """Save the login where the bot reads it, and point the bundled Grafana at it."""
+    env_path = write_grafana_env(data_dir, url, user, password)
+    _apply_creds_to_monitoring_env(mon, user, password)
+    ui.ok(f"Grafana login saved to {env_path} — LeSysBot uses it to reach the dashboard")
+
+
+def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str, runner) -> bool:
+    """macOS/Windows: warn, instruct a native Grafana install, then ask the login
+    LeSysBot should use. We deliberately don't require Docker Desktop here —
+    Grafana ships a native package for both OSes. Returns False (nothing started)."""
+    ui.warn("On macOS/Windows the Grafana dashboard is set up by hand — a quick one-time step:")
+    ui.note(f"1. Install Grafana (native package for your OS):  {GRAFANA_DOWNLOAD}")
+    ui.note("2. Start Grafana and open  http://localhost:3000  (first login admin / admin).")
+    ui.note("3. On the default port 3000 LeSysBot detects Grafana automatically (status")
+    ui.note("   screen + 'share dashboard'); on another host/port set LESYSBOT_GRAFANA_URL.")
+    ui.note("   The metrics feed (Prometheus + exporters) is in monitoring/README.md.")
+    if _docker_running(runner):
+        ui.note(f"Shortcut: Docker is running, so you can instead bring up the whole "
+                f"bundled stack in one step:  {finish_cmd}")
+    url, user, password = ask_grafana_credentials(ui, data_dir)
+    _persist_grafana(ui, data_dir, mon, url, user, password)
+    ui.note(f"Set that same login ({user} / the password you entered) as Grafana's admin "
+            "when you first open it, so LeSysBot can connect.")
+    return False
+
+
+def _grafana_linux(ui, data_dir: Path, mon: Path, start: Path, finish_cmd: str, runner) -> bool:
+    """Linux: ask *how* to set the dashboard up first (auto-start vs. manual when
+    Docker is running; otherwise how to get Docker ready — no sudo from us), then
+    ask the Grafana login and save it."""
+    if _docker_running(runner):
+        auto = True
+        if getattr(ui, "interactive", False):
+            auto = ui.menu(
+                "Set up the Grafana system dashboard now?",
+                [
+                    "Auto-start it now with Docker (recommended)",
+                    "I'll set it up manually later",
+                ],
+                default=1,
+            ) == 1
+        url, user, password = ask_grafana_credentials(ui, data_dir)
+        _persist_grafana(ui, data_dir, mon, url, user, password)
+        if auto:
+            return _run_bundled_stack(ui, mon, start, finish_cmd, runner, user, url)
+        ui.note(f"OK — start the dashboard whenever you like with:  {finish_cmd}")
+        ui.note(f"(Grafana lands on {url}, log in as {user} — "
+                "LeSysBot detects it there.)")
+        return False
+
+    # Docker isn't ready — tell the user precisely how to fix it, no sudo from us.
+    if shutil.which("docker") is None:
+        ui.warn("The Grafana dashboard uses Docker on Linux, which isn't installed.")
+        ui.note("Install Docker Engine:  https://docs.docker.com/engine/install/")
+    elif not _compose_ok(runner):
+        ui.warn("Docker is installed but Compose v2 ('docker compose') is missing.")
+        ui.note("Install the docker compose plugin for your distro.")
+    else:
+        ui.warn("The Docker daemon isn't reachable.")
+        ui.note("Start it ('sudo systemctl start docker'), or join the 'docker' group")
+        ui.note("('sudo usermod -aG docker $USER', then log out/in).")
+    ui.note(f"Then start the dashboard with:  {finish_cmd}")
+    ui.note(f"Prefer no Docker? You can also run Grafana natively:  {GRAFANA_DOWNLOAD}")
+    url, user, password = ask_grafana_credentials(ui, data_dir)
+    _persist_grafana(ui, data_dir, mon, url, user, password)
+    return False
+
+
+def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
+    """Set up the Grafana dashboard as part of install — default, not optional.
+
+    Each OS flow asks *how* to set it up first, then the Grafana username/password
+    LeSysBot should use, and saves that to ``~/.lesysbot/grafana.env`` (read back
+    at bot startup). It never fails the install:
+
+    * **Linux** — Docker is the path. If Docker is already running, ask whether to
+      **auto-start** the bundled stack now or **set it up manually** later; if it
+      isn't running, print the exact (no-sudo) steps to get it ready.
+    * **macOS/Windows** — don't force Docker Desktop: **warn and instruct** a
+      native Grafana install (``grafana.com/grafana/download``) and how to connect
+      it to LeSysBot. If Docker happens to be running, mention the one-command
+      bundled stack as a shortcut.
+
+    Set ``LESYSBOT_SKIP_MONITORING`` to skip this entirely (unattended installs).
+    Returns True only when the bundled stack was actually started.
+    """
+    mon = monitoring_dir(data_dir)
+    if not mon.is_dir():
+        return False
+    win = sys.platform == "win32"
+    start = mon / "scripts" / ("start.ps1" if win else "start.sh")
+    finish_cmd = (
+        f"powershell -ExecutionPolicy Bypass -File {start}" if win else str(start)
+    )
+
+    if os.environ.get("LESYSBOT_SKIP_MONITORING"):
+        ui.warn("Skipping the Grafana dashboard (LESYSBOT_SKIP_MONITORING set).")
+        ui.note(f"Set it up anytime — see monitoring/README.md ({GRAFANA_DOWNLOAD}).")
+        return False
+
+    # Each flow asks *how* to set the dashboard up first, then the Grafana login,
+    # then persists it (grafana.env + the bundled monitoring/.env).
+    if win or sys.platform == "darwin":
+        return _grafana_manual_instructions(ui, data_dir, mon, finish_cmd, runner)
+    return _grafana_linux(ui, data_dir, mon, start, finish_cmd, runner)
+
+
 def read_provider(config_file: Path) -> str:
     """Best-effort provider from an existing config.yaml (kept-config path)."""
     for line in config_file.read_text(encoding="utf-8").splitlines():
@@ -116,7 +413,7 @@ def lesysbot_binary() -> str:
 # ── Linux (systemd --user) ────────────────────────────────────────────────────
 _UNIT_TEMPLATE = """\
 [Unit]
-Description=LeSysBot — local AI assistant with tools
+Description=LeSysBot — local AI assistant with tools (control panel + bot)
 After=network.target
 
 [Service]
@@ -173,27 +470,6 @@ def setup_service_linux(ui, st: WizardState, data_dir: Path, runner=subprocess.r
     ui.note("systemctl --user status lesysbot")
     ui.note("systemctl --user stop   lesysbot")
     ui.note("journalctl --user -u lesysbot -f")
-
-
-def remove_stale_service_linux(ui, runner=subprocess.run) -> None:
-    unit = _unit_path()
-    if not unit.exists():
-        return
-    ui.say("")
-    ui.warn("A background LeSysBot service is still installed from a previous setup.")
-    active = runner(
-        ["systemctl", "--user", "is-active", "--quiet", "lesysbot"], capture_output=True
-    ).returncode == 0
-    if active:
-        ui.warn("It is currently running.")
-    if ui.confirm_yn("Stop and remove that background service?", default=True):
-        runner(["systemctl", "--user", "stop", "lesysbot"], capture_output=True)
-        runner(["systemctl", "--user", "disable", "lesysbot"], capture_output=True)
-        unit.unlink(missing_ok=True)
-        runner(["systemctl", "--user", "daemon-reload"], capture_output=True)
-        ui.ok("Background service stopped and removed")
-    else:
-        ui.warn("Left it in place — it will keep running in the background.")
 
 
 # ── macOS (launchd) ───────────────────────────────────────────────────────────
@@ -265,20 +541,6 @@ def setup_service_macos(ui, st: WizardState, data_dir: Path, runner=subprocess.r
     ui.note(f"tail -f {log_dir}/stdout.log")
 
 
-def remove_stale_service_macos(ui, runner=subprocess.run) -> None:
-    plist = _plist_path()
-    if not plist.exists():
-        return
-    ui.say("")
-    ui.warn("A background LeSysBot LaunchAgent is still installed from a previous setup.")
-    if ui.confirm_yn("Stop and remove that background service?", default=True):
-        runner(["launchctl", "unload", "-w", str(plist)], capture_output=True)
-        plist.unlink(missing_ok=True)
-        ui.ok("Background service stopped and removed")
-    else:
-        ui.warn("Left it in place — it will keep running in the background.")
-
-
 # ── Windows (Task Scheduler, via PowerShell cmdlets) ──────────────────────────
 def _powershell(script: str, runner=subprocess.run) -> subprocess.CompletedProcess:
     return runner(
@@ -343,43 +605,28 @@ def setup_service_windows(ui, st: WizardState, data_dir: Path, runner=subprocess
     ui.note("Or open Task Scheduler (taskschd.msc) and find 'LeSysBot'.")
 
 
-def remove_stale_service_windows(ui, runner=subprocess.run) -> None:
-    if not _task_exists(runner):
-        return
-    ui.say("")
-    ui.warn("A background LeSysBot task is still installed from a previous setup.")
-    if ui.confirm_yn("Stop and remove that background service?", default=True):
-        _powershell(
-            "Stop-ScheduledTask -TaskName 'LeSysBot' -ErrorAction SilentlyContinue; "
-            "Unregister-ScheduledTask -TaskName 'LeSysBot' -Confirm:$false",
-            runner,
-        )
-        ui.ok("Background service stopped and removed")
-    else:
-        ui.warn("Left it in place — it will keep running in the background.")
-
-
-def setup_service(ui, st: WizardState, data_dir: Path) -> None:
+def setup_service(ui, st: WizardState, data_dir: Path, runner=subprocess.run) -> None:
     if sys.platform.startswith("linux"):
-        setup_service_linux(ui, st, data_dir)
+        setup_service_linux(ui, st, data_dir, runner=runner)
     elif sys.platform == "darwin":
-        setup_service_macos(ui, st, data_dir)
+        setup_service_macos(ui, st, data_dir, runner=runner)
     elif sys.platform == "win32":
-        setup_service_windows(ui, st, data_dir)
+        setup_service_windows(ui, st, data_dir, runner=runner)
     else:
         ui.warn(f"Unsupported OS: {sys.platform} — see docs/service.md for manual setup.")
 
 
-def remove_stale_service(ui) -> None:
-    if sys.platform.startswith("linux"):
-        remove_stale_service_linux(ui)
-    elif sys.platform == "darwin":
-        remove_stale_service_macos(ui)
-    elif sys.platform == "win32":
-        remove_stale_service_windows(ui)
-
-
 # ── Epilogue ──────────────────────────────────────────────────────────────────
+def control_panel_url() -> str:
+    """Where the service serves the control panel (config's ``webui.port``)."""
+    from lesysbot.core.config import Settings
+
+    try:
+        return f"http://127.0.0.1:{Settings.load().webui.port}"
+    except Exception:
+        return "http://127.0.0.1:8700"
+
+
 def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> None:
     ui.say("\n  [bold]How to use[/bold]\n")
     if provider in ("telegram", "slack"):
@@ -407,6 +654,11 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
         ui.say("    • Leave                    type [bold]exit[/bold]")
 
     ui.say("\n  Full usage guide:  [bold]docs/usage.md[/bold]")
+    ui.say(f"  Control panel:     [bold]{control_panel_url()}[/bold]  "
+           "(settings, tools, health — always on)")
+    ui.say("  Dashboard:         [bold]http://localhost:3000[/bold]  "
+           "(Grafana — login admin / admin)")
+    ui.say("  Health check:      [bold]lesysbot[/bold]  (status of all of the above)")
     ui.say(f"  Activity logs:     [bold]{data_dir}/logs/lesysbot.log[/bold]")
     ui.say(f"  Reconfigure:       [bold]lesysbot setup[/bold]  (or edit "
            f"[bold]{data_dir}/config.yaml[/bold])")

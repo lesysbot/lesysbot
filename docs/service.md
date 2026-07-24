@@ -1,22 +1,27 @@
 # Run as a service
 
-If you reach your bot from Telegram or Slack, it needs to be running all the
-time. This page covers that: keeping it alive in the background, starting it at
-boot, and finding the logs when something's off.
+LeSysBot runs in the background so two things are always there: the
+[control panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
+Telegram or Slack — the bot answering your messages. This page covers keeping it
+alive, starting it at boot, and finding the logs when something's off.
 
 Installing LeSysBot itself is in [Getting started](getting-started.md).
 
 ---
 
-## You may already have one
+## You already have one
 
-If you picked **Telegram or Slack** in the setup wizard, a background service was
-installed for you — systemd on Linux, launchd on macOS, Task Scheduler on
-Windows. It runs from `~/.lesysbot`, restarts itself if it crashes, and starts on
-boot if you asked for that.
+The setup wizard installs it for every configuration — systemd on Linux, launchd
+on macOS, Task Scheduler on Windows. It runs from `~/.lesysbot`, restarts itself
+if it crashes, and starts on boot if you asked for that.
 
-If you picked **Terminal only**, there's no service, and that's correct: a
-terminal chat is something you start when you want it.
+It's installed even if you picked **Terminal only**: the service is what keeps
+the control panel online. With that provider there's no chat to serve, so the
+panel is all it does — your terminal chat is still something you start yourself
+with `lesysbot --provider cli`.
+
+To see whether it's up, run `lesysbot` — that prints health and metrics and
+exits, without starting anything.
 
 The day-to-day rhythm is two commands:
 
@@ -126,8 +131,9 @@ You need this if you installed manually, or want something the wizard doesn't
 offer. One rule matters more than the rest: **the service must run from the
 directory holding your `config.yaml` and `tools/`** — normally `~/.lesysbot`.
 
-Use the `run` subcommand. A bare `lesysbot` in a terminal opens the
-[management UI](management-ui.md) instead of the bot.
+Use the `run` subcommand — that's the service: the control panel plus the bot. A
+bare `lesysbot` only prints status and exits, so a unit that calls it would come
+straight back down.
 
 <details>
 <summary><b>Linux — systemd user service</b></summary>
@@ -136,7 +142,7 @@ Use the `run` subcommand. A bare `lesysbot` in a terminal opens the
 
 ```ini
 [Unit]
-Description=LeSysBot — local AI assistant with tools
+Description=LeSysBot — local AI assistant with tools (control panel + bot)
 After=network.target
 
 [Service]
@@ -242,9 +248,10 @@ Start-Process lesysbot -ArgumentList run -WindowStyle Hidden   # stop: Stop-Proc
 
 ## Only one at a time
 
-Two copies of the same Telegram bot would fight over the same messages —
-Telegram rejects both with a `409`. So LeSysBot takes a lock per bot token at
-startup, and a second one refuses to start, naming the process that holds it.
+Two copies would fight — over the control panel's port, and, with Telegram, over
+the same messages (Telegram rejects both with a `409`). So the service takes a
+lock at startup and a second one refuses to start, naming the process that holds
+it.
 
 Stop the service first if you want a foreground run. The lock is released
 automatically when the process ends, crashes included, so nothing gets stuck. A

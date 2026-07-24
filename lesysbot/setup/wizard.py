@@ -41,7 +41,10 @@ class WizardState:
     slack_bot: str = ""
     slack_app: str = ""
     auto_start: bool = False
-    needs_service: bool = False
+    # Every install gets the background service: it serves the control panel,
+    # which is meant to be online whenever the machine is (and it runs the
+    # Telegram/Slack bot too, when one is configured).
+    needs_service: bool = True
 
 
 # ── Ollama helpers ────────────────────────────────────────────────────────────
@@ -232,11 +235,15 @@ def step_messaging(ui, st: WizardState) -> bool:
 
 def step_autostart(ui, st: WizardState) -> bool:
     """Returns True to continue, False to go back to the messaging step."""
-    st.needs_service = st.msg_provider in ("telegram", "slack")
-    if not st.needs_service:
-        st.auto_start = False
-        return True
-    ui.say(f"\n  A {st.msg_provider} bot runs in the background, so it installs as a service.\n")
+    # Always a service: the control panel (settings, tools, health) is meant to
+    # be reachable at any time, not only while a terminal happens to be open.
+    st.needs_service = True
+    if st.msg_provider in ("telegram", "slack"):
+        ui.say(f"\n  LeSysBot runs in the background as a service — it keeps the "
+               f"control panel online and answers your {st.msg_provider} messages.\n")
+    else:
+        ui.say("\n  LeSysBot runs in the background as a service so the control panel "
+               "(settings, tools, health) stays online.\n")
     when = "at login" if sys.platform == "win32" else "after reboot"
     choice = ui.menu(
         "Step 3 — Service",
@@ -268,11 +275,8 @@ def run_steps(ui, st: WizardState, start: int) -> None:
 
 
 def show_summary(ui, st: WizardState, data_dir: Path) -> None:
-    if st.needs_service:
-        startup = ("enabled — starts at reboot" if st.auto_start
-                   else "started now, not at reboot")
-    else:
-        startup = "runs in your terminal (no background service)"
+    startup = ("service — starts now and at reboot" if st.auto_start
+               else "service — starts now, not at reboot")
     ui.say("\n  [bold]Summary[/bold]\n")
     ui.say(f"  LLM        {st.llm_model}  ({st.llm_base_url})")
     ui.say(f"  Provider   {st.msg_provider}")
@@ -288,11 +292,9 @@ def step_summary(ui, st: WizardState, data_dir: Path) -> bool:
     """Returns True once the user applies, False to quit without writing."""
     while True:
         show_summary(ui, st, data_dir)
-        options = ["Apply these settings", "Change LLM backend", "Change how to reach LeSysBot"]
-        startup_opt = 0
-        if st.needs_service:
-            options.append("Change startup behaviour")
-            startup_opt = 4
+        options = ["Apply these settings", "Change LLM backend", "Change how to reach LeSysBot",
+                   "Change startup behaviour"]
+        startup_opt = 4
         options.append("Quit — exit without writing config")
         quit_opt = len(options)
         choice = ui.menu("Ready?", options, default=1)

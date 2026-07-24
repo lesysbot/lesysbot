@@ -5,21 +5,24 @@ description: Operate LeSysBot as a background service — status, start/stop/res
 
 # Run and manage LeSysBot as a service
 
-The install wizard registers a service **only for Telegram/Slack** (they poll
-in the background); the CLI provider is an on-demand terminal session and gets
-no service. The service runs from **`~/.lesysbot`** (where `config.yaml` and
-`tools/` live), restarts on failure, and optionally starts on boot.
+The install wizard registers the service for **every** configuration, not just
+Telegram/Slack: it serves the always-on **control panel**
+(`http://127.0.0.1:8700`) and, when a remote provider is configured, runs the
+bot. With `provider: cli` the service serves the panel and idles — the terminal
+chat stays an on-demand `lesysbot --provider cli` session. The service runs from
+**`~/.lesysbot`** (where `config.yaml` and `tools/` live), restarts on failure,
+and optionally starts on boot.
 
-The service's exec command is **`lesysbot run`** (the explicit bot-runner). Bare
-`lesysbot` in a terminal opens the management UI instead, so a hand-written unit
-must call `lesysbot run`, not `lesysbot`.
+The service's exec command is **`lesysbot run`**. Bare `lesysbot` prints health
+and metrics and exits, so a hand-written unit must call `lesysbot run`.
 
 The working rhythm: edit `~/.lesysbot/config.yaml` → restart the service.
+Check state with `lesysbot` (Service / Control panel rows) or the commands below.
 
-Only one instance per bot can run: starting `lesysbot` manually while the
-service is up refuses with "Another LeSysBot instance … is already running
-(PID N)" — stop the service first for a foreground run. `lesysbot --provider
-cli` doesn't poll and runs fine alongside the service.
+Only one instance can run: starting `lesysbot run` manually while the service is
+up refuses with "Another LeSysBot instance … is already running (PID N)" — stop
+the service first for a foreground run. `lesysbot --provider cli` doesn't poll or
+bind a port and runs fine alongside the service.
 
 ## Managing the installed service
 

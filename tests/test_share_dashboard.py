@@ -3,7 +3,6 @@ import importlib.util
 import time
 from pathlib import Path
 
-import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 TOOL = REPO / "tools" / "share-dashboard" / "tool.py"
@@ -141,17 +140,29 @@ async def test_local_fallback_prunes_expired_when_grafana_down(tmp_path, monkeyp
 
 def test_grafana_autodetect(tmp_path, monkeypatch):
     m = load(monkeypatch, tmp_path)
-    # explicit env override always wins, no probing
+    # explicit env override wins when Grafana answers there
     monkeypatch.setenv("LESYSBOT_GRAFANA_URL", "http://gf.example:9999")
-    monkeypatch.setattr(m, "_is_grafana", lambda url, **k: pytest.fail("should not probe"))
+    monkeypatch.setattr(m, "_is_grafana", lambda url, **k: "9999" in url)
     assert m._resolve_grafana(m._cfg()) == "http://gf.example:9999"
+    # a stale override (Grafana moved off it) falls through to probing
+    monkeypatch.setattr(m, "_is_grafana", lambda url, **k: "3001" in url)
+    assert m._resolve_grafana(m._cfg()) == "http://localhost:3001"
     # no override: skip the impostor on 3000, pick the real Grafana on 3001
     monkeypatch.delenv("LESYSBOT_GRAFANA_URL", raising=False)
-    monkeypatch.setattr(m, "_is_grafana", lambda url, **k: "3001" in url)
     assert m._resolve_grafana(m._cfg()) == "http://localhost:3001"
     # nothing answers: fall back to the default for a sensible error
     monkeypatch.setattr(m, "_is_grafana", lambda url, **k: False)
     assert m._resolve_grafana(m._cfg()) == "http://localhost:3000"
+
+
+def test_grafana_candidates_prefer_the_configured_port(tmp_path, monkeypatch):
+    """The bundled stack's GRAFANA_PORT is probed before the fixed guesses."""
+    (tmp_path / "monitoring").mkdir()
+    (tmp_path / "monitoring" / ".env").write_text("GRAFANA_PORT=3007\n", encoding="utf-8")
+    m = load(monkeypatch, tmp_path)
+    assert m._candidates()[:2] == ["http://localhost:3007", "http://127.0.0.1:3007"]
+    monkeypatch.setattr(m, "_is_grafana", lambda url, **k: "3007" in url)
+    assert m._resolve_grafana(m._cfg()) == "http://localhost:3007"
 
 
 async def test_stack_down_is_friendly(tmp_path, monkeypatch):

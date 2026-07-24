@@ -59,15 +59,18 @@ Grafana's registry as the source of truth.
 
 ## Configuration (all optional)
 
-Defaults assume the bundled stack on the same machine. **If you don't set
-`LESYSBOT_GRAFANA_URL`, the tool finds Grafana automatically** — it probes the
-usual local ports (3000, then 3001) and uses the first that answers as Grafana
-(verified via `/api/health`), so a stack bumped to 3001 because 3000 was taken
-still works with no config. Set the env vars only to override:
+Defaults assume the bundled stack on the same machine. **The tool finds Grafana
+automatically** — it probes the port set in `~/.lesysbot/monitoring/.env`
+(`GRAFANA_PORT`) first, then the usual 3000/3001, and uses the first that answers
+as Grafana (verified via `/api/health`), so a stack bumped to 3001 because 3000
+was taken still works with no config. `LESYSBOT_GRAFANA_URL` wins **when Grafana
+answers there** — a saved URL that has gone stale (the stack moved, and something
+else now owns that port) falls back to probing instead of failing against the
+wrong service. Set the env vars only to override:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LESYSBOT_GRAFANA_URL` | auto-detect (`localhost:3000`/`3001`) | Grafana base URL |
+| `LESYSBOT_GRAFANA_URL` | auto-detect (`GRAFANA_PORT`, then `localhost:3000`/`3001`) | Grafana base URL |
 | `LESYSBOT_GRAFANA_USER` / `LESYSBOT_GRAFANA_PASSWORD` | `admin` / `admin` | basic auth |
 | `LESYSBOT_GRAFANA_TOKEN` | — | Bearer token (used instead of user/password) |
 | `LESYSBOT_GRAFANA_DS_UID` | `prometheus` | Prometheus datasource uid |

@@ -208,16 +208,23 @@ class InteractiveUI:
         self.echo_answer(title, options[sel])
         return sel + 1
 
-    def text(self, prompt: str, default: str = "") -> str | None:
-        """Free-text input; returns the value, or ``None`` when Esc backs out."""
+    def text(self, prompt: str, default: str = "", secret: bool = False) -> str | None:
+        """Free-text input; returns the value, or ``None`` when Esc backs out.
+
+        With ``secret=True`` the typed characters, the shown default, and the
+        left-behind echo are masked with ``*`` so a password never appears on
+        screen or in scrollback.
+        """
         buf = ""
         hint = "⏎ accept · Esc back"
         title = f"[bold]{prompt}[/bold]"
         if default:
-            title += f"  [dim]\\[{default}][/dim]"
+            shown_default = "*" * len(default) if secret else default
+            title += f"  [dim]\\[{shown_default}][/dim]"
 
         def render() -> Panel:
-            line = Text(f" {buf}")
+            display = "*" * len(buf) if secret else buf
+            line = Text(f" {display}")
             line.append("▌", style=ACCENT)
             return Panel(
                 line,
@@ -243,7 +250,10 @@ class InteractiveUI:
                     buf += key
                 live.update(render(), refresh=True)
         value = buf or default
-        shown = value if value else "(empty)"
+        if secret:
+            shown = "*" * len(value) if value else "(empty)"
+        else:
+            shown = value if value else "(empty)"
         self.echo_answer(prompt, shown)
         return value
 
@@ -295,8 +305,22 @@ class PlainUI:
             return default
         return choice if 1 <= choice <= len(options) else default
 
-    def text(self, prompt: str, default: str = "") -> str | None:
-        shown = f" [bold]\\[{default}][/bold]" if default else ""
+    def text(self, prompt: str, default: str = "", secret: bool = False) -> str | None:
+        shown_default = "*" * len(default) if (secret and default) else default
+        shown = f" [bold]\\[{shown_default}][/bold]" if default else ""
+        if secret:
+            # No terminal (PlainUI is the non-tty path), so there is nothing to
+            # echo the typed password to; still read it without printing it back.
+            import getpass
+
+            self.console.print(f"  [{ACCENT}]?[/{ACCENT}]  {prompt}{shown}: ", end="")
+            try:
+                answer = getpass.getpass("")
+            except (EOFError, OSError):  # no tty / closed input → take default
+                self.console.print()
+                self.eof = True
+                return default
+            return answer or default
         return self._input(f"  [{ACCENT}]?[/{ACCENT}]  {prompt}{shown}: ", default)
 
     def confirm_yn(self, prompt: str, default: bool = True) -> bool:

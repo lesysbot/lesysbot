@@ -80,6 +80,43 @@ def release_instance_lock(key: str) -> None:
         fh.close()
 
 
+def is_running(key: str) -> bool:
+    """True when a live process holds *key*'s lock.
+
+    Not the same as "the lock file exists": the kernel drops the lock when the
+    holder exits, but the file (with its now-stale PID) stays behind — so the
+    status screen has to test the lock itself, or it reports a crashed service
+    as running. Probing takes the lock on a *separate* open file description and
+    releases it again, which never disturbs the real holder.
+    """
+    if key in _held:
+        return True
+    path = _lock_path(key)
+    if not path.exists():
+        return False
+    try:
+        fh = open(path, "a+b")
+    except OSError:
+        return False
+    try:
+        if os.name == "nt":
+            fh.seek(0)
+            try:
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError:
+                return True
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return True
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        return False
+    finally:
+        fh.close()
+
+
 def holder_pid(key: str) -> int | None:
     """PID recorded in the lock file, best effort.
 
