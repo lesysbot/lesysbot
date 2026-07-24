@@ -46,7 +46,11 @@ def test_holder_pid_records_owner(tmp_path, monkeypatch):
     monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
     assert singleton.acquire_instance_lock("testbot")
     try:
-        assert singleton.holder_pid("testbot") == os.getpid()
+        # Windows byte locks are mandatory: a second handle can't read the PID
+        # through the lock we hold, so holder_pid returns None there by design
+        # (see its docstring and test_is_running below). Elsewhere it names us.
+        expected = None if os.name == "nt" else os.getpid()
+        assert singleton.holder_pid("testbot") == expected
     finally:
         singleton.release_instance_lock("testbot")
 
