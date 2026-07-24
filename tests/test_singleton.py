@@ -68,7 +68,12 @@ def test_is_running_ignores_a_stale_lock_file(tmp_path, monkeypatch):
                 break
             time.sleep(0.05)
         assert singleton.is_running("testbot") is True
-        assert singleton.holder_pid("testbot") == child.pid
+        # Windows byte locks are mandatory: holder_pid can't read the PID while
+        # another process holds the lock (see its docstring), so it returns None
+        # there. Only assert the PID off-Windows — the post-exit read below,
+        # once the lock is released, works on every platform.
+        if os.name != "nt":
+            assert singleton.holder_pid("testbot") == child.pid
     finally:
         child.stdin.close()
         child.wait(timeout=10)
