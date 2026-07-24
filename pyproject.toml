@@ -49,5 +49,14 @@ lesysbot = "lesysbot.__main__:main"
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint]
+# Pinned explicitly rather than inherited: ruff's *default* rule set is not
+# stable across releases (0.16 widened it from these four to a much broader
+# selection), and CI installs whatever `ruff>=0.4` resolves to — so an
+# unpinned selection means an upstream release can fail every matrix job
+# without a line of our code changing. Widen this deliberately, not by
+# upgrade drift.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
