@@ -57,9 +57,9 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, dict[str, Any]] = {}
-        # Names the user has turned off via the dashboard. Disabled tools stay
-        # registered (so they're listed) but are hidden from the LLM and refuse to
-        # run. This set is an instance attr, so it survives reload() (hot-reload);
+        # Names the user has turned off via `lesysbot tools disable`. Disabled
+        # tools stay registered (so they're listed) but are hidden from the LLM and
+        # refuse to run. This set is an instance attr, so it survives reload() (hot-reload);
         # _state_path persists it across process restarts.
         self._disabled: set[str] = set()
         self._state_path: Path | None = None
@@ -258,7 +258,7 @@ class ToolRegistry:
         if name not in self._tools:
             return f"Unknown tool: {name}"
         if not self.is_enabled(name):
-            return f"Tool '{name}' is disabled. Re-enable it from the dashboard to use it."
+            return f"Tool '{name}' is disabled. Run `lesysbot tools enable {name}` to use it."
         fn: Callable = self._tools[name]["fn"]
         try:
             result = await fn(**arguments)
@@ -338,7 +338,7 @@ class ToolRegistry:
         return info
 
     def tool_status(self) -> list[dict[str, Any]]:
-        """Per-tool status for the dashboard: enabled/available + gating metadata."""
+        """Per-tool status for `lesysbot tools list`: enabled/available + gating metadata."""
         status = []
         for meta in self._tools.values():
             params = meta["parameters"].get("properties", {})
@@ -391,7 +391,7 @@ class ToolRegistry:
                 entry += f" {sig}"
             entry += f"\n  {meta['description']}"
             if not self.is_enabled(meta["name"]):
-                entry += "\n  ⊘ disabled (re-enable from the dashboard)"
+                entry += "\n  ⊘ disabled (`lesysbot tools enable` to re-enable)"
             if not meta.get("available", True):
                 entry += f"\n  ⚠ unavailable here: {meta.get('unavailable_reason')}"
             lines.append(entry)

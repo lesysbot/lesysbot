@@ -10,12 +10,14 @@ Everything here works the same in CLI, Telegram, and Slack.
 ## Start a session
 
 ```bash
-lesysbot                    # uses the config's provider
-lesysbot --provider cli     # force a terminal session (works even if config says telegram/slack)
+lesysbot --provider cli     # force a terminal chat (works even if config says telegram/slack)
+lesysbot run                # run the bot using the config's provider
+lesysbot                    # in a terminal: opens the management UI (status + web panel), NOT a chat
 ```
 
-A CLI session can run *alongside* a Telegram/Slack background service — it's a
-separate session with its own conversation history; they don't conflict.
+Bare `lesysbot` in a terminal now opens the management UI, so use `--provider
+cli` (or `run`) to actually chat. A CLI session can run *alongside* a
+Telegram/Slack background service — separate history; they don't conflict.
 
 ## Two ways to interact
 

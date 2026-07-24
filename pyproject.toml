@@ -9,8 +9,8 @@ description = "A pluggable bot framework: local LLM + MCP tools + Slack/Telegram
 readme = "README.md"
 requires-python = ">=3.11"
 # The CLI provider, the tool registry and `lesysbot tools`/`lesysbot setup` need
-# only these. Chat platforms and the dashboard are extras: `__main__` imports
-# each adapter lazily, so an install without them is fully functional.
+# only these. Chat platforms are extras: `__main__` imports each adapter lazily,
+# so an install without them is fully functional.
 dependencies = [
     "openai>=1.30.0",
     "pydantic>=2.0.0",
@@ -31,14 +31,10 @@ slack = [
     "slack-bolt>=1.18.0",
     "aiohttp>=3.9",
 ]
-# Web dashboard (lesysbot --dashboard): manage tools + check LLM health.
-dashboard = [
-    "aiohttp>=3.9",
-]
 # Everything a user-facing install can offer — what scripts/install.{sh,ps1}
 # install, so every option the setup wizard presents actually works.
 all = [
-    "lesysbot[telegram,slack,dashboard]",
+    "lesysbot[telegram,slack]",
 ]
 dev = [
     "lesysbot[all]",

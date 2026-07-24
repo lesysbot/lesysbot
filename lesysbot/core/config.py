@@ -81,6 +81,12 @@ class MCPConfig(BaseModel):
     # (`lesysbot tools install`): repo, pinned commit, version. Relative paths
     # anchor to the config dir (so ~/.lesysbot/tools.lock.json when installed).
     lock_file: str = "tools.lock.json"
+    # Persisted set of tools disabled via `lesysbot tools disable`. Relative
+    # paths anchor to the config dir (so ~/.lesysbot/tool_state.json for an
+    # installed setup), like tools_dir/logs. The bot watches this file, so a
+    # change from the CLI reaches a running bot within a second (set null to
+    # disable persistence).
+    state_file: str | None = "tool_state.json"
 
 
 class AgentConfig(BaseModel):
@@ -93,17 +99,6 @@ class AgentConfig(BaseModel):
     max_tool_calls: int = 10
 
 
-class DashboardConfig(BaseModel):
-    # Off by default — opt in with `--dashboard` or `enabled: true`. Binds to
-    # localhost with no auth (single-user local tool); change `host` deliberately.
-    enabled: bool = False
-    host: str = "127.0.0.1"
-    port: int = 8765
-    # Persisted set of disabled tools. Relative paths anchor to the config dir
-    # (so ~/.lesysbot/tool_state.json for an installed setup), like tools_dir/logs.
-    state_file: str | None = "tool_state.json"
-
-
 class LogConfig(BaseModel):
     level: str = "INFO"
     file: str | None = "logs/lesysbot.log"
@@ -113,6 +108,13 @@ class LogConfig(BaseModel):
     # "H", "D", "W0".."W6", …); `backup_count` is how many rotated files to keep.
     when: str = "midnight"
     backup_count: int = 7
+
+
+class WebUIConfig(BaseModel):
+    # The local management UI (`lesysbot manage`, or bare `lesysbot` in a
+    # terminal). It is bound to loopback only — the host is deliberately NOT
+    # configurable, so it can never be exposed on the LAN. Only the port is.
+    port: int = 8700
 
 
 class Settings(BaseSettings):
@@ -136,13 +138,18 @@ class Settings(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
-    dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     logging: LogConfig = Field(default_factory=LogConfig)
+    webui: WebUIConfig = Field(default_factory=WebUIConfig)
 
     # Absolute path of the config.yaml this instance was loaded from (None when
     # running on built-in defaults). Relative `tools/`/`logs/` paths are anchored
     # to its directory so they live next to the config the user edits.
     _config_path: Path | None = PrivateAttr(default=None)
+
+    @property
+    def config_path(self) -> Path | None:
+        """The active config.yaml itself, or None when running on built-in defaults."""
+        return self._config_path
 
     @property
     def config_dir(self) -> Path | None:
@@ -218,9 +225,9 @@ def resolve_paths(settings: Settings) -> None:
     base = settings.config_dir
     settings.mcp.tools_dir = anchor(settings.mcp.tools_dir, base)
     settings.mcp.lock_file = anchor(settings.mcp.lock_file, base)
+    if settings.mcp.state_file:
+        settings.mcp.state_file = anchor(settings.mcp.state_file, base)
     if settings.logging.file:
         settings.logging.file = anchor(settings.logging.file, base)
     if settings.logging.trace_file:
         settings.logging.trace_file = anchor(settings.logging.trace_file, base)
-    if settings.dashboard.state_file:
-        settings.dashboard.state_file = anchor(settings.dashboard.state_file, base)

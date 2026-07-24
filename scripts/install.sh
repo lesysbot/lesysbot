@@ -15,11 +15,22 @@ ok()  { printf "${GREEN}  ✓  ${NC}%s\n" "$*"; }
 die() { printf "${RED}  ✗  ${NC}%s\n"   "$*" >&2; exit 1; }
 hr()  { printf "\n  %s\n" "$(printf '%.0s─' {1..50})"; }
 
+# The pixel mark, indented to match everything else. Skipped unless a human is
+# watching a colour terminal — and never a hard failure, since this runs before
+# we've even checked that Python exists. `sed` (not printf) because the file is
+# raw escape codes: printf would try to read them as a format string.
+logo() {
+    local f="$REPO_DIR/assets/brand/${1:-banner.txt}"
+    [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" && -f "$f" ]] || return 0
+    sed 's/^/  /' "$f"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
 clear
 printf "\n"
+logo
 hr
 printf "\n  ${BOLD}LeSysBot Setup${NC}\n"
 hr
@@ -50,7 +61,7 @@ ok "Python $($PYTHON --version | cut -d' ' -f2)"
 # ═══════════════════════════════════════════════════════════════════════════════
 printf "\n  Installing lesysbot package …\n"
 cd "$REPO_DIR"
-# .[all] = Telegram + Slack + dashboard extras, so every option the wizard
+# .[all] = Telegram + Slack extras, so every option the wizard
 # offers below works without a second install step.
 $PYTHON -m pip install --quiet ".[all]"
 ok "Package installed"

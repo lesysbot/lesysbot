@@ -87,10 +87,6 @@ curl http://localhost:11434/    # "Ollama is running"? if not: sudo systemctl st
 ## Verify the switch
 
 - Ask the bot anything conversational — a reply proves the backend answers.
-- Or use the dashboard's health banner (`lesysbot --dashboard`, then
-  http://localhost:8765, or `curl http://127.0.0.1:8765/api/llm/health`): it
-  probes the backend's `/models` endpoint and reports latency + whether the
-  configured model is present in the backend's list.
 - `LLM unavailable` → the backend isn't reachable at `base_url`;
   `model "x" not found` → pull it (`ollama pull x`) or fix `llm.model`.
   Slash commands keep working with no model at all.

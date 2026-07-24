@@ -39,7 +39,7 @@ git checkout -b my-change
 ```
 
 **Step 2 — Install in editable mode with dev extras** (adds `pytest` + `ruff`
-on top of `[all]`, so Telegram, Slack and the dashboard are all importable):
+on top of `[all]`, so Telegram and Slack are both importable):
 
 ```bash
 pip install -e ".[dev]"
@@ -84,7 +84,6 @@ lesysbot/            the package
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
 ├─ messaging/        CLI / Telegram / Slack adapters + the base interface
-├─ dashboard/        optional local web UI
 └─ install/          `lesysbot tools install` — fetch tool packages from GitHub
 tools/             bundled tool packages (the catalog users get seeded with)
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
@@ -195,16 +194,39 @@ both. The PowerShell one can't run in CI, so verify it by careful inspection
 
 ## 7. Contributing documentation
 
-The docs follow one deliberate structure — **top-down, overview before
-detail** — and each page **walks step by step** through one job. When editing:
+The docs are written **user-first**: someone who just wants the thing to work
+should be able to read the top of a page, run the commands, and stop. When
+editing:
 
-- Keep every page's early sections understandable on their own; push
-  internals and edge cases toward the end.
-- Prefer numbered steps with a copy-pasteable command and its expected output
-  over prose descriptions.
-- Slot new pages into the reading order in [docs/README.md](docs/README.md)
-  and link them from the README's documentation map.
-- Cross-link rather than repeat — each fact should have one home.
+- **Lead with the shortest path that works.** The plain-language answer and a
+  copy-pasteable command come before any explanation of why.
+- **Push internals into a `<details>` block.** If a reader who only wants it
+  working doesn't need a paragraph, wrap it:
+
+  ```markdown
+  <details>
+  <summary><b>Under the hood — how X works</b></summary>
+
+  … the technical detail …
+
+  </details>
+  ```
+
+  Keep the blank line after `</summary>` — that's what lets the markdown inside
+  render, both on GitHub and on the docs site. Two or three of these at the end
+  of a page is normal; a page that needs ten probably wants splitting.
+- **Don't number headings** on the user-facing pages (`getting-started`,
+  `usage`, `configuration`, `writing-tools`, `installing-tools`, `service`,
+  `management-ui`, `troubleshooting`) — make them the question the reader is
+  asking. The reference pages (`adapters`, `architecture`, `building-windows-exe`)
+  keep their numbering, and cross-links to them use those anchors.
+- **Symptoms and fixes go in [troubleshooting.md](docs/troubleshooting.md)**,
+  not in a per-page table. Link to it instead.
+- **Cross-link rather than repeat** — each fact should have exactly one home.
+- **New page?** Add it to [docs/README.md](docs/README.md), the root README's
+  "What next?" table, and the docs site (`content/<version>/nav.json` plus the
+  `GUIDES` map in `scripts/import-docs.js`) — the site imports guide markdown
+  straight from `docs/`, so a page missing from that map never appears.
 
 ---
 

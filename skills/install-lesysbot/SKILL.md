@@ -92,10 +92,9 @@ The prompts, in order:
    last) `Quit — exit without writing config`. On the kept-config path it's
    a plain **"Apply these settings?" `[Y/n]`**.
 
-The wizard never uses `sudo`. (The optional `shutdown-wake` tool package —
-`lesysbot tools install lesysbot/lesysbot-linux-tools-official/tools/shutdown-wake` —
-needs a one-time sudoers rule for `rtcwake`; its bundled `setup-sudoers.sh`
-handles that after you install it.)
+The wizard never uses `sudo` — and neither does any tool. No official package
+requires root, a sudoers rule, or an Administrator prompt, so there is never a
+privileged follow-up step: install a package and it works.
 
 What the wizard does: writes **`~/.lesysbot/config.yaml`**, seeds
 **`~/.lesysbot/tools/`** (never clobbers an existing one), installs the `lesysbot`
@@ -109,7 +108,7 @@ present, it offers to stop and remove it — answer `y`.
 ## 4. Path B — manual install (scriptable, full control)
 
 ```bash
-pip install ".[all]"             # telegram + slack + dashboard extras
+pip install ".[all]"             # telegram + slack extras
 # pip install .                  # minimal: terminal chat and tools only
 # pip install -e ".[dev]"        # development (adds pytest + ruff)
 lesysbot --help                    # verify the command exists

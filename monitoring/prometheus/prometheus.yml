@@ -1,0 +1,31 @@
+# Scrape config for the macOS / Windows stack (docker-compose.yml).
+#
+# Exporters run natively on the host and are reached through
+# `host.docker.internal`. Targets you aren't running show as `down` on
+# http://localhost:9090/targets — expected (e.g. `windows` is down on macOS, and
+# `nvidia_gpu` is down without an NVIDIA card). Start the matching exporter and
+# it turns green within ~15s.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # macOS host metrics (node_exporter) — CPU, memory, disk, filesystem, and
+  # per-device network. The `device` label is en0 for Ethernet, en1 for Wifi.
+  - job_name: node
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+
+  # Windows host metrics (windows_exporter). `nic` label carries Ethernet/Wifi.
+  - job_name: windows
+    static_configs:
+      - targets: ["host.docker.internal:9182"]
+
+  # GPU metrics — nvidia_gpu_exporter parses `nvidia-smi`.
+  - job_name: nvidia_gpu
+    static_configs:
+      - targets: ["host.docker.internal:9835"]

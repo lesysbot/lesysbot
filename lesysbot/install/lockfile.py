@@ -56,8 +56,8 @@ class JsonState:
 def drop_entries(path: Path, names: list[str], root_key: str = LOCK_KEY) -> list[str]:
     """Drop *names* from the lock file, returning the ones that were present.
 
-    Keeps the lock in sync when an installed package is deleted (dashboard
-    Remove, ``lesysbot tools remove``).
+    Keeps the lock in sync when an installed package is deleted
+    (``lesysbot tools remove``).
     """
     state = JsonState(Path(path), root_key)
     items = state.load()

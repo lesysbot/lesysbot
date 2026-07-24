@@ -10,6 +10,10 @@ in the background); the CLI provider is an on-demand terminal session and gets
 no service. The service runs from **`~/.lesysbot`** (where `config.yaml` and
 `tools/` live), restarts on failure, and optionally starts on boot.
 
+The service's exec command is **`lesysbot run`** (the explicit bot-runner). Bare
+`lesysbot` in a terminal opens the management UI instead, so a hand-written unit
+must call `lesysbot run`, not `lesysbot`.
+
 The working rhythm: edit `~/.lesysbot/config.yaml` → restart the service.
 
 Only one instance per bot can run: starting `lesysbot` manually while the

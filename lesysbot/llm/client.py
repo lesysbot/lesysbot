@@ -24,10 +24,16 @@ class LLMClient:
             timeout=config.timeout,
         )
 
+    async def aclose(self) -> None:
+        """Close the underlying httpx client. Call this before the event loop it
+        was created in is torn down (e.g. one-shot `asyncio.run` probes) — otherwise
+        its finalizer runs on a closed loop and logs 'Event loop is closed'."""
+        await self._client.close()
+
     async def health(self) -> dict[str, Any]:
         """Probe the LLM backend with a cheap /models call.
 
-        Returns a dict the dashboard renders: on success
+        Returns a dict: on success
         {ok, latency_ms, base_url, model, model_available, models}, and on failure
         {ok: False, error, base_url, model}. Uses a short 5 s timeout (not the long
         chat timeout) so an unreachable backend fails fast.

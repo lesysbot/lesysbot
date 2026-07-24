@@ -20,12 +20,12 @@ See [docs/installing-tools.md](../docs/installing-tools.md).
 |----------------|----------------------------------------|--------------------|-------------------------------|
 | `system-info/` | `get_system_info`, `disk_usage`        | Linux/macOS/Win    | —                             |
 | `date-time/`   | `get_datetime`                         | Linux/macOS/Win    | —                             |
-| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | Linux/macOS/Win  | — (may need sudo/admin)       |
+| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | Linux/macOS/Win  | —                             |
 | `cpu-temp/`    | `cpu_temp`                             | Linux              | — (reads `/sys` sensors)      |
 | `gpu-temp/`    | `gpu_temp`                             | Linux, Windows     | `nvidia-smi` (NVIDIA driver)  |
 | `speedtest/`   | `speedtest`                            | Linux/macOS/Win    | —                             |
 | `web/`         | `fetch_url`                            | Linux/macOS/Win    | `httpx` (pip)                 |
-| `remote-dashboard/` | `start_dashboard`, `stop_dashboard`, `dashboard_status` | Linux/macOS/Win | `gradio` (pip) |
+| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | Linux/macOS/Win | the [monitoring stack](../monitoring/README.md) running |
 
 A tool whose OS or required binary isn't satisfied still appears in `/help`, but
 calling it returns a one-line explanation instead of failing — so the catalog
@@ -35,9 +35,9 @@ OS-specific packages live in the official per-platform companion repos —
 install the one matching your machine:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), RTC shutdown-wake, hwmon temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping/tracert, wake-timer shutdown-wake, WMI temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, pmset shutdown-wake, SMC temps
+lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), hwmon temps
+lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping/tracert, WMI temps
+lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, SMC temps
 ```
 
 ## Package layout

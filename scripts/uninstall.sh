@@ -9,8 +9,20 @@ ok()   { printf "${GREEN}  ✓  ${NC}%s\n"  "$*"; }
 warn() { printf "${YELLOW}  !  ${NC}%s\n" "$*"; }
 hr()   { printf '%0.s─' {1..60}; printf '\n'; }
 
+# The compact 8-row cut — this screen isn't cleared, so it stays out of the way.
+# See the note in install.sh for why this is sed and not printf.
+logo() {
+    local f="$REPO_DIR/assets/brand/banner-small.txt"
+    [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != "dumb" && -f "$f" ]] || return 0
+    printf '\n'; sed 's/^/  /' "$f"; printf '\n'
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(dirname "$SCRIPT_DIR")"
+
 OS="$(uname -s)"
 
+logo
 hr
 printf "  LeSysBot Uninstaller\n"
 hr
@@ -67,18 +79,16 @@ case "$OS" in
     *)       warn "Unknown OS — skipping service removal" ;;
 esac
 
-# ── 1b. Wake-up sudoers rule (Linux only; written by the optional shutdown-wake
-# tool's setup-sudoers.sh, or by an older install wizard) ─────────────────────
-WAKE_RULE_FILE="/etc/sudoers.d/lesysbot-rtcwake"
-if [[ "$OS" == Linux* && -f "$WAKE_RULE_FILE" ]]; then
-    read -r -p "  Remove the rtcwake sudoers rule ($WAKE_RULE_FILE)? [y/N] " ans
-    if [[ "${ans,,}" == "y" ]]; then
-        sudo rm -f "$WAKE_RULE_FILE" && ok "Wake-up sudoers rule removed" \
-            || warn "Could not remove it (sudo failed) — delete it manually"
-    else
-        info "Kept $WAKE_RULE_FILE"
+# ── 1b. Legacy sudoers rules ──────────────────────────────────────────────────
+# Nothing LeSysBot ships needs root any more, so uninstall stays password-free:
+# a leftover rule from an old shutdown-wake install is reported, not deleted
+# (removing it would make this script prompt for a sudo password).
+for rule in /etc/sudoers.d/lesysbot-rtcwake /etc/sudoers.d/lesysbot-shutdown-wake; do
+    if [[ -f "$rule" ]]; then
+        warn "Leftover sudoers rule from an older version: $rule"
+        info "  No current tool uses it. Remove it with:  sudo rm $rule"
     fi
-fi
+done
 
 # ── 2. Uninstall Python package ───────────────────────────────────────────────
 PYTHON=""

@@ -1,107 +1,172 @@
-# Installing tools from GitHub
+# Install tools
 
-Any GitHub repo that contains a tool folder package can be installed with one
-command — no registry, no catalog, just the link:
+Any GitHub repo holding a tool package installs with one command. There's no
+registry to search and nothing to sign up for — the link *is* the package name.
 
 ```bash
-lesysbot tools install owner/repo                 # whole repo
-lesysbot tools install owner/repo/tools/gpu-temp  # one package inside a bigger repo
-lesysbot tools install owner/repo@v1.2            # pin a branch, tag, or commit
+lesysbot tools install lesysbot/lesysbot-linux-tools-official
+```
+
+LeSysBot downloads the repo, shows you what it found — package names, versions,
+the files that will land on your disk — and asks before writing anything. A
+running bot picks the new tools up straight away, no restart.
+
+---
+
+## The official collections
+
+Install the one matching your machine:
+
+```bash
+lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, CPU/GPU temps
+lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, CPU temp
+lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, thermal zones
+```
+
+macOS users: the Linux collection's `network` package works on macOS too, so
+it's worth having both.
+
+---
+
+## Installing anything else
+
+```bash
+lesysbot tools install owner/repo                  # everything in the repo
+lesysbot tools install owner/repo/tools/gpu-temp   # just one package from it
+lesysbot tools install owner/repo@v1.2             # pin to a tag, branch, or commit
 lesysbot tools install https://github.com/owner/repo
 ```
 
-LeSysBot downloads the repo as a zip (no git needed), shows you what it found —
-package names, versions, files — and asks for confirmation before anything is
-written. Installed packages land in your tools dir (`~/.lesysbot/tools/` for an
-installed setup); a running bot with hot-reload picks them up immediately.
+Useful flags:
 
-## Manage what's installed
+| Flag | What it does |
+|---|---|
+| `--only NAME` | Install just one package from a multi-package repo (repeatable) |
+| `--yes` | Skip the confirmation prompt |
+| `--force` | Overwrite a folder LeSysBot didn't install |
+| `--install-deps` | Run the package's `requirements.txt` instead of just printing it |
+
+---
+
+## Before you install: what you're agreeing to
+
+A tool package is **Python code that runs as you, on your machine**, the moment
+the bot loads it. There's no sandbox. This is the same deal as `pip install` —
+worth thinking about for a moment, then not agonising over:
+
+- **Install from people you trust.** Tool files are small; reading `tool.py` is
+  a minute's work and tells you everything.
+- **Pin what you depend on.** `@v1.2` or `@<commit-sha>` means you get the same
+  code tomorrow. Either way, the exact commit you received is recorded.
+- **Read the plan.** The list printed before the y/N prompt is every file that
+  will land in your tools directory. `--yes` skips that prompt, so keep it for
+  scripts you already trust.
+
+If a package needs Python libraries, LeSysBot **prints** the `pip install -r`
+command rather than running it — you decide.
+
+---
+
+## Managing what you've installed
 
 ```bash
-lesysbot tools list             # every tool: status, source package, install origin
-lesysbot tools info gpu_temp    # params, gating, and where it was installed from
-lesysbot tools enable/disable gpu_temp
-lesysbot tools remove gpu_temp  # deletes the package (asks y/N)
+lesysbot tools list             # everything, with status and where it came from
+lesysbot tools info gpu_temp    # parameters, requirements, provenance
+lesysbot tools disable gpu_temp # keep it, but switch it off
+lesysbot tools enable gpu_temp  # back on
+lesysbot tools remove gpu_temp  # delete it (asks first)
 ```
 
-`list`/`info` show provenance for installed packages (`acme/repo@commit`);
-tools you wrote yourself just say `local`. See
-[Using LeSysBot §9](usage.md#9-managing-tools-enable--disable--remove) for the
-management commands and the [Dashboard](dashboard.md) for the point-and-click
-equivalent.
+`list` and `info` show `acme/repo@commit` for installed packages and `local` for
+ones you wrote. Disabling applies to a running bot within a second; removing
+deletes the whole package folder, including any sibling tools in it — they're
+listed before you confirm.
 
-## Source spec grammar
+To **update** a package, install it again. To update to a newer pinned version,
+install it again with the new ref.
 
-```
-owner/repo                       default branch (HEAD)
-owner/repo@ref                   branch, tag, or 40-hex commit SHA
-owner/repo/sub/dir[@ref]         a package inside a bigger repo
-https://github.com/owner/repo[.git]
-https://github.com/owner/repo/tree/REF[/sub/dir]
-git@github.com:owner/repo
-```
+You can do all of this from the [management UI](management-ui.md) too.
 
-Branch names containing `/` are ambiguous in `/tree/` URLs — use the
-`owner/repo/subdir@feature/x` short form for those.
-
-## What counts as a tool package in a repo
-
-- **Repo root holds `tool.py`** (any non-`_` `.py`): the repo *is* one package,
-  named after the repo.
-- **Otherwise**: every immediate subdirectory that holds a non-`_` `.py` file is
-  a package — looked for under `tools/` first when the repo has that folder
-  (the layout of the official collections and the core repo), else at the repo
-  root (`tests/`, `docs/`, dot- and `_`-prefixed dirs are skipped). Install
-  just one of them with `--only NAME` (repeatable), or point the spec at its
-  subdir.
-
-## Trust model — read this once
-
-Installed tools are **arbitrary Python code running as your user** the moment
-the bot loads them. There is no sandbox. Before confirming an install:
-
-- Install only from repos you trust (read `tool.py` — they're small).
-- Prefer pinning: `@tag` or `@commit-sha`. The exact commit you got is recorded
-  in the lock file (`tools.lock.json`) either way.
-- The plan printed before the y/N prompt lists every file that will land in
-  your tools dir. `--yes` skips the prompt — use it only in scripts you trust.
-
-## Python dependencies
-
-If a package ships a `requirements.txt`, LeSysBot **prints** the
-`pip install -r …` command instead of running it. Opt in with
-`--install-deps` to run it automatically.
+---
 
 ## Private repos
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) and it is sent as a Bearer token:
+Set a token and it's sent as a bearer credential:
 
 ```bash
 GITHUB_TOKEN=ghp_… lesysbot tools install you/private-tools
 ```
 
-## Collisions & local tools
+`GH_TOKEN` works too.
 
-The install refuses to overwrite a folder it didn't create (your hand-written
-tools are never clobbered) — `--force` overrides. Re-installing a package the
-lock already owns replaces it in place; that's also how you update one.
+---
 
-## Config
+## When it goes wrong
+
+| Message | What to do |
+|---|---|
+| `Not found: owner/repo@ref` | Check the spelling and the ref. For a private repo, set `GITHUB_TOKEN`. |
+| `tools dir already has X` | That folder wasn't installed by LeSysBot, so it's protected. `--force` if you're sure. |
+| Installed but not in `/help` | Restart if hot reload is off; otherwise check the log for an import error. |
+| Complains about a missing Python package | Re-run with `--install-deps`, or run the `pip install -r` line it printed. |
+
+More in [Troubleshooting](troubleshooting.md).
+
+---
+
+## Under the hood
+
+<details>
+<summary><b>Every way to write a source</b></summary>
+
+```
+owner/repo                       the default branch
+owner/repo@ref                   a branch, tag, or 40-character commit SHA
+owner/repo/sub/dir[@ref]         one package inside a bigger repo
+https://github.com/owner/repo[.git]
+https://github.com/owner/repo/tree/REF[/sub/dir]
+git@github.com:owner/repo
+```
+
+A branch name containing `/` is ambiguous inside a `/tree/` URL — use the short
+form for those: `owner/repo/subdir@feature/x`.
+
+Bare words aren't accepted. Installs are by GitHub link only, deliberately —
+there's no catalog that could go stale or be taken over.
+
+</details>
+
+<details>
+<summary><b>What counts as a package inside a repo</b></summary>
+
+- **The repo root contains a `.py` file** (any name not starting with `_`) → the
+  repo itself is one package, named after the repo.
+- **Otherwise** → every immediate subdirectory containing a `.py` file is a
+  package. If the repo has a `tools/` folder with packages in it, those are used;
+  otherwise the repo root is scanned. `tests/`, `docs/`, and anything starting
+  with `.` or `_` is skipped.
+
+Package code is never imported while LeSysBot is working out what's in the repo
+— only the README frontmatter is read, so nothing runs before you consent.
+
+</details>
+
+<details>
+<summary><b>Where things are written</b></summary>
 
 ```yaml
 mcp:
-  tools_dir: "./tools"          # where packages are installed & loaded from
-  lock_file: tools.lock.json    # install provenance (repo, pinned commit)
+  tools_dir: "./tools"          # packages are installed and loaded here
+  lock_file: tools.lock.json    # which repo and commit each package came from
 ```
 
-Both anchor next to the active `config.yaml` (so `~/.lesysbot/` when installed) —
-`lesysbot tools install` and the bot always resolve the same locations.
+Both are relative to your active config, so a normal install puts them under
+`~/.lesysbot/`. The installer and the bot resolve them the same way, which is
+why `lesysbot tools install` always writes to the directory the bot is actually
+reading.
 
-## Troubleshooting
+The download is a plain HTTPS zip fetch — no `git` binary needed and no GitHub
+API calls. Extraction guards against path-traversal entries, symlinks, and
+zip bombs, and the exact commit SHA is read out of the archive itself.
 
-| Symptom | Fix |
-|---|---|
-| `Not found: owner/repo@ref` | Check the spec; for private repos set `GITHUB_TOKEN`. |
-| `tools dir already has X` | That folder wasn't installed by LeSysBot — `--force` to overwrite it. |
-| Installed but not in `/help` | Restart the bot if `hot_reload` is off; check the log for import errors. |
-| Tool needs a pip package | Re-run with `--install-deps`, or run the printed `pip install -r` line. |
+</details>

@@ -1,0 +1,16 @@
+# Auto-provisions the Prometheus datasource so Grafana works on first boot.
+# The fixed uid `prometheus` is what every bundled dashboard binds its panels to.
+# ${PROM_URL} is injected by whichever compose file started Grafana
+# (http://prometheus:9090 on the bridge stack, http://127.0.0.1:9090 on Linux).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: ${PROM_URL}
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

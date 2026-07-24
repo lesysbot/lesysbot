@@ -1,69 +1,69 @@
-# LeSysBot Documentation
+# LeSysBot documentation
 
-The docs are organized **top-down** — start with the overview, drill into
-detail as you need it. Each guide walks step by step through one job. Read in
-order the first time; jump straight to a stage once you know your way around.
+Every page here answers one question and starts with the short version. If a
+page has technical detail, it's tucked into a **"Under the hood"** section at
+the end — open it only if you want it.
 
-```
-Understand  →  Install  →  Use  →  Extend  →  Operate  →  Contribute
-```
-
----
-
-## 1. Understand — what LeSysBot is and how it works
-
-| Guide | Read it to… |
-|---|---|
-| [README](../README.md) | Get the 2-minute pitch: what LeSysBot does, quick start, feature list |
-| [Architecture](architecture.md) | Follow a message through the system; learn the layers and where to change what |
-
-## 2. Install — from a fresh machine to a running bot
-
-| Guide | Read it to… |
-|---|---|
-| [Getting Started](getting-started.md) | Install (guided wizard or manual), have your first conversation, write your first tool — **the main on-ramp** |
-| [Models](models.md) | Pick a local model for your hardware, manage it with Ollama, point LeSysBot at it |
-
-## 3. Use — day-to-day
-
-| Guide | Read it to… |
-|---|---|
-| [Using LeSysBot](usage.md) | Chat vs. slash commands, passing arguments, confirmations, history, managing tools, common issues |
-| [Messaging Adapters](adapters.md) | Reach the bot from your terminal, Telegram, or Slack — full token/app setup |
-| [Dashboard](dashboard.md) | Manage tools and check LLM health from a browser |
-
-## 4. Extend — make it yours
-
-| Guide | Read it to… |
-|---|---|
-| [Writing Tools](writing-tools.md) | Add abilities with `@tool` / `CLITool`: schemas, confirmation, cross-platform gating, hot reload |
-| [Writing Tools with Claude Code](claude-code.md) | Let Claude scaffold tool packages via the `lesysbot-tool-dev` plugin, in any repo |
-| [Installing Tools](installing-tools.md) | Install community tools from GitHub; the lock file and trust model |
-| [Sharing Tools](sharing-tools.md) | Publish your tools from your own GitHub repo |
-| [Configuration](configuration.md) | Every setting: `config.yaml` reference, `LESYSBOT_*` env vars, CLI flags |
-
-## 5. Operate — keep it running
-
-| Guide | Read it to… |
-|---|---|
-| [Running as a Service](service.md) | Run in the background, auto-start on boot, manage the service, read logs |
-| [Building a Windows .exe](building-windows-exe.md) | Ship a standalone `lesysbot.exe` to users with no Python |
-
-## 6. Contribute — improve LeSysBot itself
-
-| Guide | Read it to… |
-|---|---|
-| [Contributing](../CONTRIBUTING.md) | Dev setup, tests, lint, and the step-by-step for each kind of contribution |
-| [Architecture](architecture.md) | The map of the code you'll be changing |
-| [CLAUDE.md](../CLAUDE.md) | Fine-grained internals, written for AI coding assistants but useful to anyone |
+**New here?** [Getting started](getting-started.md) takes you from nothing to a
+working bot in about five minutes.
 
 ---
 
-**Shortest paths for common goals**
+## Start here
 
-- *"I just want to try it"* → [Getting Started §5](getting-started.md#5-quick-start--guided-installer) (press Enter through the wizard).
-- *"I want it to do X"* → [Writing Tools](writing-tools.md), or install an existing tool from GitHub: [Installing Tools](installing-tools.md).
-- *"I want to message it from my phone"* → [Adapters §2 Telegram](adapters.md#2-telegram).
-- *"Something's wrong"* → [Using LeSysBot §11 Common issues](usage.md#11-common-issues), then `logs/traces.jsonl` ([format](configuration.md#6-traces-log-format)).
-- *"I want to fix or add something"* → [Architecture](architecture.md) then [Contributing](../CONTRIBUTING.md).
-- *"An AI agent is doing this for me"* → [skills/](../skills/README.md) — self-contained, copyable skills covering every job above (install, configure, switch backends, manage tools, develop) without needing these docs or the code.
+| Guide | What it's for |
+|---|---|
+| [Getting started](getting-started.md) | Install it, chat with it, write your first tool |
+| [Choosing a model](models.md) | Which local model to run on the hardware you have |
+
+## Everyday use
+
+| Guide | What it's for |
+|---|---|
+| [Everyday use](usage.md) | Chatting, running tools directly, history, confirmations |
+| [Telegram & Slack](adapters.md) | Reach the bot from your phone or your workspace |
+| [Management UI](management-ui.md) | Edit settings and toggle tools from a local web page |
+| [Settings](configuration.md) | Every option, and the three ways to set it |
+| [Troubleshooting](troubleshooting.md) | When something doesn't work |
+
+## Give it new abilities
+
+| Guide | What it's for |
+|---|---|
+| [Install tools](installing-tools.md) | Add tools from GitHub with one command |
+| [Write a tool](writing-tools.md) | Turn a Python function or a shell command into an ability |
+| [Share your tools](sharing-tools.md) | Publish yours so other people can install them |
+| [Write tools with Claude Code](claude-code.md) | Let an AI assistant scaffold them for you |
+
+## Keep it running
+
+| Guide | What it's for |
+|---|---|
+| [Run as a service](service.md) | Background operation, auto-start on boot, logs |
+| [System monitoring](../monitoring/README.md) | Grafana dashboards of CPU, memory, disk, network, GPU |
+| [Build a Windows .exe](building-windows-exe.md) | Ship a standalone executable to people without Python |
+
+## Under the hood
+
+| Guide | What it's for |
+|---|---|
+| [How it works](architecture.md) | The life of a message, layer by layer — for contributors |
+| [Contributing](../CONTRIBUTING.md) | Dev setup, tests, and the checklist for each kind of change |
+| [Brand assets](../assets/brand/README.md) | The logo, the palette, and how to regenerate them |
+| [CLAUDE.md](../CLAUDE.md) | Fine-grained internals, written for AI coding assistants |
+
+---
+
+## Shortcuts
+
+- **"I just want to try it."** → [Getting started](getting-started.md), then press
+  Enter through the wizard.
+- **"I want it to do X."** → [Write a tool](writing-tools.md), or check whether
+  someone already did: [Install tools](installing-tools.md).
+- **"I want to message it from my phone."** → [Telegram setup](adapters.md#2-telegram).
+- **"Something's wrong."** → [Troubleshooting](troubleshooting.md).
+- **"I want to change how it behaves."** → [Settings](configuration.md).
+- **"I want to fix or add something in the code."** → [How it works](architecture.md),
+  then [CONTRIBUTING.md](../CONTRIBUTING.md).
+- **"An AI agent is doing this for me."** → [skills/](../skills/README.md) —
+  self-contained instructions per job, no docs or source needed.

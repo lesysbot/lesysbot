@@ -1,4 +1,4 @@
-# Writing tools with Claude Code
+# Write tools with Claude Code
 
 LeSysBot ships a [Claude Code](https://code.claude.com/docs) plugin —
 **`lesysbot-tool-dev`** — so an AI assistant can scaffold correct tool packages

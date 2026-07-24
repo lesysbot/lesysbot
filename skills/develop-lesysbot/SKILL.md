@@ -50,7 +50,6 @@ lesysbot/
 │                  CLITool, platform gating, `lesysbot tools` CLI
 ├─ messaging/      base interface + CLI / Telegram / Slack adapters,
 │                  startup notice
-├─ dashboard/      optional aiohttp web UI
 └─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs

@@ -1,9 +1,14 @@
 ---
 name: configure-lesysbot
-description: Change any LeSysBot setting — where the config file lives, the full YAML reference (messaging, llm, tools, agent, dashboard, logging), environment-variable and CLI-flag overrides, and how to apply changes. Use when asked to "change a setting", "edit the config", "increase history", "turn off logging", "change the system prompt", or "where is config.yaml".
+description: Change any LeSysBot setting — where the config file lives, the full YAML reference (messaging, llm, tools, agent, logging), environment-variable and CLI-flag overrides, and how to apply changes. Use when asked to "change a setting", "edit the config", "increase history", "turn off logging", "change the system prompt", or "where is config.yaml".
 ---
 
 # Configure LeSysBot
+
+> **Prefer a UI?** Running `lesysbot` in a terminal (or `lesysbot manage`) opens a
+> localhost-only web panel with a validating `config.yaml` editor and live
+> tool toggles — see the management-UI guide. This skill covers the file itself,
+> which the UI reads and writes.
 
 ## Which config file is active?
 
@@ -18,7 +23,7 @@ LeSysBot loads the **first** match:
 6. Built-in defaults (no file at all)
 
 Relative paths inside the config (`mcp.tools_dir: ./tools`,
-`logging.file: logs/…`, `dashboard.state_file`, `mcp.lock_file`) resolve
+`logging.file: logs/…`, `mcp.state_file`, `mcp.lock_file`) resolve
 **next to the loaded config file** — so an installed setup uses
 `~/.lesysbot/tools` and `~/.lesysbot/logs`, while a dev checkout with a local
 `./config.yaml` stays inside the repo.
@@ -67,18 +72,13 @@ mcp:
   tools_dir: "./tools"       # where tool packages load from (anchored to config dir)
   hot_reload: true           # reload tools/ on any .py change
   # lock_file: tools.lock.json   # install provenance (repo, pinned commit)
+  # state_file: tool_state.json  # persisted disabled tools (watched → applies live)
 
 agent:
   system_prompt: >
     You are a helpful assistant with access to tools. ...
   max_history: 50            # messages kept per user (system message not counted)
   max_tool_calls: 10         # max LLM → tool → LLM loops per user message
-
-dashboard:
-  enabled: false             # or run `lesysbot --dashboard`; needs the `dashboard` extra
-  host: "127.0.0.1"          # localhost only, no auth — change deliberately
-  port: 8765
-  state_file: tool_state.json   # persisted disabled tools
 
 logging:
   level: INFO                # DEBUG | INFO | WARNING | ERROR | CRITICAL
@@ -92,6 +92,17 @@ Both log files rotate on time (date-suffixed, e.g. `lesysbot.log.2026-06-21`) so
 neither grows unbounded. In interactive CLI the console only shows WARNING+
 (the file still gets everything at `level`); the Telegram/Slack daemons honour
 `level` on the console too. `-v` forces DEBUG.
+
+Credentials are redacted before anything is written, so tokens never reach
+disk — a Telegram call logs as `bot<redacted>/getUpdates`. Necessary because
+the Telegram API puts the token in the URL path and `httpx` logs every request
+at INFO. Covers token shapes (Telegram, Slack `xoxb-`/`xapp-`, OpenAI `sk-`)
+plus the exact values in the active config, in tracebacks as well as messages;
+short values are skipped so the default `api_key: ollama` is not redacted.
+Never disable this to make logs "readable" — the token is the one thing that
+must not be in a file someone pastes into an issue. Logs written by older
+versions may still hold a cleartext token: check with
+`grep -c 'bot[0-9]\{6,\}:' ~/.lesysbot/logs/lesysbot.log`.
 
 ## Environment-variable overrides
 
@@ -116,8 +127,6 @@ LESYSBOT_LOGGING__LEVEL=DEBUG
 | `--provider cli\|telegram\|slack` | `messaging.provider` |
 | `--model NAME` | `llm.model` |
 | `--base-url URL` | `llm.base_url` |
-| `--dashboard` | `dashboard.enabled` → true |
-| `--port N` | `dashboard.port` (implies `--dashboard`) |
 
 ## Traces (`logs/traces.jsonl`)
 

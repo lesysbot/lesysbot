@@ -1,26 +1,17 @@
-# Using LeSysBot
+# Everyday use
 
-Once LeSysBot is installed and running, this guide shows you how to actually use it day to day — chatting, running tools, and the built-in commands.
+How to actually use LeSysBot once it's installed.
 
-Everything here works the same in **CLI, Telegram, and Slack**. The examples use the CLI because it needs no setup; for adapter-specific setup (tokens, user IDs) see [Messaging Adapters](adapters.md).
+Everything here works the same whether you're in a terminal, in Telegram, or in
+Slack. The examples use the terminal because it needs no setup.
 
 ---
 
-## 1. Start a session
-
-If your `config.yaml` already sets `provider: cli`, just run:
-
-```bash
-lesysbot
-```
-
-Or force the CLI explicitly (handy if your config is set to Telegram/Slack):
+## Starting a chat
 
 ```bash
 lesysbot --provider cli
 ```
-
-You'll see a banner and a prompt:
 
 ```
 LeSysBot — local AI assistant with tools
@@ -29,104 +20,79 @@ Type a message to chat, or use /commands directly. Type 'exit' to quit.
 You:
 ```
 
-> Already running LeSysBot as a background service (Telegram/Slack)? You can still open a separate interactive CLI session anytime with `lesysbot --provider cli` — they don't conflict.
+> **`lesysbot` on its own does something different** — in a terminal it opens the
+> [management UI](management-ui.md), a status screen plus a local web panel. To
+> chat, use `lesysbot --provider cli`. To run the bot with whatever your config
+> says, use `lesysbot run`.
+
+Already running as a Telegram or Slack service? A terminal chat runs happily
+alongside it, with its own separate conversation.
 
 ---
 
-## 2. Two ways to interact
+## Two ways to ask for something
 
-There are two distinct ways to talk to LeSysBot, and knowing the difference is the key to using it well:
+This is the one thing worth understanding well.
 
-| | **Natural language** | **Slash command** (`/...`) |
+| | **Ask in words** | **Run it directly** (`/…`) |
 |---|---|---|
-| Example | `what's my disk usage on /?` | `/disk_usage path=/` |
-| Who handles it | The **LLM**, which decides whether to call a tool | The tool runs **directly** — the LLM is never involved |
-| Needs a model running | Yes | **No** |
-| Speed | Depends on the model | Instant |
-| Best for | Questions, multi-step requests, anything conversational | Running a known tool exactly, quick checks, when the LLM is offline |
+| Looks like | `what's my disk usage on /?` | `/disk_usage path=/` |
+| Who decides | the model picks a tool | nothing to decide — it just runs |
+| Needs a model running | yes | **no** |
+| Speed | as fast as your model | instant |
+| Good for | questions, vague requests, several steps at once | a tool you already know, quick checks, when the model is down |
 
-Both reach the same tools — they're just two front doors.
+Both reach exactly the same tools. They're two doors into the same room.
 
 ---
 
-## 3. Chatting with the LLM
+## Asking in words
 
-Type a normal sentence and press Enter. The CLI gives you a Claude-Code-like experience:
-
-- A **`Thinking…` spinner** appears while the model works, switching to **`Running <tool>…`** when it calls a tool.
-- The reply **streams live** and is **rendered as Markdown** — headings, **bold**, bullet lists, and `code` show with color and formatting instead of raw `##`/`**` symbols.
-- If the model exposes its **reasoning** (some "thinking" models do, e.g. via `<think>` tags), it's shown dimmed above the answer.
+Type a sentence and press Enter.
 
 ```
 You: what operating system is this machine running?
-Bot: This machine is running Linux 6.8.0. (via get_system_info)
+Bot: Linux 6.8.0.
 
 You: and how much free space is on / ?
-Bot: The root filesystem has 143 GB free out of 980 GB (80% used).
+Bot: The root filesystem has 143 GB free out of 980 GB — 80% used.
 ```
 
-> The background `httpx`/tool-watcher log lines don't interrupt the chat — they're written to `logs/lesysbot.log` instead. Run with `-v` to see them (and DEBUG detail) on screen.
+Notice the second question didn't repeat any context. LeSysBot remembers the
+conversation, so follow-ups work.
 
-LeSysBot **remembers the conversation** within a session, so follow-up questions like "and how much free space…" work without repeating context. See [§7 Conversation history](#7-conversation-history) for the details and limits.
+While it thinks you'll see a **`Thinking…`** spinner, switching to
+**`Running <tool>…`** when it uses one. The reply streams in and renders as
+proper Markdown — headings, **bold**, lists and `code` show as formatting rather
+than raw symbols. If your model exposes its reasoning, that appears dimmed above
+the answer.
+
+Background log lines stay out of your way (they go to a file). Add `-v` if you
+want to watch them.
 
 ---
 
-## 4. Built-in commands
+## Running a tool directly
 
-These special commands are handled by LeSysBot itself (not the LLM) and work in every adapter:
+Anything starting with `/` runs a tool immediately, without the model.
 
-| Command | What it does |
-|---|---|
-| `/help` *(or `/tools`)* | List every registered tool with its parameters |
-| `/clear` | Forget the conversation so far and start fresh |
-| `/history` | Show the recent messages in this conversation |
-| `exit` / `quit` / `q` | Leave the CLI (CLI only) |
-| `Ctrl+C` | Force-exit immediately (CLI only) |
-
-`/help` output looks like this:
+**Pass arguments in order:**
 
 ```
-You: /help
-Available commands — use /help to see this list
-
-/get_system_info
-  Return basic information about the current machine.
-
-/disk_usage <path>
-  Check how much free disk space is available at a given path
-
-/fetch_url <url>
-  Fetch the text content of a URL
-```
-
-In a tool's signature, `<angle>` means **required** and `[square]` means **optional**.
-
----
-
-## 5. Running tools directly with `/`
-
-Slash commands let you run a tool precisely, without the LLM. There are two ways to pass arguments:
-
-**Positional** — values fill the parameters in order:
-
-```
-You: /fetch_url https://example.com
 You: /disk_usage /
+You: /fetch_url https://example.com
 ```
 
-**Named** — `key=value`, in any order (clearer for multi-argument tools):
+**Or by name, in any order** — clearer when there are several:
 
 ```
 You: /disk_usage path=/tmp
-```
-
-**Values with spaces** — wrap them in quotes:
-
-```
 You: /search query="weekly report" folder=/docs
 ```
 
-**If you miss a required argument**, LeSysBot shows you the usage instead of failing:
+Quote anything containing spaces.
+
+**Forget an argument** and it shows you what it wanted:
 
 ```
 You: /disk_usage
@@ -136,124 +102,132 @@ Usage: /disk_usage <path>
   Check how much free disk space is available at a given path
 ```
 
-**If you mistype a command**, it points you to `/help`:
+**Mistype a name** and it points you at `/help`.
 
-```
-You: /diskusage /
-Unknown command: /diskusage
-Available commands — use /help to see this list
-...
-```
+In `/help` output, `<angle brackets>` mean required and `[square brackets]` mean
+optional.
 
-> Slash commands do **not** go through the LLM and are **not** added to your conversation history — they're stateless, one-shot calls. This makes them reliable even when no model is running.
+> Direct calls don't go into your conversation history — they're one-shot and
+> stateless, which is exactly why they still work when no model is running.
 
 ---
 
-## 6. Confirmation prompts
+## Built-in commands
 
-Some tools are marked to require approval before they run (anything destructive, like deleting files or rebooting). The confirmation guards **LLM-initiated** calls — when the model decides to run such a tool, LeSysBot asks you first:
+Handled by LeSysBot itself, in every chat platform:
+
+| Command | What it does |
+|---|---|
+| `/help` *(or `/tools`)* | List every tool, with its parameters |
+| `/clear` | Forget the conversation and start fresh |
+| `/history` | Show what it currently remembers |
+| `exit` / `quit` / `q` | Leave a terminal session |
+| `Ctrl+C` | Force-quit a terminal session |
+
+---
+
+## When it asks permission
+
+Some tools require approval before they run — anything that deletes, reboots, or
+powers off. When the *model* decides to use one, you get asked first:
 
 ```
 ⚠ Confirmation required
-  Tool : delete_logs
-  directory = '/var/log/myapp'
-  This will permanently delete log files — are you sure?
+  Tool : power_off
+  This will power off the machine in 1 minute — are you sure?
 Proceed? [y/n] (n):
 ```
 
-Press `y` to run it, anything else to cancel. In **Telegram** this appears as ✅/❌ buttons; in **Slack** it auto-approves by default. See [Messaging Adapters](adapters.md) and [Writing Tools → confirmation](writing-tools.md#3-requiring-confirmation).
+`y` runs it; anything else cancels. In Telegram this arrives as ✅/❌ buttons
+(they expire after two minutes). Slack auto-approves unless you customise it.
 
-> **Direct `/` calls skip the prompt.** When *you* type `/delete_logs ...` yourself, you've already made the decision, so it runs immediately. The confirmation exists to catch the *LLM* acting on your behalf — not to second-guess an explicit command.
-
----
-
-## 7. Conversation history
-
-- LeSysBot keeps a separate history **per user**, seeded with the system prompt from `config.yaml`.
-- Only **natural-language** messages and the model's replies are stored — slash commands are not.
-- Old messages are trimmed once the history passes `agent.max_history` (default 50); the system prompt is always kept. Tune it in [Configuration](configuration.md).
-- `/history` shows what's currently remembered; `/clear` wipes it and starts over.
-
-```
-You: /clear
-Conversation history cleared.
-```
+> **Typing `/power_off` yourself skips the prompt.** You already decided. The
+> confirmation exists to catch the *model* acting on your behalf, not to
+> second-guess you.
 
 ---
 
-## 8. Switching model or backend on the fly
+## Conversation memory
 
-You don't have to edit `config.yaml` for a quick change — CLI flags and environment variables override it:
+- Each user gets their own history, seeded with the system prompt from your
+  config.
+- Only word-based messages and replies are kept — `/` commands aren't.
+- Old messages are dropped once you pass `agent.max_history` (default 50). The
+  system prompt always stays.
+- `/history` shows what's remembered; `/clear` wipes it.
+
+Tune the limit in [Settings](configuration.md).
+
+---
+
+## Changing the model for one session
+
+No need to edit anything:
 
 ```bash
-lesysbot --model qwen3.5                     # different local model (pull it first)
-lesysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI
-lesysbot --provider telegram                 # run as the Telegram bot instead
-LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot       # env-var override
+lesysbot --provider cli --model qwen3.5                        # a different local model
+lesysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI instead
+LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot run                   # any setting, via the environment
 ```
 
-Precedence is **CLI flags → `LESYSBOT_*` env vars → `config.yaml`**. The full list of flags and variables is in [Configuration](configuration.md).
+Command-line flags win over environment variables, which win over your config
+file. Full list: [Settings](configuration.md).
 
 ---
 
-## 9. Managing tools (enable / disable / remove)
+## Turning tools on and off
 
-Every installed tool can be managed from the terminal — no dashboard or running
-bot needed. The commands act on the same state file and tools directory the bot
-loads, so what you change here is what the bot sees:
+From any terminal, whether or not the bot is running:
 
 ```bash
-lesysbot tools install owner/repo  # install tool package(s) from a GitHub repo
-lesysbot tools list                # every tool: status, source package, origin
-lesysbot tools info gpu_temp       # details: params, platform gating, provenance
-lesysbot tools disable gpu_temp    # hide from the LLM; /gpu_temp refuses to run
-lesysbot tools enable gpu_temp     # turn it back on
-lesysbot tools remove gpu_temp     # DELETE its folder package / .py file (asks y/N)
+lesysbot tools list                # everything installed, with its status
+lesysbot tools info gpu_temp       # what it takes, where it came from
+lesysbot tools disable gpu_temp    # hide it from the model; /gpu_temp refuses too
+lesysbot tools enable gpu_temp     # back on
+lesysbot tools remove gpu_temp     # delete it (asks first)
+lesysbot tools install owner/repo  # add tools from GitHub
 ```
 
-- **disable/enable** is reversible and persisted (`tool_state.json`). A running
-  bot applies it on its next restart; the [Dashboard](dashboard.md) applies it
-  live instead.
-- **remove** permanently deletes the tool's folder package (or loose `.py`) from
-  the tools dir — including any other tools defined in the same package, which
-  are listed before you confirm. An installed package's `tools.lock.json` entry
-  is cleaned up too. A running bot with hot-reload drops it immediately.
-- **install** fetches packages straight from a GitHub link — see
-  [Installing Tools](installing-tools.md) for specs, pinning, and the trust
-  model.
+**Enabling and disabling applies within a second** to a running bot — no restart.
+**Removing** deletes the tool's whole folder, including any sibling tools defined
+alongside it; those are listed before you confirm.
 
-The same actions are available point-and-click in the [Dashboard](dashboard.md).
+You can do all of this from the [management UI](management-ui.md) too, if you'd
+rather click.
+
+Installing is covered properly in [Install tools](installing-tools.md).
 
 ---
 
-## 10. Where activity is logged
+## Where things are written
 
-- `logs/lesysbot.log` — plain-text application log (set `-v` for DEBUG detail).
-- `logs/traces.jsonl` — one structured JSON line per request: which tools ran, with what arguments, and how long each step took. Great for debugging. Format is documented in [Configuration → traces](configuration.md#6-traces-log-format).
+```
+~/.lesysbot/logs/lesysbot.log     what the program did
+~/.lesysbot/logs/traces.jsonl     one JSON line per message: which tools ran, how long
+```
 
-Disable either by setting its path to `null` in `config.yaml`.
+(For a source checkout with its own `config.yaml`, they're next to that instead.)
+
+Both rotate daily. Set either to `null` in your config to switch it off. Tokens
+and API keys are stripped before anything is written.
 
 ---
 
-## 11. Common issues
+## Something not working?
 
-| Symptom | Cause & fix |
+See **[Troubleshooting](troubleshooting.md)** — it covers the model being
+unreachable, tools not showing up, service problems, and Telegram/Slack setup
+issues.
+
+---
+
+## Where to next
+
+| Want to… | Go to |
 |---|---|
-| `LLM unavailable: ...` | The backend isn't reachable. Check Ollama is running (`curl http://localhost:11434/`) and the model is pulled. Slash commands still work without a model. |
-| Bot picked the wrong tool / didn't use one | Smaller models call tools less reliably. Try a stronger model (see [Models](models.md)) or call the tool directly with `/`. |
-| First reply is slow | The model loads into memory on first use. Subsequent replies are faster. |
-| A tool isn't in `/help` | Make sure its file is in `tools/`, doesn't start with `_`, and check the log for an import error. See [Writing Tools](writing-tools.md). |
-| `model "x" not found` | Pull it first: `ollama pull x`, or fix `llm.model` in `config.yaml`. |
-
----
-
-## Next steps
-
-| Want to… | See |
-|---|---|
-| Set up Telegram or Slack | [Messaging Adapters](adapters.md) |
-| Add your own tools | [Writing Tools](writing-tools.md) |
-| Manage tools in a browser | [Dashboard](dashboard.md) |
-| Change models, history, logging | [Configuration](configuration.md) |
-| Run LeSysBot in the background | [Running as a Service](service.md) |
-| Understand what happens under the hood | [Architecture](architecture.md) |
+| Message it from your phone | [Telegram & Slack](adapters.md) |
+| Add your own abilities | [Write a tool](writing-tools.md) |
+| Install tools from GitHub | [Install tools](installing-tools.md) |
+| Change models, history, logging | [Settings](configuration.md) |
+| Keep it running in the background | [Run as a service](service.md) |
+| Understand how it works inside | [How it works](architecture.md) |

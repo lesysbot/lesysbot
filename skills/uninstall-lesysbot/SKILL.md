@@ -23,10 +23,11 @@ It undoes everything the installer set up, in order:
 1. **Stops and removes the background service** (systemd / launchd / Task
    Scheduler) — skipped with a note for Terminal-only setups. On Linux it also
    offers to disable `loginctl` linger if the installer enabled it.
-2. **Offers to remove the wake-up sudoers rule**
-   (`/etc/sudoers.d/lesysbot-rtcwake`) — Linux only, present only if one was set
-   up for the optional `shutdown-wake` tool (its `setup-sudoers.sh`, or an
-   older install wizard).
+2. **Reports leftover sudoers rules** from older versions
+   (`/etc/sudoers.d/lesysbot-rtcwake`, `…-shutdown-wake`) and prints the `rm`
+   command — it does *not* delete them, which would make uninstall prompt for a
+   password. Nothing LeSysBot ships needs root any more, so on a current
+   install this step prints nothing.
 3. **Uninstalls the `lesysbot` Python package** via pip.
 4. **Asks before deleting `~/.lesysbot`** (config, tools, logs; honours
    `LESYSBOT_HOME`). Default is **No** — keeping it means a later re-install

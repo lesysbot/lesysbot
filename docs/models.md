@@ -1,11 +1,15 @@
-# Choosing & Managing a Local Model
+# Choosing a model
 
-LeSysBot relies on **tool calling** (function calling) — the model must support it.
-Every model recommended here does. This page helps you pick a model that fits
-your hardware, manage it with Ollama, and point LeSysBot at it.
+The model is what decides *which tool to use* when you ask a question in words.
+A bigger one gets that right more often — it's the single biggest lever on how
+good LeSysBot feels. This page helps you pick one that fits your hardware.
 
-Using OpenAI or another remote backend instead? Skip this page — see
-[Configuration §3](configuration.md#3-llm-backends).
+Every model here supports tool calling, which LeSysBot needs. Using OpenAI or
+another remote service instead? You can skip this page —
+see [Settings](configuration.md#switching-model-backend).
+
+**In a hurry:** `ollama pull llama3.2` works on almost anything and is what the
+quick start uses. Move up a tier when you notice it picking the wrong tool.
 
 ---
 
@@ -110,4 +114,4 @@ lesysbot --provider cli --model qwen3.5
 ```
 
 Every backend (Ollama, vLLM, LlamaCpp, OpenAI) uses the same three settings —
-the full matrix is in [Configuration §3](configuration.md#3-llm-backends).
+the full matrix is in [Settings](configuration.md#switching-model-backend).

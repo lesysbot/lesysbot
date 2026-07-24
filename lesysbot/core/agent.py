@@ -65,16 +65,48 @@ class Agent:
     def settings(self) -> Settings:
         return self._settings
 
+    async def aclose(self) -> None:
+        """Close the LLM's httpx client before the event loop is torn down, so it
+        isn't finalized on a closed loop ('Event loop is closed')."""
+        await self._llm.aclose()
+
     async def setup(self) -> None:
         # Wire the persisted enable/disable state before loading tools so disabled
-        # tools are applied from the first request (the dashboard mutates this set).
-        self._registry.set_state_path(self._settings.dashboard.state_file)
+        # tools are applied from the first request (`lesysbot tools` mutates this set).
+        self._registry.set_state_path(self._settings.mcp.state_file)
         self._registry.load_state()
         self._registry.load_directory(self._settings.mcp.tools_dir)
         logger.info("Tools loaded: %s", self._registry.names)
 
         if self._settings.mcp.hot_reload:
             asyncio.create_task(self._watch_tools())
+        asyncio.create_task(self._watch_tool_state())
+
+    async def _watch_tool_state(self) -> None:
+        """Re-read the enable/disable state when another process rewrites it.
+
+        The disabled set lives in this process's registry, but two other things
+        write the file it's persisted to: ``lesysbot tools enable/disable`` and
+        any editor. Without this watch those changes only took effect on the next
+        restart, which is a confusing thing to explain to someone who just ran an
+        enable/disable command.
+
+        Watched unconditionally — it's about *other* processes, so it isn't tied
+        to ``mcp.hot_reload`` (which governs re-importing tool code).
+        """
+        state_path = self._settings.mcp.state_file
+        if not state_path:
+            return
+        state_file = Path(state_path)
+        # Watch the directory, not the file: the file may not exist yet, and a
+        # watch on a missing path raises.
+        watch_dir = state_file.parent
+        if not watch_dir.exists():
+            return
+        logger.info("Watching %s for tool enable/disable changes...", state_file)
+        async for changes in awatch(watch_dir, watch_filter=_state_file_only(state_file)):
+            logger.info("Tool state changed (%d event(s)) — reloading it.", len(changes))
+            self._registry.load_state()
 
     async def _watch_tools(self) -> None:
         tools_path = Path(self._settings.mcp.tools_dir)
@@ -288,6 +320,21 @@ class Agent:
 
 def _py_files_only(change: object, path: str) -> bool:
     return path.endswith(".py")
+
+
+def _state_file_only(state_file: Path):
+    """watchfiles filter matching just the tool-state file in its directory.
+
+    Matches on the file *name* rather than the full path: the watch is already
+    scoped to one directory, and comparing paths would have to resolve symlinks
+    on both sides to be reliable (``~/.lesysbot`` is a symlink on some setups).
+    """
+    target = state_file.name
+
+    def _filter(change: object, path: str) -> bool:
+        return Path(path).name == target
+
+    return _filter
 
 
 async def _timed_tool(

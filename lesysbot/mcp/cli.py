@@ -3,7 +3,7 @@
 One command family for the whole tool lifecycle: ``install`` fetches tool
 folder packages straight from a GitHub link (no registries, no catalogs),
 ``list``/``info`` show runtime status plus install provenance from the lock
-file, ``enable``/``disable`` persist to ``dashboard.state_file``, and
+file, ``enable``/``disable`` persist to ``mcp.state_file``, and
 ``remove`` deletes from ``mcp.tools_dir`` — all against the same resolved
 paths the bot loads. Wired into the root parser by ``__main__.build_parser()``
 (``tool`` works as an alias).
@@ -96,7 +96,7 @@ def run(args: argparse.Namespace) -> int:
         return _install(settings, console, args)
 
     registry = ToolRegistry()
-    registry.set_state_path(settings.dashboard.state_file)
+    registry.set_state_path(settings.mcp.state_file)
     registry.load_state()
     registry.load_directory(settings.mcp.tools_dir)
 
@@ -105,9 +105,9 @@ def run(args: argparse.Namespace) -> int:
     if args.tool_cmd == "info":
         return _info(registry, settings, console, args.name)
     if args.tool_cmd in ("enable", "disable"):
-        if not settings.dashboard.state_file:
+        if not settings.mcp.state_file:
             console.print(
-                "[red]Error:[/red] dashboard.state_file is null in the config — "
+                "[red]Error:[/red] mcp.state_file is null in the config — "
                 "there is nowhere to persist tool state."
             )
             return 1
@@ -246,8 +246,8 @@ def _set_enabled(registry: ToolRegistry, console: Console, name: str, enabled: b
     registry.set_enabled(name, enabled)
     console.print(f"[green]✔[/green] {name} {'enabled' if enabled else 'disabled'}")
     console.print(
-        "[dim]A running LeSysBot applies this on its next restart "
-        "(or flip it live from the dashboard).[/dim]"
+        "[dim]A running LeSysBot watches the state file, so it applies this "
+        "within a second — no restart needed.[/dim]"
     )
     return 0
 

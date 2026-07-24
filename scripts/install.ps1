@@ -18,11 +18,26 @@ function Ok  ($m) { Write-Host "  v  $m" -ForegroundColor Green }
 function Die ($m) { Write-Host "  x  $m" -ForegroundColor Red; exit 1 }
 function Hr { Write-Host ("  " + ("─" * 50)) }
 
+# The pixel mark. The banner is raw ANSI, so it needs a host that processes
+# virtual-terminal sequences — PowerShell 7+, or Windows Terminal — otherwise
+# the escape codes would print as literal garbage. Never fatal: this runs before
+# we've checked anything about the machine.
+function Logo ($Name = 'banner.txt') {
+    if ($env:NO_COLOR) { return }
+    $f = Join-Path $RepoDir "assets\brand\$Name"
+    if (-not (Test-Path $f)) { return }
+    $vt = ($PSVersionTable.PSVersion.Major -ge 6) -or $env:WT_SESSION `
+          -or $Host.UI.SupportsVirtualTerminal
+    if (-not $vt) { return }
+    try { Get-Content -Encoding UTF8 $f | ForEach-Object { Write-Host "  $_" } } catch { }
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir   = Split-Path -Parent $ScriptDir
 
 Clear-Host
 Write-Host ""
+Logo
 Hr
 Write-Host ""
 Write-Host "  LeSysBot Setup" -ForegroundColor White
@@ -49,7 +64,7 @@ try {
 Write-Host ""
 Write-Host "  Installing lesysbot package ..."
 Set-Location $RepoDir
-# .[all] = Telegram + Slack + dashboard extras, so every option the wizard
+# .[all] = Telegram + Slack extras, so every option the wizard
 # offers below works without a second install step.
 & python -m pip install --quiet ".[all]"
 if ($LASTEXITCODE -ne 0) { Die 'pip install failed. Run manually: pip install ".[all]"' }

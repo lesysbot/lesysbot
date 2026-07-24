@@ -16,8 +16,8 @@ journalctl --user -u lesysbot -f         # Linux service stdout/stderr
 (For a dev checkout with a local `./config.yaml`, logs are in the repo's
 `logs/` instead.) The interactive CLI console only shows WARNING+ — evidence
 of tool loads/reloads is in the **file**, not on screen; `-v` puts DEBUG on
-screen. The dashboard (`lesysbot --dashboard` → http://127.0.0.1:8765) shows LLM
-health and per-tool availability at a glance.
+screen. `lesysbot tools list` shows per-tool availability, and
+`lesysbot tools info NAME` explains why a specific tool can't run here.
 
 ## The #1 developer trap: stale-install shadowing
 
@@ -42,7 +42,7 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | First reply very slow | Model loading into memory on first use; later replies are faster. |
 | Tool missing from `/help` | File not in the tools dir, name starts with `_`, or an import error — check `lesysbot.log`. Also consider stale-install shadowing (above) and *which* tools dir is active (installed setup = `~/.lesysbot/tools/`, dev checkout = repo `tools/`). |
 | Tool listed but "⚠ unavailable here" | Deliberate gating: wrong OS for its `platforms`, or a `requires` binary not on PATH. Install the binary or run on a supported OS. |
-| `/tool` returns "disabled" | It was disabled — `lesysbot tools enable NAME` (restart) or the dashboard toggle (live). |
+| `/tool` returns "disabled" | It was disabled — `lesysbot tools enable NAME`. It applies live (the bot watches `tool_state.json`). |
 | `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, add it (Windows: Python `Scripts\` dir). |
 | Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Slack tokens. |
 | Telegram: `Unauthorized.` | Your ID isn't in `allowed_user_ids` — re-check via @userinfobot. |
@@ -71,18 +71,18 @@ cd "$S" && export LESYSBOT_HOME="$S/home"
 
 - `lesysbot tools …` just works from `$S`; `echo n | lesysbot tools remove X`
   exercises the abort path, `-y` skips confirmation.
-- The CLI adapter exits on stdin EOF — for a background bot hold stdin open
-  and move the dashboard off the real port:
+- The CLI adapter exits on stdin EOF — for a background bot hold stdin open:
 
 ```bash
-export LESYSBOT_DASHBOARD__PORT=8799
-(tail -f /dev/null | lesysbot --provider cli --dashboard > "$S/bot.log" 2>&1 &)
-sleep 3 && curl -s http://127.0.0.1:8799/api/status | python3 -m json.tool
+(tail -f /dev/null | lesysbot --provider cli > "$S/bot.log" 2>&1 &)
+echo $! > "$S/bot.pid"
+sleep 5 && grep -i "tools loaded" "$S/bot.log"
 ```
 
-- No LLM is needed for slash commands, tool management, or the dashboard.
-- Kill by PID, not `pkill -f` with the launch string (it matches your own
-  shell and kills it): `pgrep -f "lesysbot --provider cl[i]"`.
+- No LLM is needed for slash commands or tool management.
+- Kill by the PID you recorded, not `pkill -f` with the launch string: that
+  pattern also matches the shell command that started it, and kills your own
+  shell (exit 144).
 
 ## Related
 

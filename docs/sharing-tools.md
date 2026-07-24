@@ -1,4 +1,4 @@
-# Sharing your tools
+# Share your tools
 
 Any public GitHub repo containing a tool folder package is installable by
 anyone with one command — there is nothing to register or publish beyond

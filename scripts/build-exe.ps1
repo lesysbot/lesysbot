@@ -63,7 +63,7 @@ $VenvPy = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path $VenvPy)) { Die "venv python not found at $VenvPy" }
 
 & $VenvPy -m pip install --quiet --upgrade pip
-# .[all] pulls Telegram, Slack (incl. aiohttp) and the dashboard; the bare
+# .[all] pulls Telegram and Slack (incl. aiohttp); the bare
 # install is the CLI-only build.
 if ($SkipProviders) { & $VenvPy -m pip install --quiet . }
 else                { & $VenvPy -m pip install --quiet ".[all]" }

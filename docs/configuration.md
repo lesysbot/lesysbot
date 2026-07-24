@@ -1,132 +1,115 @@
-# Configuration
+# Settings
 
-LeSysBot is configured via a YAML file and optionally overridden by environment variables or CLI flags.
+Everything LeSysBot does is controlled by one YAML file. You can also override
+any of it from the environment or the command line, without editing anything.
 
 ---
 
-## 1. Config file
+## Where your settings live
 
-Copy the default config and edit it:
+After a normal install, here:
 
-```bash
-cp config/default.yaml config.yaml
+```
+~/.lesysbot/config.yaml
 ```
 
-LeSysBot looks for config in this order:
-1. Path given with `-c / --config`
-2. `config.yaml` in the working directory
-3. `~/.lesysbot/config.yaml` — the per-user home the installer writes to
-4. `config.yaml` next to the executable (frozen `.exe` builds)
-5. `config/default.yaml` — the defaults shipped with the source
-6. Built-in defaults (no file needed)
-
-Entries 1–4 are configs *you* edit, so relative paths inside them (`tools_dir`,
-`logging.file`, …) resolve **next to that file** — see
-[`~/.lesysbot/` below](#lesysbot--the-installed-home). Entry 5 ships with the
-package, so it supplies values but does *not* become the anchor: relative paths
-still resolve against the working directory, which is why a fresh checkout
-finds its own `tools/` rather than `config/tools/`.
-
-### `~/.lesysbot/` — the installed home
-
-`scripts/install.sh` / `install.ps1` write your settings to **`~/.lesysbot/config.yaml`**
-and seed **`~/.lesysbot/tools/`** there, decoupled from wherever you cloned the source.
-The background service (systemd/launchd/Task Scheduler) runs from this directory, so
-this is the one place to edit and apply settings:
+That folder is your bot's home. Your tools sit in `~/.lesysbot/tools/` and logs
+in `~/.lesysbot/logs/`, and the background service runs from there — so editing
+that one file and restarting is the whole workflow:
 
 ```bash
 $EDITOR ~/.lesysbot/config.yaml
-systemctl --user restart lesysbot     # Linux  (launchctl kickstart -k … on macOS)
+systemctl --user restart lesysbot      # Linux — macOS/Windows commands in the service guide
 ```
 
-Relative `mcp.tools_dir` (`./tools`) and `logging.file`/`trace_file` (`logs/…`) are
-resolved against the directory the loaded `config.yaml` lives in — so for an installed
-setup they point at `~/.lesysbot/tools` and `~/.lesysbot/logs`, and for a dev checkout with
-a local `./config.yaml` they stay relative to the repo (unchanged). Set `LESYSBOT_HOME`
-to use a directory other than `~/.lesysbot`.
+(The restart command for each OS is in [Run as a service](service.md).)
+
+Not sure which file is active? `lesysbot` prints it on the status screen.
+
+You can also edit it in a browser, with validation, from the
+[management UI](management-ui.md).
+
+<details>
+<summary><b>How LeSysBot finds the file</b></summary>
+
+In order, first hit wins:
+
+1. The path you passed with `-c / --config`
+2. `config.yaml` in the current directory
+3. `~/.lesysbot/config.yaml` — what the installer writes
+4. `config.yaml` next to the executable (for a frozen `.exe` build)
+5. `config/default.yaml` shipped inside the package
+6. Built-in defaults, if there's no file at all
+
+Entries 1–4 are files *you* edit, so relative paths inside them (`./tools`,
+`logs/lesysbot.log`) resolve **next to that file**. That single rule is what
+makes an installed setup use `~/.lesysbot/tools`, a source checkout use the
+repo's own `tools/`, and a Windows `.exe` use the folder it sits in — all from
+the same config text.
+
+Entry 5 ships with the package rather than belonging to you, so it supplies
+values but doesn't become the anchor.
+
+Set `LESYSBOT_HOME` to use somewhere other than `~/.lesysbot`.
+
+</details>
 
 ---
 
-## 2. Full reference
+## The settings you'll actually change
+
+**Which model, and where it runs**
 
 ```yaml
-# ── Messaging ──────────────────────────────────────────────────────────────────
-messaging:
-  provider: cli              # cli | telegram | slack
-
-  telegram:
-    token: "YOUR_BOT_TOKEN"
-    allowed_user_ids: []     # empty = allow everyone
-                             # e.g. [123456789, 987654321]
-
-  slack:
-    bot_token: "xoxb-..."
-    app_token: "xapp-..."    # Socket Mode app token
-
-  startup_notice:            # ping you when the bot comes up (Telegram/Slack only)
-    enabled: true            # for a background service this fires right after boot
-    notify: []               # Telegram chat ids / Slack channel ids;
-                             # Telegram falls back to allowed_user_ids when empty
-    speedtest: true          # include internet speed (downloads speedtest_mb MB)
-    speedtest_mb: 5
-
-# ── LLM ───────────────────────────────────────────────────────────────────────
 llm:
-  base_url: "http://localhost:11434/v1"   # Ollama default
-  model: "llama3.2"
-  api_key: "ollama"          # use your OpenAI key for OpenAI; any string for Ollama/vLLM
-  temperature: 0.7
-  max_tokens: 4096
-  timeout: 120.0             # seconds before an LLM request is abandoned
-
-# ── Tools ─────────────────────────────────────────────────────────────────────
-mcp:
-  tools_dir: "./tools"
-  hot_reload: true           # watch tools/ and reload on any .py change
-
-# ── Agent behaviour ───────────────────────────────────────────────────────────
-agent:
-  system_prompt: >
-    You are a helpful assistant with access to tools.
-    Use tools when they help answer the user's question.
-    Be concise and clear.
-  max_history: 50            # messages kept per user (system message not counted)
-  max_tool_calls: 10         # max LLM → tool → LLM loops per user message
-
-# ── Dashboard ─────────────────────────────────────────────────────────────────
-dashboard:
-  enabled: false             # or run `lesysbot --dashboard`; needs the `dashboard` extra
-  host: "127.0.0.1"          # localhost only, no auth — change deliberately if exposing
-  port: 8765                 # http://localhost:8765
-  state_file: tool_state.json   # persisted disabled tools; anchored like tools_dir → ~/.lesysbot/
-
-
-
-# ── Logging ───────────────────────────────────────────────────────────────────
-logging:
-  level: INFO                # DEBUG | INFO | WARNING | ERROR | CRITICAL
-  file: logs/lesysbot.log      # plain-text log; null to disable
-  trace_file: logs/traces.jsonl   # structured per-request JSON traces; null to disable
-  when: midnight             # rotation interval: midnight | H | D | W0..W6 | S
-  backup_count: 7            # keep this many rotated files, then delete oldest
+  base_url: "http://localhost:11434/v1"   # Ollama, running locally
+  model: "llama3.2"                       # a model you've pulled
+  api_key: "ollama"                       # any non-empty string for local backends
 ```
 
-Both `file` and `trace_file` rotate on time (Python's `TimedRotatingFileHandler`), so neither grows without bound: at each `when` rollover the current file is renamed with a date suffix (e.g. `lesysbot.log.2026-06-21`) and only the newest `backup_count` are kept. `level` sets how much detail is written (and shown on the console for the Telegram/Slack daemons); `-v` forces `DEBUG`. In interactive CLI the console is always kept at `WARNING` or above so logs don't interrupt the chat — the file still gets everything at `level`.
+**How you reach it**
+
+```yaml
+messaging:
+  provider: cli            # cli | telegram | slack
+  telegram:
+    token: "1234:ABC…"
+    allowed_user_ids: [123456789]   # who may use it — see the warning below
+```
+
+**How much it remembers**
+
+```yaml
+agent:
+  max_history: 50          # messages kept per person
+  system_prompt: >
+    You are a helpful assistant with access to tools.
+```
+
+**How chatty the logs are**
+
+```yaml
+logging:
+  level: INFO              # DEBUG | INFO | WARNING | ERROR | CRITICAL
+```
+
+> ⚠️ **`allowed_user_ids: []` means anyone who finds your Telegram bot can use
+> it** — including tools that power the machine off. The install wizard won't
+> write an empty list for you; if you're editing by hand, put your ID in.
 
 ---
 
-## 3. LLM backends
+## Switching model backend
 
-All backends use the same OpenAI-compatible API — only `base_url`, `model`, and `api_key` differ:
+Every backend speaks the same OpenAI-compatible protocol, so only three lines
+change:
 
 | Backend | `base_url` | `api_key` |
 |---|---|---|
 | **Ollama** (default) | `http://localhost:11434/v1` | `ollama` |
 | **vLLM** | `http://localhost:8000/v1` | `vllm` |
 | **LlamaCpp server** | `http://localhost:8080/v1` | `llama` |
-| **OpenAI** | `https://api.openai.com/v1` | your API key |
-
-Example — switching to OpenAI:
+| **OpenAI** | `https://api.openai.com/v1` | your real API key |
 
 ```yaml
 llm:
@@ -135,13 +118,43 @@ llm:
   api_key: "sk-..."
 ```
 
+> Pointing at a cloud backend means your messages — and whatever the tools
+> report about your machine — travel to someone else's servers. That's a fine
+> trade to make deliberately; it's just worth making deliberately.
+
 ---
 
-## 4. Environment variable overrides
+## Overriding without editing the file
 
-String values in `config.yaml` may reference environment variables as
-`${VAR_NAME}` — the reference is replaced with the variable's value when the
-config is loaded, so secrets can stay out of the file:
+**On the command line**, for one run:
+
+```bash
+lesysbot --provider cli --model qwen3.5
+lesysbot --base-url http://localhost:8000/v1
+lesysbot -c /etc/lesysbot/config.yaml
+lesysbot run -v                          # verbose
+```
+
+| Flag | Overrides |
+|---|---|
+| `-c / --config` | which config file to load |
+| `-v / --verbose` | `logging.level` → DEBUG |
+| `--provider` | `messaging.provider` |
+| `--model` | `llm.model` |
+| `--base-url` | `llm.base_url` |
+
+**From the environment**, for anything without a flag. Prefix `LESYSBOT_`, and
+use `__` between levels:
+
+```bash
+LESYSBOT_LLM__MODEL=qwen3.5
+LESYSBOT_MESSAGING__PROVIDER=telegram
+LESYSBOT_AGENT__MAX_HISTORY=100
+LESYSBOT_LOGGING__LEVEL=DEBUG
+```
+
+**Keeping secrets out of the file** — any string value may reference an
+environment variable:
 
 ```yaml
 messaging:
@@ -149,48 +162,132 @@ messaging:
     token: ${TELEGRAM_TOKEN}
 ```
 
-If the variable is unset, the literal `${...}` text is kept and a warning is
-logged — the bot won't silently run with a placeholder token.
+If the variable isn't set, the literal `${…}` text is kept and a warning logged,
+so you'll never silently run with a placeholder.
 
-Every config value can also be set directly via an environment variable. The format is `LESYSBOT_` + the key path with `__` as the nesting separator:
+Precedence, strongest first: **command line → environment → config file**.
+
+---
+
+## Which commands do what
 
 ```bash
-LESYSBOT_LLM__MODEL=qwen3.5
-LESYSBOT_LLM__BASE_URL=http://localhost:8000/v1
-LESYSBOT_MESSAGING__PROVIDER=telegram
-LESYSBOT_MESSAGING__TELEGRAM__TOKEN=1234567890:ABCDEFabcdef
-LESYSBOT_AGENT__MAX_HISTORY=100
-LESYSBOT_LOGGING__LEVEL=DEBUG
+lesysbot                  # in a terminal: status screen + management UI
+                          # with no terminal (a service): runs the bot
+lesysbot run              # run the bot — what the background service uses
+lesysbot --provider cli   # chat in this terminal
+lesysbot manage           # management UI explicitly (--port N, --open)
+lesysbot setup            # re-run the setup wizard
+lesysbot tools …          # install/list/enable/disable/remove tools
 ```
-
-Environment variables take precedence over `config.yaml`.
 
 ---
 
-## 5. CLI flags
+## Full reference
 
+```yaml
+# ── How you reach the bot ─────────────────────────────────────────────────────
+messaging:
+  provider: cli              # cli | telegram | slack
+
+  telegram:
+    token: "YOUR_BOT_TOKEN"
+    allowed_user_ids: []     # empty = anyone. e.g. [123456789, 987654321]
+
+  slack:
+    bot_token: "xoxb-..."
+    app_token: "xapp-..."    # Socket Mode app token
+
+  startup_notice:            # ping you when the bot comes up (Telegram/Slack only)
+    enabled: true            # for a background service, that means "after boot"
+    notify: []               # Telegram chat ids / Slack channel ids
+                             # Telegram falls back to allowed_user_ids when empty
+    speedtest: true          # include an internet speed reading
+    speedtest_mb: 5          # how much to download for it
+
+# ── The model ─────────────────────────────────────────────────────────────────
+llm:
+  base_url: "http://localhost:11434/v1"
+  model: "llama3.2"
+  api_key: "ollama"          # any string for local backends; a real key for OpenAI
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 120.0             # seconds before a request is abandoned
+
+# ── Tools ─────────────────────────────────────────────────────────────────────
+mcp:
+  tools_dir: "./tools"       # relative → next to this config file
+  hot_reload: true           # pick up tool edits without a restart
+  lock_file: tools.lock.json    # where installed packages came from
+  state_file: tool_state.json   # which tools are disabled
+
+# ── Behaviour ─────────────────────────────────────────────────────────────────
+agent:
+  system_prompt: >
+    You are a helpful assistant with access to tools.
+    Use tools when they help answer the user's question.
+    Be concise and clear.
+  max_history: 50            # messages kept per person
+  max_tool_calls: 10         # most model→tool→model rounds for one message
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logging:
+  level: INFO                # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  file: logs/lesysbot.log    # null to disable
+  trace_file: logs/traces.jsonl   # null to disable
+  when: midnight             # rotation: midnight | H | D | W0..W6 | S
+  backup_count: 7            # how many rotated files to keep
+
+# ── Management UI ─────────────────────────────────────────────────────────────
+webui:
+  port: 8700                 # always bound to 127.0.0.1; only the port is settable
 ```
-lesysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--dashboard] [--port N]
-lesysbot tools …           # install/list/enable/disable/remove tools — see docs/installing-tools.md
-```
-
-| Flag | Overrides | Example |
-|---|---|---|
-| `-c / --config` | config file path | `-c /etc/lesysbot/config.yaml` |
-| `-v / --verbose` | `logging.level` → DEBUG | `-v` |
-| `--provider` | `messaging.provider` | `--provider telegram` |
-| `--model` | `llm.model` | `--model qwen3.5` |
-| `--base-url` | `llm.base_url` | `--base-url http://localhost:8000/v1` |
-| `--dashboard` | `dashboard.enabled` → true | `--dashboard` |
-| `--port` | `dashboard.port` (implies `--dashboard`) | `--port 9000` |
-
-CLI flags take precedence over environment variables and `config.yaml`.
 
 ---
 
-## 6. Traces log format
+## Under the hood
 
-When `logging.trace_file` is set, each user message produces one JSON line:
+<details>
+<summary><b>How the log files behave</b></summary>
+
+Both `file` and `trace_file` rotate on a timer, so neither grows without bound:
+at each `when` rollover the current file is renamed with a date suffix
+(`lesysbot.log.2026-06-21`) and only the newest `backup_count` survive.
+
+`level` sets how much detail is written. In an interactive terminal chat the
+*console* is clamped to warnings and worse regardless, so log lines can't
+interrupt you — the *file* still gets everything at `level`. For a
+Telegram/Slack service, `level` governs both. `-v` forces DEBUG.
+
+</details>
+
+<details>
+<summary><b>Why your tokens never appear in a log</b></summary>
+
+The Telegram API carries your bot token in the URL *path*, and the HTTP library
+underneath logs every request it makes. Left alone, a running service would
+write its own token to disk thousands of times a day — into exactly the file
+people paste into bug reports.
+
+So log records are scrubbed on the way out, at the logging layer, which catches
+every producer including libraries we don't control. Two things are matched: the
+*shapes* credentials come in (Telegram's `digits:letters`, Slack's `xoxb-` and
+`xapp-`, OpenAI's `sk-`), which work with no configuration at all, and the
+*exact* values from your active config, registered at startup. Tracebacks are
+covered too, since the request URL often rides along on the exception.
+
+Values shorter than 12 characters are deliberately left alone — the default
+`api_key: ollama` is not a secret, and rewriting every occurrence of a
+six-letter dictionary word would mangle unrelated log text.
+
+Source: `lesysbot/core/redact.py`.
+
+</details>
+
+<details>
+<summary><b>Traces file format</b></summary>
+
+With `logging.trace_file` set, each message you send produces one JSON line:
 
 ```json
 {
@@ -223,4 +320,8 @@ When `logging.trace_file` is set, each user message produces one JSON line:
 }
 ```
 
-Useful for measuring latency, debugging tool calls, and auditing what the LLM decided to do.
+Useful for measuring latency, debugging tool calls, and auditing what the model
+decided to do. Direct `/` commands aren't traced — they never reach the model.
+`result` and `reply` are truncated at 2000 characters.
+
+</details>

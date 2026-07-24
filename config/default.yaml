@@ -43,11 +43,6 @@ mcp:
   # Records where `lesysbot tools install` got each package (repo, pinned commit).
   # Relative paths anchor next to this config, like tools_dir.
   lock_file: tools.lock.json
-
-dashboard:
-  enabled: false       # or run `lesysbot --dashboard`. Web UI to manage tools + LLM health.
-  host: "127.0.0.1"    # localhost only, no auth — change deliberately if exposing
-  port: 8765           # http://localhost:8765
   state_file: tool_state.json  # persists disabled tools (relative → ~/.lesysbot/)
 
 agent:
@@ -66,3 +61,9 @@ logging:
   # without bound. `when` is the interval, `backup_count` how many to keep.
   when: midnight                 # midnight | H (hourly) | D | W0..W6 | S
   backup_count: 7                # keep ~7 days of dated files, then delete oldest
+
+webui:
+  # The local management UI: `lesysbot manage`, or just `lesysbot` in a terminal.
+  # Always bound to 127.0.0.1 (loopback) — only the port is configurable, so it
+  # can never be exposed on the network.
+  port: 8700

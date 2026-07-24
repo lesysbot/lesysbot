@@ -8,7 +8,7 @@ requires: []
 
 Power control for the host machine. The right command is chosen per OS
 (`shutdown` everywhere; scheduled via logind/polkit on systemd Linux), so it
-runs everywhere — though it may need elevated privileges.
+runs everywhere, as your normal user — no sudo setup, nothing to configure.
 
 Reboot/power-off are **scheduled 1 minute out**, not immediate: an instant
 poweroff would kill LeSysBot before its reply reaches you, so a remote
@@ -23,7 +23,7 @@ shutdown also cancels that announcement. (Nothing can be sent *after* power
 off — but with the startup notice enabled, a reboot pings you again once the
 machine is back.)
 
-**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing (may need sudo/admin)
+**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing
 
 ## Tools (all require confirmation)
 - `/reboot` — restart in 1 minute (cancellable).
@@ -34,14 +34,11 @@ These are destructive and prompt for confirmation when the LLM triggers them.
 
 ## Power off with automatic wake-up?
 
-That's the optional **`shutdown-wake`** package in
-[lesysbot-linux-tools-official](https://github.com/lesysbot/lesysbot-linux-tools-official)
-— it arms the motherboard's RTC wake alarm so the firmware powers the machine
-back on later. Linux-only, needs `rtcwake` + RTC wake-alarm hardware:
-
-```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official/tools/shutdown-wake
-```
+Not supported, on purpose. Waking a machine that's fully off means arming the
+motherboard's RTC alarm (`rtcwake`, `pmset`), which needs root — so it only
+ever worked after you hand-installed a sudoers rule. LeSysBot no longer ships
+tools that require that; to have a machine start itself, use your BIOS/UEFI
+"wake on RTC" setting or Wake-on-LAN from another device.
 
 ## Copy-paste
 Drop this `power/` folder into your `~/.lesysbot/tools/` and restart LeSysBot.

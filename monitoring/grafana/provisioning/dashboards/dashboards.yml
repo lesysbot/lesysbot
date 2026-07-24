@@ -1,0 +1,16 @@
+# Auto-loads every dashboard JSON under /var/lib/grafana/dashboards (mounted
+# read-only from ./grafana/dashboards) so the stack comes up with graphs already
+# in place — no manual import.
+apiVersion: 1
+
+providers:
+  - name: lesysbot
+    orgId: 1
+    folder: LeSysBot
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

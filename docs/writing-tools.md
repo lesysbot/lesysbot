@@ -1,136 +1,82 @@
-# Writing Tools
+# Write a tool
 
-Tools are the heart of LeSysBot. The recommended form is a **folder package** — a
-self-contained, copy-paste-shareable tool, like a Claude Skill:
-
-```
-tools/
-  gpu-temp/                 # kebab-case folder = the package
-    README.md               # human docs + frontmatter (name, description, platforms, requires)
-    tool.py                 # @tool / CLITool definitions  (any non-_ .py is scanned)
-    _helpers.py             # OPTIONAL shared helpers (underscore = never scanned)
-    requirements.txt        # OPTIONAL pip deps
-```
-
-Drop a folder into `tools/` (or `~/.lesysbot/tools/` for an installed setup) and it
-auto-registers — no edits anywhere else. With `hot_reload: true` (the default),
-changes take effect the moment you save.
-
-The same folder shape is what `lesysbot tools install owner/repo` downloads from
-GitHub — push a package to a repo and anyone can install it (see
-[installing-tools.md](installing-tools.md), and [sharing-tools.md](sharing-tools.md) for
-sharing yours). The README frontmatter takes an optional `version: "1.0.0"`
-field that `lesysbot tools list/info` displays and records; bump it when you tag releases.
-
-A **loose `.py` file** dropped straight into `tools/` also still works (default:
-all OSes, no requirements) — handy for quick local tools. Files starting with `_`
-are ignored, so use `_helpers.py` for shared utilities.
-
-See `tools/README.md` for the shipped catalog. The sections below describe what
-goes inside a package's `tool.py`.
+A tool is the unit of "things LeSysBot can do". Writing one takes about a minute
+and doesn't touch any LeSysBot code — you drop a file in a folder and it's live.
 
 ---
 
-## 1. Python tool — `@tool`
+## Your first tool
 
-Use `@tool` for any logic you want to write in Python:
+Create `~/.lesysbot/tools/hello/tool.py`:
 
 ```python
-# tools/weather.py
 from lesysbot.mcp import tool
 
-@tool(description="Get the current weather for a city")
-async def get_weather(city: str, units: str = "metric") -> str:
-    # Call your API here
-    return f"Sunny, 25°C in {city}"
+@tool(description="Say hello to someone")
+async def hello(name: str) -> str:
+    return f"Hello, {name}! Nice to meet you."
 ```
 
-That's it. LeSysBot builds the JSON schema from the type hints automatically.
+Save it. That's the whole process — no registration, no restart:
 
-### 1.1 Options
+```
+You: /hello name=World
+Bot: Hello, World! Nice to meet you.
 
-| Feature | How |
-|---|---|
-| Use docstring as description | Omit `description=` — the docstring is used instead |
-| Sync functions | `def` works too; it's wrapped in `async` automatically |
-| Optional parameter | Give it a default value: `units: str = "metric"` |
-| Custom tool name | `@tool(name="weather")` — defaults to the function name |
-| Require confirmation | `@tool(confirm=True)` or `@tool(confirm="Custom message")` |
-| Limit to some OSes | `@tool(platforms=["linux", "macos"])` — see [§6](#6-cross-platform-support) |
-| Require a binary on PATH | `@tool(requires=["nvidia-smi"])` — see [§6](#6-cross-platform-support) |
+You: say hi to Alice for me
+Bot: Hello, Alice! Nice to meet you.
+```
 
-### 1.2 Supported type hints
+Both work, because every tool is automatically a `/command` **and** something
+the model can choose to call. LeSysBot builds the parameter description the
+model sees from your type hints.
 
-| Python type | JSON schema type |
-|---|---|
-| `str` | `string` |
-| `int` | `integer` |
-| `float` | `number` |
-| `bool` | `boolean` |
-| `list` | `array` |
-| `dict` | `object` |
-
-Anything else defaults to `string`.
+> **Where do tools go?** `~/.lesysbot/tools/` for a normal install. Working in a
+> source checkout with its own `config.yaml`? Then the repo's `tools/`. The
+> `lesysbot` status screen prints the path it's really using.
 
 ---
 
-## 2. Shell command tool — `CLITool`
+## Wrapping a shell command
 
-Use `CLITool` to wrap any shell command as a tool without writing Python logic:
+If the thing you want already exists as a command, you don't need Python logic:
 
 ```python
-# tools/network.py
 from lesysbot.mcp import CLITool
 
 ping = CLITool(
     name="ping",
     description="Check if a host is reachable and measure latency",
     command="ping -c 3 {host}",
-    params={"host": "Hostname or IP address to ping"},
+    params={"host": "Hostname or IP address"},
     timeout=15.0,
 )
 ```
 
-Parameters in `command` use Python's `str.format()` syntax — `{name}` is replaced with the value the LLM or user provides. All parameters in `params` are required.
+`{host}` is filled in with whatever the model or the user supplies. Every entry
+in `params` is required.
 
-| Option | Default | Description |
-|---|---|---|
-| `name` | — | Tool name (used in `/commands` and by the LLM) |
-| `description` | — | What the tool does |
-| `command` | — | Shell command with `{param}` placeholders |
-| `params` | `{}` | Dict of `param_name → description` |
-| `timeout` | `30.0` | Seconds before the command is killed |
-| `confirm` | `False` | Set `True` or a string to require confirmation |
-| `platforms` | `None` | OSes this runs on, e.g. `["linux", "macos"]` (None = all) |
-| `requires` | `None` | Executables that must be on PATH, e.g. `["traceroute"]` |
-
-### Per-OS command variants
-
-When the same tool needs different syntax on different OSes, pass `command` as
-a dict keyed by OS name (`linux` | `macos` | `windows`). LeSysBot runs the
-variant matching the current OS, and — unless you set `platforms` yourself —
-derives `platforms` from the dict's keys, so the tool gates itself off on any
-OS it has no command for:
+**Different syntax per OS?** Pass a dict and LeSysBot runs the right one — and
+automatically marks the tool unavailable on any OS you didn't cover:
 
 ```python
 ping = CLITool(
     name="ping",
-    description="Check if a host is reachable and measure latency",
+    description="Check if a host is reachable",
     command={
-        "linux": "ping -c 3 {host}",
-        "macos": "ping -c 3 {host}",
+        "linux":   "ping -c 3 {host}",
+        "macos":   "ping -c 3 {host}",
         "windows": "ping -n 3 {host}",
     },
-    params={"host": "Hostname or IP address to ping"},
-    timeout=15.0,
+    params={"host": "Hostname or IP address"},
 )
 ```
 
 ---
 
-## 3. Requiring confirmation
+## Asking before doing something drastic
 
-Mark any tool with `confirm` to make LeSysBot ask for approval before it runs:
+Add `confirm` and LeSysBot won't run the tool until you approve:
 
 ```python
 @tool(
@@ -145,47 +91,142 @@ async def delete_logs(directory: str) -> str:
     return f"Deleted {len(files)} log file(s)."
 ```
 
-```python
-reboot = CLITool(
-    name="reboot_server",
-    description="Reboot the local machine",
-    command="sudo reboot",
-    params={},
-    confirm="This will immediately reboot the machine. Proceed?",
-)
-```
+`confirm=True` gives a generic prompt; a string gives your own wording. It works
+on `CLITool` the same way.
 
-**How confirmation works per adapter:**
-
-| Adapter | Behaviour |
+| Where you're chatting | What you see |
 |---|---|
-| CLI | Prints the tool name, args, and prompt; asks `y/n` |
-| Telegram | Sends a message with **✅ Yes** / **❌ No** inline buttons; waits 120 s |
-| Slack | Auto-approves by default (override `SlackAdapter.confirm` to add UI) |
+| Terminal | The tool name, its arguments, your message, and a `y/n` prompt |
+| Telegram | A message with **✅ Yes** / **❌ No** buttons (2-minute timeout) |
+| Slack | Auto-approves, unless you customise the adapter |
 
-> Confirmation applies only when the **LLM** decides to call the tool. A direct `/tool_name` invocation runs immediately — typing the command yourself is the confirmation.
-
-Example in Telegram:
-
-```
-User: reboot the server
-
-⚠️ This will immediately reboot the machine. Proceed?
-Tool: reboot_server
-
-  [ ✅ Yes ]  [ ❌ No ]
-```
-
-If no response within 120 seconds, the call is cancelled.
+> The prompt only appears when the **model** decides to call the tool. If *you*
+> type `/delete_logs …`, it runs — typing it was the decision.
 
 ---
 
-## 4. Mixing `@tool` and `CLITool` in one file
+## Saying where a tool can run
 
-A single file can define as many tools as you like:
+Not everything works everywhere. Declare what a tool needs and LeSysBot handles
+the rest:
 
 ```python
-# tools/system.py
+@tool(
+    description="Report NVIDIA GPU temperature",
+    platforms=["linux", "windows"],   # omit = runs anywhere
+    requires=["nvidia-smi"],          # programs that must be on PATH
+)
+async def gpu_temp() -> str: ...
+```
+
+On a machine that can't satisfy those, the tool still appears in `/help` and the
+model still knows about it — but calling it returns an explanation instead of a
+confusing error:
+
+```
+/gpu_temp
+'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
+```
+
+That's deliberate: the bot can tell you *why* something isn't possible here,
+which is more useful than pretending the tool doesn't exist.
+
+> **Python packages are not `requires`.** That list is for programs on your PATH.
+> For a pip dependency, import it inside the tool, catch `ImportError`, and
+> return a helpful message — then list it in the package's `requirements.txt`.
+
+### Never require root
+
+**Don't write a tool that needs `sudo` or an Administrator prompt.** A tool runs
+from a chat message and the bot has no way to type a password, so a privileged
+tool either fails outright or forces people through a one-time setup ritual
+before it works at all.
+
+In practice: don't shell out through `sudo`, don't ship anything that edits
+`/etc/sudoers.d`, and prefer the unprivileged route to the same fact — read
+`/sys` instead of running a root-only program, let logind handle `shutdown`
+rather than elevating yourself. When something genuinely can't be had without
+root, say so in the reply and stop. An honest "this machine doesn't expose that
+without root" is a better tool than one that half-works.
+
+---
+
+## Making it shareable
+
+The examples above are a single file, which is perfect for something personal.
+To share a tool — or install it from GitHub — give it a folder:
+
+```
+gpu-temp/                 # kebab-case folder name
+  README.md               # what it does, plus frontmatter
+  tool.py                 # your @tool / CLITool definitions
+  _helpers.py             # optional; anything starting with _ is never scanned
+  requirements.txt        # optional pip dependencies
+```
+
+Only `README.md` and `tool.py` are needed. The README's frontmatter describes
+the package without anyone having to run its code:
+
+```markdown
+---
+name: gpu-temp
+description: Read NVIDIA GPU temperature
+version: 1.0.0
+platforms: [linux, windows]
+requires: [nvidia-smi]
+---
+```
+
+The decorator arguments are what LeSysBot actually enforces; the frontmatter
+mirrors them for humans and shows up in `lesysbot tools list`.
+
+This is the same shape `lesysbot tools install owner/repo` downloads — push the
+folder to a repo and anyone can install it. See
+[Share your tools](sharing-tools.md).
+
+---
+
+## Options reference
+
+**`@tool`**
+
+| You want | Write |
+|---|---|
+| Description from the docstring | omit `description=` |
+| A plain sync function | `def` works — it's wrapped automatically |
+| An optional parameter | give it a default: `units: str = "metric"` |
+| A different tool name | `@tool(name="weather")` |
+| Confirmation | `@tool(confirm=True)` or `confirm="your message"` |
+| OS restriction | `@tool(platforms=["linux", "macos"])` |
+| A required program | `@tool(requires=["nvidia-smi"])` |
+
+Type hints map to the schema the model sees: `str` → string, `int` → integer,
+`float` → number, `bool` → boolean, `list` → array, `dict` → object. Anything
+else is treated as a string.
+
+**`CLITool`**
+
+| Option | Default | What it is |
+|---|---|---|
+| `name` | — | The tool name, used in `/commands` and by the model |
+| `description` | — | What it does |
+| `command` | — | Shell command with `{param}` placeholders, or a dict per OS |
+| `params` | `{}` | `param_name → description`; all are required |
+| `timeout` | `30.0` | Seconds before the command is killed |
+| `confirm` | `False` | `True` or a custom message |
+| `platforms` | `None` | e.g. `["linux", "macos"]`; `None` = everywhere |
+| `requires` | `None` | Programs that must be on PATH |
+
+---
+
+## Under the hood
+
+<details>
+<summary><b>Several tools in one file</b></summary>
+
+A file can define as many as you like, mixing both kinds:
+
+```python
 from lesysbot.mcp import tool, CLITool
 import platform, shutil
 
@@ -216,14 +257,18 @@ df = CLITool(
 )
 ```
 
----
+Every non-`_` `.py` file in a package is scanned, not just `tool.py`.
 
-## 5. Shared utilities
+</details>
 
-If you have helpers used by multiple tool files, put them in a file that starts with `_`:
+<details>
+<summary><b>Sharing helper code</b></summary>
+
+Anything whose name starts with `_` is skipped by the loader, which makes it the
+natural home for helpers:
 
 ```python
-# tools/_helpers.py   ← ignored by the tool loader
+# gpu-temp/_helpers.py
 def format_bytes(n: int) -> str:
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if n < 1024:
@@ -233,68 +278,46 @@ def format_bytes(n: int) -> str:
 ```
 
 ```python
-# tools/storage.py
+# gpu-temp/tool.py
 from _helpers import format_bytes
-from lesysbot.mcp import tool
 ```
 
-A plain `from _helpers import ...` works: for a loose-file layout the `tools/`
-directory is on `sys.path`; inside a folder package, the package's own directory
-is, so each package gets its own `_helpers.py` (two packages can ship a
-`_helpers.py` without clashing). Keep package helper imports at module top level.
-Editing `_helpers.py` also triggers a hot reload.
+A plain `from _helpers import …` works because each package's own directory is
+on the import path while it loads. Two packages can each ship a `_helpers.py`
+without colliding — but keep those imports at the top of the module, since the
+directory is only on the path during loading. Editing a helper triggers a reload
+just like editing the tool.
 
----
+</details>
 
-## 6. Cross-platform support
+<details>
+<summary><b>How hot reload works</b></summary>
 
-LeSysBot runs on Linux, macOS, and Windows, but not every tool can run everywhere.
-Declare what a tool needs and LeSysBot gates it gracefully:
-
-- `platforms` — the OSes a tool runs on, from `{"linux", "macos", "windows"}`.
-  Omit it (the default) to mean **all** OSes.
-- `requires` — external **executables** that must be on `PATH` (checked with
-  `shutil.which`), e.g. `["nvidia-smi"]`. Omit it to require nothing.
-
-```python
-@tool(
-    description="Report NVIDIA GPU temperature",
-    platforms=["linux", "windows"],
-    requires=["nvidia-smi"],
-)
-async def gpu_temp() -> str: ...
-```
-
-When the current OS isn't in `platforms`, or a required executable is missing,
-the tool is **still registered** — it stays visible in `/help` and to the LLM —
-but calling it returns a one-line explanation instead of running:
-
-```
-/gpu_temp
-'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
-```
-
-This way the bot can explain *why* something can't run rather than failing
-cryptically. Each tool is gated independently, so one missing binary in a package
-doesn't disable its siblings.
-
-> **Python (pip) dependencies** aren't `requires:` entries — those are PATH
-> binaries. Import a pip dependency inside the tool and handle `ImportError` with
-> a helpful message (see `tools/web/tool.py`), and list it in the package's
-> `requirements.txt`.
-
-The decorator/`CLITool` args are what LeSysBot enforces; mirror them in your
-package `README.md` frontmatter for humans and the catalog.
-
----
-
-## 7. Hot reload
-
-When `mcp.hot_reload: true` (the default), LeSysBot watches `tools/` for file changes and reloads all tools automatically. You'll see a log line like:
+With `mcp.hot_reload: true` (the default), LeSysBot watches your tools directory
+and re-imports everything when any `.py` under it changes:
 
 ```
 Tool files changed — reloading...
 Loaded 3 tool(s) from system.py
 ```
 
-This means you can iterate on a tool, save, and immediately test it without restarting.
+Cached modules under the tools directory are dropped first, so edits to helpers
+take effect too, and which tools you'd disabled survives the reload. Set
+`hot_reload: false` if you'd rather restart deliberately.
+
+</details>
+
+<details>
+<summary><b>Loose files vs folder packages</b></summary>
+
+Both work, permanently:
+
+- **A loose `.py` in `tools/`** — no metadata, runs on all OSes, requires
+  nothing. Best for something quick and personal.
+- **A folder package** — README, frontmatter, optional helpers and
+  requirements. Best for anything you'll share, install, or come back to.
+
+The folder form is what the installer produces and what the bundled tools use.
+Browse them in [`tools/`](../tools/README.md) for real examples.
+
+</details>

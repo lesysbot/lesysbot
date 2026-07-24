@@ -80,10 +80,35 @@ class CLIAdapter(MessagingAdapter):
             live.start()
         return answer.lower() == "y"
 
-    async def start(self, handler: MessageHandler) -> None:
-        console.print("\n[bold green]LeSysBot[/] — local AI assistant with tools")
-        console.print("[dim]Type a message to chat, or use /commands directly. Type 'exit' to quit.[/]\n")
+    def _print_header(self) -> None:
+        """Branded header: the mark beside the name/version, or a plain line when
+        the terminal can't take colour — the same rule the status screen uses."""
+        from rich.table import Table
+
+        from lesysbot.core.banner import banner
+        from lesysbot.core.status import _version
+
+        mark = banner(console)
+        console.print()
+        if mark:
+            head = Table.grid(padding=(0, 3))
+            head.add_column()
+            head.add_column(vertical="middle")
+            head.add_row(
+                mark,
+                f"[bold green]LeSysBot[/] [dim]v{_version()}[/]\n"
+                "[dim]local AI assistant with tools[/]",
+            )
+            console.print(head)
+        else:
+            console.print(f"[bold green]LeSysBot[/] [dim]v{_version()}[/] — local AI assistant with tools")
+        console.print(
+            "[dim]Type a message to chat, or use /commands directly. Type 'exit' to quit.[/]\n"
+        )
         console.print(_HELP_TEXT)
+
+    async def start(self, handler: MessageHandler) -> None:
+        self._print_header()
 
         loop = asyncio.get_event_loop()
 

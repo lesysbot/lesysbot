@@ -2,9 +2,10 @@
 
 These are destructive, so every action sets ``confirm=`` and the agent must get
 approval through the adapter before the command runs. Commands are chosen per
-platform and may need elevated privileges — on Linux, ``shutdown`` schedules
-through logind with the same polkit rules as ``systemctl poweroff``, so
-desktops usually don't need sudo.
+platform and deliberately stay unprivileged: on Linux ``shutdown`` schedules
+through logind under the same polkit rules as ``systemctl poweroff``, which a
+local session may invoke without sudo. Nothing here shells out through
+``sudo`` — see ``docs/writing-tools.md`` §6.
 
 Reboot/power-off are **scheduled 1 minute out** rather than run immediately:
 an instant poweroff kills this process before the reply can reach the user, so
@@ -18,9 +19,9 @@ machine is down) a final heads-up is pushed to the requesting user via
 the "in 1 minute" acknowledgment. ``cancel_shutdown`` also cancels that
 pending announcement.
 
-Power-off with an automatic wake-up later lives in the optional
-``shutdown-wake`` package (lesysbot-linux-tools-official) — it needs Linux plus
-RTC wake-alarm hardware, so it isn't bundled here.
+There is deliberately no "power off, then wake up later" counterpart: arming
+an RTC wake alarm needs root on every platform, and a tool the user must
+hand-configure a sudoers rule for isn't one they can just install and use.
 """
 from __future__ import annotations
 

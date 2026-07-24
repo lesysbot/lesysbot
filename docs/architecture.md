@@ -1,13 +1,14 @@
-# Architecture — How LeSysBot Works
+# How it works
 
-This guide explains what happens inside LeSysBot, from the moment you send a
-message to the moment you get a reply. It goes **top-down**: first the big
-picture, then the life of one message step by step, then each layer in detail,
-and finally a map of *where to change what* when you want to modify it.
+> **This is the technical page.** You don't need any of it to use LeSysBot —
+> [Everyday use](usage.md) is the one for that. Read this when you want to
+> modify the code or contribute, then continue to
+> [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-You don't need to read this to *use* LeSysBot — see [Using LeSysBot](usage.md) for
-that. Read this when you want to understand, modify, or contribute to the code
-(then continue to [CONTRIBUTING.md](../CONTRIBUTING.md)).
+What happens inside LeSysBot, from the moment you send a message to the moment
+you get a reply. It goes top-down: the big picture, then the life of one message
+step by step, then each layer in detail, and finally a map of *where to change
+what*.
 
 ---
 
@@ -47,9 +48,9 @@ dropped into `tools/`.
 Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
 
 1. **Parse the command line.** `build_parser()` handles the flags (`-c`, `-v`,
-   `--provider`, `--model`, `--base-url`, `--dashboard`). If you ran a
-   subcommand (`lesysbot tools …`), it's dispatched to the tools CLI before any
-   bot setup — the bot never starts.
+   `--provider`, `--model`, `--base-url`). If you ran a subcommand
+   (`lesysbot tools …`), it's dispatched to the tools CLI before any bot setup —
+   the bot never starts.
 2. **Load settings.** `Settings.load()`
    ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active config
    file (see [§7](#7-configuration--paths)), applies `LESYSBOT_*` environment
@@ -58,7 +59,7 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
    anchored to the directory the config file came from — so an installed setup
    uses `~/.lesysbot/tools`, and a dev checkout uses the repo's `tools/`.
 4. **Set up logging.** A Rich console handler plus a time-rotating file handler
-   on `logs/lesysbot.log` (see [§10](#10-logging--tracing)).
+   on `logs/lesysbot.log` (see [§9](#9-logging--tracing)).
 5. **Build the Agent.** `Agent.setup()` loads every tool from the tools
    directory and, with `hot_reload: true`, starts a watcher that reloads them
    whenever a `.py` file changes.
@@ -75,14 +76,13 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
    requesting user *after* its reply — the bundled `power` tool uses it to
    announce "powering off now" just before a scheduled shutdown fires.
 8. **Run.** `await adapter.start(agent.handle)` blocks for the life of the
-   process. If the dashboard is enabled, it runs as a *background* asyncio task
-   beside the adapter and is cancelled when the adapter stops — that's why
-   typing `exit` in the CLI actually ends the process. A second background
-   task, the **startup notice** (Telegram/Slack only, on by default), waits
-   for the adapter to connect and then pings the configured chat with a short
-   system report — CPU/GPU temperature, disk usage, internet speed — so a
-   service that starts at boot tells you the machine just came up (see
-   [Running as a Service](service.md#the-startup-notice)).
+   process. A *background* asyncio task, the **startup notice** (Telegram/Slack
+   only, on by default), waits for the adapter to connect and then pings the
+   configured chat with a short system report — CPU/GPU temperature, disk usage,
+   internet speed — so a service that starts at boot tells you the machine just
+   came up (see [Running as a Service](service.md#the-message-you-get-when-it-starts)). It's
+   cancelled when the adapter stops — that's why typing `exit` in the CLI
+   actually ends the process.
 
 ---
 
@@ -177,9 +177,9 @@ Details worth knowing before you modify it:
 
 - **It always streams** (`stream=True`), accumulating text and tool-call
   fragments from the deltas — that's what makes live rendering possible.
-- **`health()`** is a separate non-streaming probe used by the dashboard: it
-  times a `models.list()` call with a short 5 s timeout and reports whether
-  the backend is reachable and whether your configured model is present.
+- **`health()`** is a separate non-streaming probe: it times a `models.list()`
+  call with a short 5 s timeout and reports whether the backend is reachable and
+  whether your configured model is present.
 
 ---
 
@@ -230,9 +230,11 @@ handle `ImportError` themselves.
 
 ### 5.4 Enable/disable
 
-The [dashboard](dashboard.md) can toggle tools off. A disabled tool is hidden
+`lesysbot tools enable/disable` toggles tools off. A disabled tool is hidden
 from the LLM's schemas and refuses direct `/` calls; the choice is persisted
-to `tool_state.json` so it survives restarts and hot reloads.
+to `tool_state.json` (`mcp.state_file`) so it survives restarts and hot reloads.
+The running bot watches that file, so a change from the CLI applies within a
+second without a restart.
 
 ---
 
@@ -309,18 +311,7 @@ User guide: [Installing Tools](installing-tools.md); trust model included.
 
 ---
 
-## 9. The dashboard
-
-An optional local web UI ([lesysbot/dashboard/server.py](../lesysbot/dashboard/server.py),
-enabled with `--dashboard`) that shows every tool's status, toggles them
-on/off, and probes LLM health. It runs as a background asyncio task beside the
-messaging adapter and reads everything through the `Agent.registry` /
-`Agent.llm` properties — it has no state of its own. It binds `127.0.0.1`
-only, with no auth. User guide: [Dashboard](dashboard.md).
-
----
-
-## 10. Logging & tracing
+## 9. Logging & tracing
 
 Two independent records of what happened
 (paths anchored like everything else — `~/.lesysbot/logs/` when installed):
@@ -333,7 +324,46 @@ Two independent records of what happened
   one JSON line per user message: every LLM turn, every tool call with its
   arguments and duration, and the final reply. This is the first place to look
   when you're debugging *what the model decided to do*. Format reference:
-  [Configuration §6](configuration.md#6-traces-log-format).
+  [Settings](configuration.md#under-the-hood).
+
+---
+
+## 10. The management UI and CLI dispatch
+
+The bot process opens **no network listener**. The one exception is opt-in and
+deliberately fenced: the management UI in
+[lesysbot/webui/](../lesysbot/webui/), a stdlib `ThreadingHTTPServer` bound to
+`127.0.0.1` only, with a DNS-rebinding guard that rejects any request whose
+`Host` header isn't loopback. It has no authentication because the trust
+boundary is having a shell on the machine — the same access as editing
+`config.yaml`. The whole single-page UI is inlined as a Python string so it
+survives a PyInstaller build, and it adds no dependencies.
+
+It exposes `GET /api/status`, `/api/tools`, `/api/config` and
+`POST /api/config`, `/api/tools/{toggle,install,remove}`. Config writes are
+validated against the settings schema *before* the file is touched. Toggling a
+tool goes through `registry.set_enabled()`, which persists to `mcp.state_file`
+— the same file the `lesysbot tools` CLI writes, and the one a running bot
+watches, which is why a toggle applies live while other settings need a restart.
+
+**Which thing does `lesysbot` start?** `__main__.main()` decides:
+
+| You type | You get |
+|---|---|
+| `lesysbot run` | the bot |
+| `lesysbot --provider …` | the bot |
+| `lesysbot manage` | the management UI |
+| `lesysbot` **in a terminal** | the management UI |
+| `lesysbot` **with no TTY** (a service) | the bot |
+
+That TTY test is what lets bare `lesysbot` be the human front door without
+breaking a background service, which has no terminal. Installed services are
+explicit anyway — the wizard writes `lesysbot run` into every service template.
+
+The status snapshot behind both the terminal panel and `/api/status` lives in
+[lesysbot/core/status.py](../lesysbot/core/status.py); it also probes for a
+running [monitoring stack](../monitoring/README.md) so the panel can link to
+Grafana.
 
 ---
 
@@ -341,14 +371,15 @@ Two independent records of what happened
 
 | I want to… | Touch | Guide |
 |---|---|---|
-| Add a capability (new tool) | a new folder in `tools/` — no core code | [Writing Tools](writing-tools.md) |
-| Share a tool with others | a GitHub repo — nothing else | [Sharing Tools](sharing-tools.md) |
+| Add a capability (new tool) | a new folder in `tools/` — no core code | [Write a tool](writing-tools.md) |
+| Share a tool with others | a GitHub repo — nothing else | [Share your tools](sharing-tools.md) |
 | Support a new chat platform | new file in [lesysbot/messaging/](../lesysbot/messaging/) + one `elif` in [lesysbot/__main__.py](../lesysbot/__main__.py) | [Adapters §4](adapters.md#4-building-a-custom-adapter) |
-| Support a new LLM backend | usually nothing — set `llm.base_url` | [Configuration §3](configuration.md#3-llm-backends) |
+| Support a new LLM backend | usually nothing — set `llm.base_url` | [Settings](configuration.md#switching-model-backend) |
 | Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the install wizard | `scripts/install.sh` **and** `scripts/install.ps1` (kept in sync) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Change the management UI | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-management-ui-and-cli-dispatch) |
 
 ---
 

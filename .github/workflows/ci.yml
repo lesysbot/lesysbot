@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install
-        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, slack, dashboard
+        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, slack
       - name: Lint
         run: ruff check lesysbot/ tests/ tools/
       - name: Test
@@ -38,8 +38,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Chat platforms and the dashboard are extras; the CLI, the tool registry
-      # and the `tools`/`setup` subcommands must work without any of them.
+      # Chat platforms are extras; the CLI, the tool registry and the
+      # `tools`/`setup` subcommands must work without any of them.
       - name: Install without extras
         run: pip install .
       - name: Assert extras really are absent

@@ -95,6 +95,13 @@ the installer, so a collection repo can keep those alongside packages.
 
 ## Conventions & gotchas
 
+- **Never write a tool that needs root.** No `sudo`/`runas` calls, no
+  `setup-sudoers.sh` — the bot can't type a password, so a privileged tool
+  either errors out or forces manual setup before it works. Reach for the
+  unprivileged route to the same fact (read `/sys` rather than shelling out as
+  root; let logind/polkit handle `shutdown`), and when a capability genuinely
+  isn't available without root, say so in the reply instead of elevating. See
+  https://github.com/lesysbot/lesysbot/blob/main/docs/writing-tools.md.
 - Files starting with `_` are ignored by the loader — helpers only.
 - A registered tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in the repo you're in (or the bundled

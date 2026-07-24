@@ -3,8 +3,9 @@
 Nothing here runs until the summary's Apply. Service management shells out
 (systemctl / launchctl / PowerShell's ScheduledTask cmdlets); the *runner*
 parameter exists so tests can record invocations instead of touching the host.
-No sudo, ever — the wizard must stay password-free (root-requiring setup lives
-with the tools that need it, e.g. the shutdown-wake package's setup-sudoers.sh).
+No sudo, ever — the wizard must stay password-free. That now holds for tools
+too: none of them may require root either, so there is no privileged setup step
+to hand off to (see docs/writing-tools.md §6).
 """
 
 from __future__ import annotations
@@ -121,7 +122,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory={data_dir}
-ExecStart={lesysbot_bin}
+ExecStart={lesysbot_bin} run
 Restart=on-failure
 RestartSec=5
 
@@ -208,6 +209,7 @@ _PLIST_TEMPLATE = """\
     <key>ProgramArguments</key>
     <array>
         <string>{lesysbot_bin}</string>
+        <string>run</string>
     </array>
 
     <key>WorkingDirectory</key>
@@ -315,7 +317,7 @@ def setup_service_windows(ui, st: WizardState, data_dir: Path, runner=subprocess
     )
     script = (
         f"$action = New-ScheduledTaskAction -Execute '{lesysbot_binary()}' "
-        f"-WorkingDirectory '{data_dir}'; "
+        f"-Argument 'run' -WorkingDirectory '{data_dir}'; "
         "$settings = New-ScheduledTaskSettingsSet -RestartCount 3 "
         "-RestartInterval (New-TimeSpan -Minutes 1) "
         "-ExecutionTimeLimit ([System.TimeSpan]::Zero) "
