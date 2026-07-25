@@ -48,7 +48,7 @@ the easy one (you can point it at OpenAI instead, in the wizard).
 
 ```bash
 # install Ollama — https://ollama.com/download has Linux, macOS and Windows
-ollama pull llama3.2
+ollama pull qwen3.5:4b
 ```
 
 **2. Install LeSysBot**

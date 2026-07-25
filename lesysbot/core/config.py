@@ -67,7 +67,7 @@ class MessagingConfig(BaseModel):
 
 class LLMConfig(BaseModel):
     base_url: str = "http://localhost:11434/v1"
-    model: str = "llama3.2"
+    model: str = "qwen3.5:4b"
     api_key: str = "ollama"
     temperature: float = 0.7
     max_tokens: int = 4096

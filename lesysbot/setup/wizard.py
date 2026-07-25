@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_OLLAMA_MODEL = "llama3.2"
+DEFAULT_OLLAMA_MODEL = "qwen3.5:4b"
 
 
 class SetupAborted(SystemExit):
@@ -98,7 +98,7 @@ def select_ollama_model(ui) -> str | None:
     if choice == len(options):
         return None
     if choice == len(options) - 1:
-        model = ui.text("Model name to pull (e.g. llama3.2, qwen3.5, gemma3:4b)", DEFAULT_OLLAMA_MODEL)
+        model = ui.text("Model name to pull (e.g. qwen3.5, gemma4:12b, llama3.2)", DEFAULT_OLLAMA_MODEL)
         if model is None:
             return None
         ollama_pull(ui, model)
@@ -152,7 +152,7 @@ def step_llm(ui, st: WizardState) -> None:
             if url is None:
                 continue
             st.llm_base_url = url
-            model = ui.text("Model", st.llm_model or "llama3.2")
+            model = ui.text("Model", st.llm_model or DEFAULT_OLLAMA_MODEL)
             if model is None:
                 continue
             st.llm_model = model
