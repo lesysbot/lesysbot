@@ -27,7 +27,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 brew install ollama
 # Windows: installer from https://ollama.com/download
 
-ollama pull llama3.2          # small, capable starting point (~2 GB)
+ollama pull qwen3.5:4b        # small, capable starting point
 curl http://localhost:11434/  # → "Ollama is running"
 ```
 
@@ -141,7 +141,7 @@ messaging:
   provider: cli                 # cli | telegram | discord
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama default
-  model: "llama3.2"             # a model you've pulled (ollama list)
+  model: "qwen3.5:4b"           # a model you've pulled (ollama list)
   api_key: "ollama"             # any non-empty string for Ollama/vLLM; real key for OpenAI
 mcp:
   hot_reload: true

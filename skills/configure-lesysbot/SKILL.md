@@ -63,7 +63,7 @@ messaging:
 
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama default
-  model: "llama3.2"
+  model: "qwen3.5:4b"
   api_key: "ollama"          # real key for OpenAI; any string for Ollama/vLLM
   temperature: 0.7
   max_tokens: 4096
