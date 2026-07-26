@@ -7,6 +7,7 @@ monkeypatching like the rest of the suite.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -534,6 +535,11 @@ class Recorder:
         return subprocess.CompletedProcess(cmd, self.returncode, stdout="", stderr="")
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="systemd --user is Linux-only; on Windows Path.home() keys off USERPROFILE "
+           "(not the patched HOME) and the POSIX /data path renders as \\data",
+)
 def test_setup_service_linux_writes_unit_and_enables(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     st = WizardState(auto_start=True)

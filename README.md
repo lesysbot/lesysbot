@@ -19,6 +19,8 @@ The language model runs **locally** on your hardware with
 [Ollama](https://ollama.com), so your messages and everything the tools report
 stay with you. No account, no cloud service, nothing to sign up for.
 
+[**Docs & guides → lesysbot.github.io**](https://lesysbot.github.io)
+
 ---
 
 ## Why you might want this
@@ -39,10 +41,13 @@ stay with you. No account, no cloud service, nothing to sign up for.
 
 ## Get started
 
-**1. Install a model runner and pull a model**
+**You need:** Python 3.11+ and a model runner — [Ollama](https://ollama.com) is
+the easy one (you can point it at OpenAI instead, in the wizard).
+
+**1. Get a model running**
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh    # Linux — see ollama.com for macOS/Windows
+# install Ollama — https://ollama.com/download has Linux, macOS and Windows
 ollama pull llama3.2
 ```
 
@@ -51,11 +56,14 @@ ollama pull llama3.2
 ```bash
 git clone https://github.com/lesysbot/lesysbot
 cd lesysbot
-bash scripts/install.sh          # Windows: .\scripts\install.ps1
+
+bash scripts/install.sh      # Linux & macOS
+.\scripts\install.ps1        # Windows (PowerShell)
 ```
 
 A short wizard asks a few questions. **Press Enter through all of them** and you
-get a working local bot.
+get a working local bot. Nothing is written to disk until you pick **Apply**;
+your settings land in `~/.lesysbot/config.yaml`.
 
 **3. Say hello**
 
@@ -76,7 +84,8 @@ health in a browser. The background service keeps it online; `lesysbot` on its
 own prints the same health summary in your terminal.
 
 That's it. The full walkthrough — including how to reach it from Telegram or
-Discord — is in **[Getting started](docs/getting-started.md)**.
+Discord — is in **[Getting started](docs/getting-started.md)**, or on the docs
+site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
 
 ---
 
