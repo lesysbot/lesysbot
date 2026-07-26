@@ -21,7 +21,7 @@ working bot in about five minutes.
 | Guide | What it's for |
 |---|---|
 | [Everyday use](usage.md) | Chatting, running tools directly, history, confirmations |
-| [Telegram & Slack](adapters.md) | Reach the bot from your phone or your workspace |
+| [Telegram & Discord](adapters.md) | Reach the bot from your phone or your workspace |
 | [Control panel](management-ui.md) | Edit settings and toggle tools from a local web page — always on |
 | [Settings](configuration.md) | Every option, and the three ways to set it |
 | [Troubleshooting](troubleshooting.md) | When something doesn't work |

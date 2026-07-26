@@ -30,8 +30,8 @@ def instance_key(settings: Settings) -> str:
     provider = settings.messaging.provider
     if provider == "telegram":
         token = settings.messaging.telegram.token
-    elif provider == "slack":
-        token = settings.messaging.slack.app_token or settings.messaging.slack.bot_token
+    elif provider == "discord":
+        token = settings.messaging.discord.token
     else:
         token = ""
     digest = hashlib.sha256(token.encode()).hexdigest()[:8] if token else "default"

@@ -1,4 +1,4 @@
-# Telegram & Slack
+# Telegram & Discord
 
 Where you talk to LeSysBot from. All three options behave identically once
 you're chatting — same tools, same `/commands`, same confirmations, all covered
@@ -8,7 +8,7 @@ in [Everyday use](usage.md). Only the setup differs.
 |---|---|---|
 | **[Terminal](#1-cli)** | nothing | Trying it out, local use, scripting |
 | **[Telegram](#2-telegram)** | a bot token (2 minutes) | Reaching your machine from your phone |
-| **[Slack](#3-slack)** | two app tokens (10 minutes) | A team or workspace |
+| **[Discord](#3-discord)** | a bot token (5 minutes) | A server you already live in |
 
 Switch anytime with `--provider`, or by changing `messaging.provider` in your
 config. The terminal always works regardless of what's configured.
@@ -99,7 +99,19 @@ Bot:  PING 8.8.8.8 ... 3 packets transmitted, 3 received, 0% packet loss
 
 Everything from [Using LeSysBot](usage.md) applies — natural language and `/commands` both work.
 
-### 2.5 Restricting access
+### 2.5 The command menu
+
+LeSysBot publishes its tools to Telegram's command list at startup, so typing
+`/` shows every tool with its description instead of you having to remember
+names. Telegram has no typed parameters, so arguments stay free text
+(`/disk_usage path=/tmp`).
+
+The menu is registered once per start: a newly installed tool is callable
+immediately but appears in the menu after a restart. In group chats Telegram
+appends the bot's username to a command (`/disk_usage@my_bot`) — that's handled,
+so group and direct chats behave the same.
+
+### 2.6 Restricting access
 
 `allowed_user_ids` is an allow-list:
 
@@ -108,7 +120,7 @@ Everything from [Using LeSysBot](usage.md) applies — natural language and `/co
 
 Add more IDs as a comma-separated list: `[123456789, 987654321]`.
 
-### 2.6 Confirmation prompts
+### 2.7 Confirmation prompts
 
 Tools marked `confirm` show inline buttons before running:
 
@@ -121,7 +133,7 @@ Tool: reboot_server
 
 Tap **✅ Yes** to approve or **❌ No** to cancel. If you don't respond within 120 seconds, the call is cancelled automatically.
 
-### 2.7 Troubleshooting
+### 2.8 Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -131,108 +143,165 @@ Tap **✅ Yes** to approve or **❌ No** to cancel. If you don't respond within 
 
 ---
 
-## 3. Slack
+## 3. Discord
 
-Run LeSysBot as a Slack app you message directly. Slack needs **two** tokens — a
-**bot token** (`xoxb-…`) and an **app-level token** (`xapp-…`) — and uses Socket
-Mode so you don't need a public URL.
+Run LeSysBot as a Discord bot you DM, or @-mention in a server channel. One bot
+token, no public URL.
 
-> **Dependency:** the Slack adapter is the `slack` extra. The install scripts
-> include it; after a bare `pip install .` add it with `pip install ".[slack]"`.
+> **Dependency:** the Discord adapter is the `discord` extra. The install scripts
+> include it; after a bare `pip install .` add it with `pip install ".[discord]"`.
 
-### 3.1 Create the Slack app from a manifest
+### 3.1 Create the application and its bot
 
-The manifest sets all the scopes and settings in one step.
+1. Go to **[discord.com/developers/applications](https://discord.com/developers/applications)** → **New Application**.
+2. Name it (e.g. `LeSysBot`), accept the terms, and click **Create**.
+3. Open the **Bot** tab in the left sidebar.
 
-1. Go to **[api.slack.com/apps](https://api.slack.com/apps)** → **Create New App** → **From a manifest**.
-2. Choose the workspace to install into, then click **Next**.
-3. Switch the format to **YAML** and paste this manifest:
+### 3.2 Turn on the Message Content intent
 
-   ```yaml
-   display_information:
-     name: LeSysBot
-   features:
-     bot_user:
-       display_name: LeSysBot
-       always_online: true
-   oauth_config:
-     scopes:
-       bot:
-         - chat:write       # send messages
-         - im:history       # read direct messages sent to the bot
-         - im:read          # basic info about DM channels
-         - im:write         # open a DM with a user
-   settings:
-     event_subscriptions:
-       bot_events:
-         - message.im       # receive direct messages
-     socket_mode_enabled: true
+**Do not skip this.** Without it Discord delivers every message with its text
+stripped out, so the bot connects, looks online, and silently ignores you.
+
+1. On the **Bot** tab, scroll to **Privileged Gateway Intents**.
+2. Enable **MESSAGE CONTENT INTENT** and save.
+
+### 3.3 Copy the bot token
+
+1. Still on the **Bot** tab, click **Reset Token** → **Yes, do it**.
+2. Copy the token that appears. It looks like:
+
+   ```
+   MTIzNDU2Nzg5MDEyMzQ1Njc4.GhIjKl.mNoPqRs…
    ```
 
-4. Click **Next** → **Create**.
+   Discord shows it **once** — copy it now. Keep it secret: anyone with it can
+   control your bot. (Lost it? Reset it again; the old one stops working.)
 
-### 3.2 Generate the app-level token (`xapp-…`)
+### 3.4 Invite the bot to a server
 
-1. In your app's settings, open **Basic Information**.
-2. Scroll to **App-Level Tokens** → **Generate Token and Scopes**.
-3. Name it (e.g. `socket`), add the **`connections:write`** scope, and click **Generate**.
-4. Copy the token — it starts with **`xapp-`**. This is your `app_token`.
+A bot can't DM you until you share a server with it.
 
-### 3.3 Install the app and get the bot token (`xoxb-…`)
+1. Open **OAuth2** → **URL Generator**.
+2. Under **Scopes**, tick **`bot`** *and* **`applications.commands`** — the second
+   one is what lets the tools appear in the server's `/` picker ([§3.8](#38-running-tools-from-the-command-picker)).
+3. Under **Bot Permissions**, tick **View Channels**, **Send Messages** and **Read Message History**.
+4. Copy the generated URL at the bottom, open it in a browser, and pick a server you own.
 
-1. Open **Install App** (or **OAuth & Permissions**) → **Install to Workspace** → **Allow**.
-2. Copy the **Bot User OAuth Token** — it starts with **`xoxb-`**. This is your `bot_token`.
+### 3.5 Find your Discord user ID
 
-### 3.4 Find your Slack member ID
+You'll use this to lock the bot to just you.
 
-Useful to know who you are in Slack (and for any per-user logic):
+1. In Discord, open **Settings** (the ⚙ by your name) → **Advanced** → turn on **Developer Mode**.
+2. Right-click your own name anywhere → **Copy User ID**.
+3. It's an 18–19 digit number, e.g. `123456789012345678`.
 
-1. In Slack, click your **profile picture** → **Profile**.
-2. Click the **⋮ (More)** button → **Copy member ID**.
-3. It looks like `U01ABC2DEF`.
+*(The same right-click → **Copy Channel ID** works on a channel, which is what
+you'd put in `startup_notice.notify` to have the boot report land in a channel.)*
 
-### 3.5 Configure
+### 3.6 Configure
 
 ```yaml
 messaging:
-  provider: slack
-  slack:
-    bot_token: "xoxb-your-bot-token"
-    app_token: "xapp-your-app-token"
+  provider: discord
+  discord:
+    token: "MTIzNDU2Nzg5MDEyMzQ1Njc4.GhIjKl.mNoPqRs..."
+    allowed_user_ids: [123456789012345678]   # your ID — only you can use the bot
+                                             # leave as [] to allow anyone who
+                                             # shares a server with the bot
 ```
 
-### 3.6 Run it and message the bot
+### 3.7 Run it and message the bot
 
 ```bash
-lesysbot --provider slack
-# (or just `lesysbot` if config.yaml already has provider: slack)
+lesysbot --provider discord
+# (or just `lesysbot` if config.yaml already has provider: discord)
 ```
 
-In Slack, find **LeSysBot** under **Apps** in the sidebar (or search its name), open a
-direct message, and chat:
+The bot appears online in your server's member list. **DM it**, or **@-mention it**
+in a channel:
 
 ```
 You:  what's the disk usage on /?
 LeSysBot:  The root filesystem has 143 GB free out of 980 GB (80% used).
 
 You:  /ping 8.8.8.8
-LeSysBot:  PING 8.8.8.8 ... 0% packet loss
+LeSysBot:  PING 8.8.8.8 ... 3 packets transmitted, 3 received, 0% packet loss
 ```
 
-### 3.7 Notes & limitations
+In a **DM** every message is for the bot. In a **server channel** it only answers
+when @-mentioned — otherwise it would reply to everything said in every channel
+it can see. The mention is stripped before the text reaches the model, so
+`@LeSysBot how much RAM is free?` asks exactly what you typed.
 
-- **Access:** the app is limited to your Slack workspace — anyone in the workspace who can DM the app can use it. Unlike Telegram, the Slack adapter has no per-user allow-list in config; restrict the app at the workspace level if needed.
-- **Direct tool calls:** Slack treats a leading `/` as its own slash-command system. To call a LeSysBot tool directly, type `/ ` **with a space** first: `/ disk_usage path=/tmp`. (Natural-language chat needs no prefix.)
-- **Confirmation prompts auto-approve** in Slack by default. To add ✅/❌ buttons, override `SlackAdapter.confirm()` with Slack Block Kit — see [§4](#4-building-a-custom-adapter).
+Everything from [Using LeSysBot](usage.md) applies — natural language and
+`/commands` both work.
 
-### 3.8 Troubleshooting
+### 3.8 Running tools from the command picker
+
+Every tool is registered as a Discord **application command**, so you don't have
+to remember names or argument syntax. Type `/` and Discord lists the tools; pick
+one and it gives you a labelled field per parameter:
+
+```
+/disk_usage
+   path      ← required, described, text field
+   depth     ← optional, numbers only
+```
+
+Discord marks required fields, refuses letters in a number field, and shows each
+parameter's description. The model is not involved — this is the same direct tool
+call as typing `/disk_usage path=/`, which also still works.
+
+Notes:
+
+- **The picker is filled in when the bot starts.** A newly installed tool (or one
+  you just re-enabled) is callable as text immediately but joins the picker after
+  a restart — Discord rate-limits command updates, so LeSysBot registers once
+  instead of on every change to your tools folder.
+- Disabled tools and tools unavailable on this machine are left out.
+- Confirm-gated tools still ask first — the ✅/❌ prompt appears in the channel you
+  ran the command in, and the result follows once you answer.
+- A tool whose name isn't valid as a command (Discord and Telegram allow only
+  lowercase letters, digits and `_`) is skipped with a warning in the log; it
+  stays callable as typed text.
+
+### 3.9 Restricting access
+
+`allowed_user_ids` is an allow-list, and it matters more here than on Telegram:
+anyone who shares a server with your bot can open a DM with it.
+
+- `[123456789012345678]` — only those user IDs can use the bot; everyone else gets `Unauthorized.`
+- `[]` (empty) — **anyone** who shares a server with the bot can use it (and run your tools). LeSysBot logs a warning at startup when the list is empty.
+
+Add more IDs as a comma-separated list: `[123456789012345678, 987654321098765432]`.
+
+### 3.10 Confirmation prompts
+
+Tools marked `confirm` show buttons before running:
+
+```
+⚠️ This will immediately reboot the machine. Proceed?
+Tool: reboot_server
+
+  [ ✅ Yes ]   [ ❌ No ]
+```
+
+Click **✅ Yes** to approve or **❌ No** to cancel; the message updates to show
+which you picked. In a channel, only the person who made the request can answer
+— anyone else clicking gets a private "not yours to answer" note. If nobody
+responds within five minutes, the call is cancelled.
+
+### 3.11 Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| "The 'slack' provider needs a dependency that isn't installed" | `pip install ".[slack]"` — it bundles `slack-bolt` and `aiohttp`. |
-| `not_authed` / `invalid_auth` | A token is wrong or swapped. `bot_token` is `xoxb-…`, `app_token` is `xapp-…`. |
-| Bot never responds to DMs | Make sure Socket Mode is on, the app is installed, and the manifest's `message.im` event + `im:history` scope are present. Reinstall the app after scope changes. |
-| Can't find the bot to DM | Look under **Apps** in the Slack sidebar, or invite it to a channel and DM from its profile. |
+| "The 'discord' provider needs a dependency that isn't installed" | `pip install ".[discord]"`. |
+| Bot is online but ignores everything | **MESSAGE CONTENT INTENT** is off — see [§3.2](#32-turn-on-the-message-content-intent). The log says so explicitly. |
+| `Discord rejected the bot token` | Wrong or revoked token. Reset it (**Bot** → **Reset Token**) and update `config.yaml`. |
+| Bot replies `Unauthorized.` | Your user ID isn't in `allowed_user_ids`. Re-copy it with Developer Mode on. |
+| Nothing happens in a channel | You have to **@-mention** the bot in channels. DMs need no mention. |
+| Can't DM the bot | You don't share a server with it yet — re-run the invite URL from [§3.4](#34-invite-the-bot-to-a-server). |
+| Tools don't appear in the `/` picker | The bot was invited without the **`applications.commands`** scope — re-run the invite URL from [§3.4](#34-invite-the-bot-to-a-server) with it ticked. Or the tool was added after startup: restart LeSysBot. |
 
 ---
 
@@ -240,7 +309,16 @@ LeSysBot:  PING 8.8.8.8 ... 0% packet loss
 
 To support another platform, subclass `MessagingAdapter`
 (`lesysbot/messaging/base.py`) and implement `start()` and `send()`. Override
-`confirm()` to add a confirmation UI (the default auto-approves).
+`confirm()` to add a confirmation UI (the default auto-approves; the CLI,
+Telegram and Discord adapters all override it). `split_message()` from the same
+module chunks a long reply to whatever length limit your platform enforces.
+
+If your platform has a native command menu, take the tool registry as an
+optional second constructor argument and build the menu from
+`lesysbot/messaging/commands.py`: `all_commands(registry)` gives you name,
+description and typed parameters per tool, and `to_slash_text(name, kwargs)`
+renders an invocation back into the `/name key=value` form so it re-enters the
+one dispatch path in `Agent._handle_slash` instead of you writing a second one.
 
 ```python
 # lesysbot/messaging/myplatform.py

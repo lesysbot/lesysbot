@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install
-        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, slack
+        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, discord
       - name: Lint
         run: ruff check lesysbot/ tests/ tools/
       - name: Test
@@ -46,7 +46,7 @@ jobs:
         run: |
           python - <<'PY'
           import importlib.util as u
-          for mod in ("telegram", "slack_bolt", "aiohttp"):
+          for mod in ("telegram", "discord", "aiohttp"):
               assert u.find_spec(mod) is None, f"{mod} leaked into the base install"
           PY
       - name: CLI smoke test

@@ -61,7 +61,7 @@ ok "Python $($PYTHON --version | cut -d' ' -f2)"
 # ═══════════════════════════════════════════════════════════════════════════════
 printf "\n  Installing lesysbot package …\n"
 cd "$REPO_DIR"
-# .[all] = Telegram + Slack extras, so every option the wizard
+# .[all] = Telegram + Discord extras, so every option the wizard
 # offers below works without a second install step.
 $PYTHON -m pip install --quiet ".[all]"
 ok "Package installed"

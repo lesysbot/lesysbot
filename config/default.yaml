@@ -1,21 +1,21 @@
 messaging:
-  provider: cli  # cli | telegram | slack
+  provider: cli  # cli | telegram | discord
 
   telegram:
     token: "${TELEGRAM_TOKEN}"
     allowed_user_ids: []  # Empty = allow everyone
 
-  slack:
-    bot_token: "${SLACK_BOT_TOKEN}"
-    app_token: "${SLACK_APP_TOKEN}"
+  discord:
+    token: "${DISCORD_TOKEN}"
+    allowed_user_ids: []  # Empty = allow everyone who shares a server with the bot
 
   # Ping you when the bot comes up (for a background service: right after the
   # machine boots) with a short system report — CPU/GPU temp, disk, internet
-  # speed, each only if this machine can answer. Telegram/Slack only.
+  # speed, each only if this machine can answer. Remote providers only.
   startup_notice:
     enabled: true
-    notify: []          # Telegram chat ids / Slack channel ids;
-                        # Telegram falls back to allowed_user_ids when empty
+    notify: []          # Telegram chat ids / Discord user or channel ids;
+                        # falls back to that provider's allowed_user_ids when empty
     speedtest: true     # include internet speed (downloads speedtest_mb MB)
     speedtest_mb: 5
 

@@ -27,9 +27,9 @@ messaging:
     token: "{tg_token}"
     allowed_user_ids: {tg_allowed_ids}
 
-  slack:
-    bot_token: "{slack_bot}"
-    app_token: "{slack_app}"
+  discord:
+    token: "{dc_token}"
+    allowed_user_ids: {dc_allowed_ids}
 
 llm:
   base_url: "{base_url}"
@@ -70,8 +70,8 @@ def write_config(st: WizardState, data_dir: Path) -> Path:
             provider=st.msg_provider,
             tg_token=st.tg_token,
             tg_allowed_ids=st.tg_allowed_ids,
-            slack_bot=st.slack_bot,
-            slack_app=st.slack_app,
+            dc_token=st.dc_token,
+            dc_allowed_ids=st.dc_allowed_ids,
             base_url=st.llm_base_url,
             model=st.llm_model,
             api_key=st.llm_api_key,
@@ -389,15 +389,74 @@ def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
     return _grafana_linux(ui, data_dir, mon, start, finish_cmd, runner)
 
 
+def _section(data: dict, key: str) -> dict:
+    value = data.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _ids(value) -> tuple[str, str]:
+    """An ``allowed_user_ids`` list as the wizard's ``(raw, yaml_list)`` pair."""
+    ids = [str(v).strip() for v in value] if isinstance(value, list) else []
+    ids = [v for v in ids if v]
+    return ",".join(ids), "[" + ", ".join(ids) + "]"
+
+
+def _llm_choice(base_url: str, api_key: str) -> int:
+    """Which Step-1 menu entry an existing llm section came from."""
+    if "api.openai.com" in base_url:
+        return 2
+    if "11434" in base_url:
+        return 1
+    return 3 if api_key == "vllm" else 4
+
+
+def read_config_state(config_file: Path) -> WizardState:
+    """Rebuild a :class:`WizardState` from an existing config.yaml.
+
+    The kept-config path skips the wizard chain, so without this the summary
+    would describe a blank default state (empty model, empty allow-list)
+    instead of the install the user is actually keeping. Best-effort: an
+    unreadable or oddly shaped config degrades to whatever did parse.
+    """
+    import yaml
+
+    st = WizardState()
+    try:
+        data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return st
+    if not isinstance(data, dict):
+        return st
+
+    msg = _section(data, "messaging")
+    provider = str(msg.get("provider") or "").strip()
+    if provider:
+        st.msg_provider = provider
+    st.msg_choice = {"telegram": 2, "discord": 3}.get(st.msg_provider, 1)
+
+    tg = _section(msg, "telegram")
+    st.tg_token = str(tg.get("token") or "")
+    st.tg_raw_ids, st.tg_allowed_ids = _ids(tg.get("allowed_user_ids"))
+    dc = _section(msg, "discord")
+    st.dc_token = str(dc.get("token") or "")
+    st.dc_raw_ids, st.dc_allowed_ids = _ids(dc.get("allowed_user_ids"))
+
+    # A config may legitimately omit keys — the bot then runs on the model's
+    # own defaults, so those are what the summary should show.
+    from lesysbot.core.config import LLMConfig
+
+    fallback = LLMConfig()
+    llm = _section(data, "llm")
+    st.llm_base_url = str(llm.get("base_url") or fallback.base_url)
+    st.llm_model = str(llm.get("model") or fallback.model)
+    st.llm_api_key = str(llm.get("api_key") or fallback.api_key)
+    st.llm_choice = _llm_choice(st.llm_base_url, st.llm_api_key)
+    return st
+
+
 def read_provider(config_file: Path) -> str:
     """Best-effort provider from an existing config.yaml (kept-config path)."""
-    for line in config_file.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("provider:"):
-            value = stripped.split(":", 1)[1].strip().strip("\"'")
-            if value:
-                return value
-    return "cli"
+    return read_config_state(config_file).msg_provider
 
 
 def lesysbot_binary() -> str:
@@ -629,12 +688,13 @@ def control_panel_url() -> str:
 
 def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> None:
     ui.say("\n  [bold]How to use[/bold]\n")
-    if provider in ("telegram", "slack"):
-        place = "Telegram" if provider == "telegram" else "Slack"
+    if provider in ("telegram", "discord"):
+        place = "Telegram" if provider == "telegram" else "Discord"
         first = (
             "Open Telegram and find the bot you created with @BotFather"
             if provider == "telegram"
-            else "Invite the bot to a channel, or open a direct message with it"
+            else "Invite the bot to your server with its OAuth2 URL, then DM it "
+                 "(or @-mention it in a channel)"
         )
         ui.say(f"  LeSysBot is running as a [bold]{place}[/bold] bot.\n")
         ui.say(f"    1. {first}")

@@ -20,7 +20,7 @@ hiddenimports = []
 
 
 def _bundle(pkg, optional=False):
-    """Collect everything a dependency needs. Optional packages (telegram/slack)
+    """Collect everything a dependency needs. Optional packages (telegram/discord)
     are skipped with a warning if they aren't installed, so the build never breaks."""
     try:
         d, b, h = collect_all(pkg)
@@ -39,10 +39,10 @@ for _pkg in ("lesysbot", "openai", "pydantic", "pydantic_settings", "yaml", "ric
     _bundle(_pkg)
 
 # Optional providers / tool dependencies — bundled if present on the build machine
-# so a single exe can serve CLI, Telegram and Slack. Set LESYSBOT_BUILD_SKIP_PROVIDERS=1
+# so a single exe can serve CLI, Telegram and Discord. Set LESYSBOT_BUILD_SKIP_PROVIDERS=1
 # for a smaller CLI-only executable.
 if not SKIP_PROVIDERS:
-    for _pkg in ("telegram", "slack_bolt", "aiohttp", "httpx"):
+    for _pkg in ("telegram", "discord", "aiohttp", "httpx"):
         _bundle(_pkg, optional=True)
 
 

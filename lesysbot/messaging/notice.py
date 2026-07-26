@@ -6,7 +6,7 @@ CPU/GPU temperature, disk usage, and internet speed (each only if the host can
 answer — see `core/sysinfo.py`).
 
 `__main__._run` spawns `send_startup_notice()` as a background task beside the
-messaging adapter (telegram/slack only; the CLI has the user right there). It
+messaging adapter (remote providers only; the CLI has the user right there). It
 waits for the adapter's `ready` event, builds the report, and `send()`s it to
 each configured recipient, retrying a couple of times since the network may
 still be settling right after boot.
@@ -29,14 +29,21 @@ _SEND_RETRY_DELAY = 10.0
 
 
 def resolve_recipients(settings: Settings) -> list[str]:
-    """Who to ping: `startup_notice.notify`, or — for Telegram — the
-    allowed_user_ids allowlist as a natural default. Slack has no equivalent
-    (channel ids aren't in its config), so it needs an explicit `notify`."""
+    """Who to ping: `startup_notice.notify`, else the provider's allow-list.
+
+    Both remote providers keep a list of the people allowed to use the bot, and
+    those are exactly the people who want the boot report — so an empty `notify`
+    falls back to it rather than sending nothing. A Discord `notify` entry may
+    also be a channel id; the adapter resolves either (see
+    `DiscordAdapter._destination`)."""
     cfg = settings.messaging.startup_notice
     if cfg.notify:
         return [str(r) for r in cfg.notify]
-    if settings.messaging.provider == "telegram":
+    provider = settings.messaging.provider
+    if provider == "telegram":
         return [str(uid) for uid in settings.messaging.telegram.allowed_user_ids]
+    if provider == "discord":
+        return [str(uid) for uid in settings.messaging.discord.allowed_user_ids]
     return []
 
 

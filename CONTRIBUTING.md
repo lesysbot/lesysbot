@@ -39,7 +39,7 @@ git checkout -b my-change
 ```
 
 **Step 2 — Install in editable mode with dev extras** (adds `pytest` + `ruff`
-on top of `[all]`, so Telegram and Slack are both importable):
+on top of `[all]`, so Telegram and Discord are both importable):
 
 ```bash
 pip install -e ".[dev]"
@@ -83,7 +83,7 @@ lesysbot/            the package
 ├─ core/             Agent (the tool-calling loop), config, paths, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
-├─ messaging/        CLI / Telegram / Slack adapters + the base interface
+├─ messaging/        CLI / Telegram / Discord adapters + the base interface
 └─ install/          `lesysbot tools install` — fetch tool packages from GitHub
 tools/             bundled tool packages (the catalog users get seeded with)
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
@@ -148,14 +148,23 @@ adapters are imported lazily so optional deps don't break other providers) and
 add a config model for its credentials in
 [lesysbot/core/config.py](lesysbot/core/config.py) + [config/default.yaml](config/default.yaml).
 
-**Step 3 — Document it:** a setup section in
-[docs/adapters.md](docs/adapters.md) following the Telegram/Slack pattern
+**Step 3 — Offer the tools as native commands** *(if the platform has a command
+menu)*: take the registry as an optional second constructor argument and build
+the menu from [lesysbot/messaging/commands.py](lesysbot/messaging/commands.py) —
+`all_commands(registry)` for the specs, `to_slash_text()` to render an
+invocation back into `/name key=value` so it re-enters `Agent._handle_slash`
+rather than becoming a second dispatch path. Register once at startup and treat
+failure as non-fatal; see the Telegram and Discord adapters.
+
+**Step 4 — Document it:** a setup section in
+[docs/adapters.md](docs/adapters.md) following the Telegram/Discord pattern
 (create the bot → get tokens → configure → run → troubleshoot), and a mention
 in [docs/configuration.md](docs/configuration.md)'s reference block.
 
-**Step 4 — Test:** adapters are hard to unit-test against a live platform, so
+**Step 5 — Test:** adapters are hard to unit-test against a live platform, so
 at minimum exercise the confirm/deny path and describe your manual test in the
-PR.
+PR. `tests/test_discord.py` shows the pattern: stub the client's connect call so
+the registered handlers can be driven directly, no network needed.
 
 ---
 
