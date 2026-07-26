@@ -5,8 +5,14 @@ import logging
 import uuid
 from typing import Any
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Update
-from telegram.error import BadRequest
+from telegram import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    Update,
+)
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -16,7 +22,12 @@ from telegram.ext import (
 )
 
 from lesysbot.core.config import TelegramConfig
-from lesysbot.messaging.base import MessageHandler as BotHandler, MessagingAdapter
+from lesysbot.messaging.base import (
+    MessageHandler as BotHandler,
+    MessagingAdapter,
+    split_message,
+)
+from lesysbot.messaging.commands import all_commands
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +35,12 @@ _MAX_MSG_LEN = 4000  # Telegram hard limit is 4096; leave headroom
 
 
 class TelegramAdapter(MessagingAdapter):
-    def __init__(self, config: TelegramConfig) -> None:
+    def __init__(self, config: TelegramConfig, registry: Any = None) -> None:
         self._config = config
+        # The tool registry, when the caller has one: it is what the platform's
+        # slash-command menu is built from. Optional so the adapter still works
+        # standalone (tools stay callable as typed text either way).
+        self._registry = registry
         self._app: Application | None = None
         # Pending confirmation callbacks keyed by callback_id
         self._pending: dict[str, asyncio.Event] = {}
@@ -123,10 +138,13 @@ class TelegramAdapter(MessagingAdapter):
                 await update.message.reply_text("Unauthorized.")
                 return
 
-            text = update.message.text or ""
+            # In a group Telegram appends the bot's username to a command
+            # (`/disk_usage@my_bot`), which would reach the agent as an unknown
+            # command. Strip it so group chats behave like DMs.
+            text = _strip_bot_mention(update.message.text or "", ctx.bot.username)
 
             # /start is a Telegram convention — give a friendly greeting
-            if text.strip() in ("/start", f"/start@{ctx.bot.username}"):
+            if text.strip() == "/start":
                 await update.message.reply_text(
                     "👋 Hi\\! I'm *LeSysBot*\\.\n\n"
                     "Send me a message to chat with the AI, or use `/help` to "
@@ -136,7 +154,7 @@ class TelegramAdapter(MessagingAdapter):
                 return
 
             reply = await handler(user_id, text)
-            for chunk in _split(reply):
+            for chunk in split_message(reply, _MAX_MSG_LEN):
                 await _reply_safe(update.message, chunk)
 
         async def on_callback_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -188,6 +206,7 @@ class TelegramAdapter(MessagingAdapter):
 
         logger.info("Telegram bot starting (polling)...")
         await self._app.initialize()
+        await self._register_commands()
         await self._app.start()
         await self._app.updater.start_polling()
         self.ready.set()  # bot is connected — the startup notice may send now
@@ -205,8 +224,41 @@ class TelegramAdapter(MessagingAdapter):
 
     async def send(self, user_id: str, text: str) -> None:
         if self._app:
-            for chunk in _split(text):
+            for chunk in split_message(text, _MAX_MSG_LEN):
                 await self._app.bot.send_message(chat_id=int(user_id), text=chunk)
+
+    async def _register_commands(self) -> None:
+        """Publish the tool list to Telegram's `/` menu.
+
+        Typing `/disk_usage /` always worked; this is what makes it *findable* —
+        Telegram only shows commands the bot has registered. Telegram has no
+        typed parameters, so a command is just a name and a description and the
+        arguments stay free text, parsed by `Agent._handle_slash` as before.
+
+        Best-effort: a failure here costs an autocomplete menu, not the bot, and
+        a service that refused to start over a cosmetic API call would be worse.
+        """
+        if not self._app or self._registry is None:
+            return
+        specs = all_commands(self._registry)
+        try:
+            await self._app.bot.set_my_commands(
+                [BotCommand(spec.name, spec.description) for spec in specs]
+            )
+            logger.info("Registered %d Telegram commands", len(specs))
+        except TelegramError as exc:
+            logger.warning("Could not register the Telegram command menu: %s", exc)
+
+
+def _strip_bot_mention(text: str, username: str | None) -> str:
+    """Remove a `@botname` suffix from a leading command, as groups add."""
+    if not username or not text.startswith("/"):
+        return text
+    command, sep, rest = text.partition(" ")
+    suffix = f"@{username}"
+    if command.endswith(suffix):
+        command = command[: -len(suffix)]
+    return command + sep + rest
 
 
 async def _reply_safe(message: Message, text: str) -> None:
@@ -216,19 +268,3 @@ async def _reply_safe(message: Message, text: str) -> None:
         await message.reply_text(text, parse_mode="Markdown")
     except BadRequest:
         await message.reply_text(text)
-
-
-def _split(text: str, max_len: int = _MAX_MSG_LEN) -> list[str]:
-    """Split a long string into chunks that fit Telegram's message size limit.
-
-    Empty/whitespace-only input yields no chunks — Telegram rejects empty
-    messages ("Message text is empty"), which would otherwise drop silently."""
-    if not text.strip():
-        return []
-    if len(text) <= max_len:
-        return [text]
-    chunks: list[str] = []
-    while text:
-        chunks.append(text[:max_len])
-        text = text[max_len:]
-    return chunks

@@ -88,7 +88,7 @@ dist\LeSysBot\lesysbot.exe --provider cli
 |---|---|
 | `.\scripts\build-exe.ps1` | One-folder build (recommended) — fast startup, all providers |
 | `.\scripts\build-exe.ps1 -OneFile` | A single `lesysbot.exe` (slower startup, easier to email) |
-| `.\scripts\build-exe.ps1 -SkipProviders` | Smaller CLI-only exe (no Telegram/Slack bundled) |
+| `.\scripts\build-exe.ps1 -SkipProviders` | Smaller CLI-only exe (no Telegram/Discord bundled) |
 | `.\scripts\build-exe.ps1 -Clean` | Wipe `build\`, `dist\`, `.build-venv\` first |
 
 **One-folder vs one-file:**
@@ -207,7 +207,7 @@ pyinstaller --noconfirm --clean packaging\lesysbot.spec
 | Symptom | Fix |
 |---|---|
 | `ModuleNotFoundError` at runtime | The dependency wasn't bundled. Add it to the `_bundle(...)` list in `packaging/lesysbot.spec` (or install it into the build venv) and rebuild. |
-| Telegram/Slack provider fails on a `-SkipProviders` build | That build is CLI-only by design. Rebuild without `-SkipProviders`. |
+| Telegram/Discord provider fails on a `-SkipProviders` build | That build is CLI-only by design. Rebuild without `-SkipProviders`. |
 | "Windows protected your PC" (SmartScreen) | Expected for unsigned exes. Click *More info → Run anyway*, or sign the binary (§7). |
 | Antivirus quarantines `lesysbot.exe` | Common PyInstaller false positive. Sign the binary and/or submit for whitelisting; ensure UPX is off (it is, in the spec). |
 | Exe can't write `logs\` | It's in a read-only location like `Program Files`. Move the folder somewhere user-writable, or set `logging.file: null` in `config.yaml`. |

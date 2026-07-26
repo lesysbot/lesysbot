@@ -115,11 +115,11 @@ All four speak the same protocol, so this only picks a URL and a key.
 ```
 1) Terminal only (default)
 2) Telegram
-3) Slack
+3) Discord
 ```
 
 The terminal always works regardless of this choice — `lesysbot --provider cli`
-opens a chat whatever you pick here. Telegram and Slack are *extra* remote
+opens a chat whatever you pick here. Telegram and Discord are *extra* remote
 channels that run in the background.
 
 - **Telegram** — asks for a bot token from
@@ -127,14 +127,17 @@ channels that run in the background.
   the bot (find yours via [@userinfobot](https://t.me/userinfobot)). At least one
   ID is required; the wizard re-asks until you give one, because an empty list
   means *anyone who finds your bot can run your tools*.
-- **Slack** — asks for a bot token (`xoxb-…`) and an app token (`xapp-…`). The
-  full app setup is in [Telegram & Slack §3](adapters.md#3-slack).
+- **Discord** — asks for a bot token and the numeric user IDs allowed to use
+  the bot, the same way. Create the bot at
+  [discord.com/developers/applications](https://discord.com/developers/applications)
+  and **turn on the Message Content intent** — without it the bot can't read your
+  messages. Full setup: [Telegram & Discord §3](adapters.md#3-discord).
 
 **"Service" — start now, or also at every reboot? `[1]`**
 Option 1 starts it now and again on every boot; option 2 starts it now only.
 Every setup gets the service, whichever channel you picked: it serves the
 [control panel](management-ui.md) (settings, tools, health) and, with Telegram or
-Slack, receives your messages. A terminal chat is still yours to start — the
+Discord, receives your messages. A terminal chat is still yours to start — the
 service never opens one.
 
 **Summary — apply, change, or quit**
@@ -182,7 +185,7 @@ Three steps: install the package, write a config, run it.
 **Install the package**
 
 ```bash
-pip install ".[all]"       # terminal + Telegram + Slack
+pip install ".[all]"       # terminal + Telegram + Discord
 pip install .              # terminal and tools only — smaller
 pip install -e ".[dev]"    # development install (adds pytest + ruff)
 ```
@@ -190,7 +193,7 @@ pip install -e ".[dev]"    # development install (adds pytest + ruff)
 | Extra | Adds | Needed for |
 |---|---|---|
 | `telegram` | `python-telegram-bot` | `--provider telegram` |
-| `slack` | `slack-bolt`, `aiohttp` | `--provider slack` |
+| `discord` | `discord.py` | `--provider discord` |
 | `all` | both | what the install scripts use |
 
 Pick a provider you didn't install and LeSysBot tells you which extra to add
@@ -206,7 +209,7 @@ The parts that matter:
 
 ```yaml
 messaging:
-  provider: cli                 # cli | telegram | slack
+  provider: cli                 # cli | telegram | discord
 
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama default
@@ -256,7 +259,7 @@ it works even when Ollama is off.
 
 Type **`/help`** to see every tool it currently has.
 
-> Running as a Telegram/Slack service already? `lesysbot --provider cli` still
+> Running as a Telegram/Discord service already? `lesysbot --provider cli` still
 > opens a separate terminal chat alongside it. They don't conflict.
 
 Day-to-day guide: **[Everyday use](usage.md)**.
@@ -364,7 +367,7 @@ It works backwards through what the installer did:
 | Want to… | Go to |
 |---|---|
 | Use it properly (history, arguments, confirmations) | [Everyday use](usage.md) |
-| Message it from your phone | [Telegram & Slack](adapters.md) |
+| Message it from your phone | [Telegram & Discord](adapters.md) |
 | Add abilities | [Write a tool](writing-tools.md) · [Install tools](installing-tools.md) |
 | Change model, history size, logging | [Settings](configuration.md) |
 | Keep it running in the background | [Run as a service](service.md) |

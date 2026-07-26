@@ -65,18 +65,19 @@ def run(args: argparse.Namespace) -> int:
         apply.write_config(st, data_dir)
         ui.ok(f"config.yaml written to {config_file}")
     else:
-        # Existing config kept — read the provider back from it. The background
-        # service is installed either way (it serves the control panel), so only
-        # the autostart question applies here; no step navigation.
-        st = wizard.WizardState()
-        provider = apply.read_provider(config_file)
-        st.msg_provider = provider
+        # Existing config kept — read it back so the summary describes the
+        # install being kept (LLM, provider, allow-list) instead of a blank
+        # default state. The background service is installed either way (it
+        # serves the control panel), so only the autostart question applies
+        # here; no step navigation.
+        st = apply.read_config_state(config_file)
+        provider = st.msg_provider
         needs_service = st.needs_service = True
         ui.say("\n  LeSysBot runs in the background as a service so the control panel "
                "stays online.\n")
         st.auto_start = ui.confirm_yn("Start LeSysBot automatically after reboot?", default=True)
 
-        wizard.show_summary(ui, st, data_dir)
+        wizard.show_summary(ui, st, data_dir, config_kept=True)
         if not ui.confirm_yn("Apply these settings?", default=True):
             ui.say("\n  [yellow]Aborted.[/yellow]")
             return 0

@@ -38,12 +38,13 @@ class WizardState:
     tg_token: str = ""
     tg_raw_ids: str = ""
     tg_allowed_ids: str = "[]"
-    slack_bot: str = ""
-    slack_app: str = ""
+    dc_token: str = ""
+    dc_raw_ids: str = ""
+    dc_allowed_ids: str = "[]"
     auto_start: bool = False
     # Every install gets the background service: it serves the control panel,
     # which is meant to be online whenever the machine is (and it runs the
-    # Telegram/Slack bot too, when one is configured).
+    # Telegram/Discord bot too, when one is configured).
     needs_service: bool = True
 
 
@@ -170,17 +171,40 @@ def step_llm(ui, st: WizardState) -> None:
         return
 
 
+def ask_allowed_ids(ui, platform: str, previous: str) -> tuple[str, str] | None:
+    """Loop until the user gives a valid numeric allow-list.
+
+    An explicit allow-list is required for every remote provider: with an empty
+    list, ANY user who can reach the bot drives tools on this machine. Returns
+    ``(raw, yaml_list)``, or ``None`` when the user pressed Esc to back out.
+    """
+    while True:
+        raw = ui.text(f"Allowed {platform} user IDs, comma-separated", previous)
+        if raw is None:
+            return None
+        raw = re.sub(r"\s", "", raw)
+        if re.fullmatch(r"[0-9]+(,[0-9]+)*", raw):
+            return raw, "[" + ", ".join(raw.split(",")) + "]"
+        if ui.eof:
+            # Piped input that has run dry can never satisfy this loop.
+            ui.say(f"  [red]✗[/red]  Input ended before a {platform} user ID was given "
+                   "— an allow-list is required.")
+            raise SetupAborted(1)
+        ui.warn("Enter at least one numeric user ID (e.g. 123456789) "
+                "— the bot must not be open to everyone.")
+
+
 def step_messaging(ui, st: WizardState) -> bool:
     """Returns True to continue, False to go back to the LLM step."""
     while True:
         ui.say("\n  You can always chat in this terminal with [bold]lesysbot --provider cli[/bold].")
-        ui.say("  Add Telegram or Slack to also message LeSysBot remotely.\n")
+        ui.say("  Add Telegram or Discord to also message LeSysBot remotely.\n")
         choice = ui.menu(
             "Step 2 — How to reach LeSysBot",
             [
                 "Terminal only (default)",
                 "Telegram",
-                "Slack",
+                "Discord",
                 "← Back — change the LLM backend",
             ],
             default=st.msg_choice,
@@ -196,38 +220,25 @@ def step_messaging(ui, st: WizardState) -> bool:
                 continue
             st.tg_token = token
             ui.note("Find your numeric ID by messaging @userinfobot on Telegram.")
-            # An explicit allow-list is required — with an empty list, ANY
-            # Telegram user who finds the bot can drive tools on this machine.
-            backed_out = False
-            while True:
-                raw = ui.text("Allowed Telegram user IDs, comma-separated", st.tg_raw_ids)
-                if raw is None:
-                    backed_out = True
-                    break
-                raw = re.sub(r"\s", "", raw)
-                if re.fullmatch(r"[0-9]+(,[0-9]+)*", raw):
-                    st.tg_raw_ids = raw
-                    st.tg_allowed_ids = "[" + ", ".join(raw.split(",")) + "]"
-                    break
-                if ui.eof:
-                    # Piped input that has run dry can never satisfy this loop.
-                    ui.say("  [red]✗[/red]  Input ended before a Telegram user ID was given "
-                           "— an allow-list is required.")
-                    raise SetupAborted(1)
-                ui.warn("Enter at least one numeric user ID (e.g. 123456789) "
-                        "— the bot must not be open to everyone.")
-            if backed_out:
+            ids = ask_allowed_ids(ui, "Telegram", st.tg_raw_ids)
+            if ids is None:
                 continue
+            st.tg_raw_ids, st.tg_allowed_ids = ids
         elif choice == 3:
-            st.msg_provider = "slack"
-            bot = ui.text("Bot token (xoxb-...)", st.slack_bot)
-            if bot is None:
+            st.msg_provider = "discord"
+            ui.note("Create the bot at https://discord.com/developers/applications "
+                    "— turn on MESSAGE CONTENT INTENT under Bot, and invite it with "
+                    "the 'bot' + 'applications.commands' scopes.")
+            token = ui.text("Bot token", st.dc_token)
+            if token is None:
                 continue
-            st.slack_bot = bot
-            app = ui.text("App token (xapp-...)", st.slack_app)
-            if app is None:
+            st.dc_token = token
+            ui.note("Find your numeric ID: Settings → Advanced → Developer Mode, "
+                    "then right-click your name → Copy User ID.")
+            ids = ask_allowed_ids(ui, "Discord", st.dc_raw_ids)
+            if ids is None:
                 continue
-            st.slack_app = app
+            st.dc_raw_ids, st.dc_allowed_ids = ids
         else:
             st.msg_provider = "cli"
         return True
@@ -238,7 +249,7 @@ def step_autostart(ui, st: WizardState) -> bool:
     # Always a service: the control panel (settings, tools, health) is meant to
     # be reachable at any time, not only while a terminal happens to be open.
     st.needs_service = True
-    if st.msg_provider in ("telegram", "slack"):
+    if st.msg_provider in ("telegram", "discord"):
         ui.say(f"\n  LeSysBot runs in the background as a service — it keeps the "
                f"control panel online and answers your {st.msg_provider} messages.\n")
     else:
@@ -274,7 +285,13 @@ def run_steps(ui, st: WizardState, start: int) -> None:
             step = 0 if step_autostart(ui, st) else 2
 
 
-def show_summary(ui, st: WizardState, data_dir: Path) -> None:
+def show_summary(ui, st: WizardState, data_dir: Path, config_kept: bool = False) -> None:
+    """Print the settings about to be applied.
+
+    ``config_kept`` marks the path where an existing config.yaml is left alone:
+    the LLM/provider/allow-list rows were read back from that file rather than
+    answered here, so the row says the file is untouched.
+    """
     startup = ("service — starts now and at reboot" if st.auto_start
                else "service — starts now, not at reboot")
     ui.say("\n  [bold]Summary[/bold]\n")
@@ -282,8 +299,11 @@ def show_summary(ui, st: WizardState, data_dir: Path) -> None:
     ui.say(f"  Provider   {st.msg_provider}")
     if st.msg_provider == "telegram":
         ui.say(f"  Allowed    {st.tg_allowed_ids}")
+    elif st.msg_provider == "discord":
+        ui.say(f"  Allowed    {st.dc_allowed_ids}")
     ui.say(f"  Startup    {startup}")
-    ui.say(f"  Config     {data_dir / 'config.yaml'}")
+    ui.say(f"  Config     {data_dir / 'config.yaml'}"
+           + ("  (kept as-is)" if config_kept else ""))
     ui.say(f"  Working    {data_dir}")
     ui.say("")
 

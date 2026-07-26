@@ -64,7 +64,7 @@ try {
 Write-Host ""
 Write-Host "  Installing lesysbot package ..."
 Set-Location $RepoDir
-# .[all] = Telegram + Slack extras, so every option the wizard
+# .[all] = Telegram + Discord extras, so every option the wizard
 # offers below works without a second install step.
 & python -m pip install --quiet ".[all]"
 if ($LASTEXITCODE -ne 0) { Die 'pip install failed. Run manually: pip install ".[all]"' }

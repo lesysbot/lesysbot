@@ -9,7 +9,7 @@ local session may invoke without sudo. Nothing here shells out through
 
 Reboot/power-off are **scheduled 1 minute out** rather than run immediately:
 an instant poweroff kills this process before the reply can reach the user, so
-a remote (Telegram/Slack) user never learns whether the command was accepted.
+a remote (Telegram/Discord) user never learns whether the command was accepted.
 The delay guarantees the acknowledgment arrives and leaves a window for
 ``cancel_shutdown`` to abort.
 

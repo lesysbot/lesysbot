@@ -122,19 +122,23 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
     # Adapters are imported lazily so a missing optional dependency only affects
     # the provider that needs it. Report that as one actionable line rather than
     # an ImportError traceback — for a background service it is the only clue
-    # the user gets (`slack-bolt` ships without aiohttp, for instance).
+    # the user gets.
     try:
         if provider == "cli":
             from lesysbot.messaging.cli import CLIAdapter
             adapter = CLIAdapter()
 
+        # The remote adapters take the registry so they can publish the tool list
+        # as native slash commands (Telegram's `/` menu, Discord's command
+        # picker). Sharing the agent's own registry means the menu offers exactly
+        # the tools the agent would run.
         elif provider == "telegram":
             from lesysbot.messaging.telegram import TelegramAdapter
-            adapter = TelegramAdapter(settings.messaging.telegram)
+            adapter = TelegramAdapter(settings.messaging.telegram, agent.registry)
 
-        elif provider == "slack":
-            from lesysbot.messaging.slack import SlackAdapter
-            adapter = SlackAdapter(settings.messaging.slack)
+        elif provider == "discord":
+            from lesysbot.messaging.discord import DiscordAdapter
+            adapter = DiscordAdapter(settings.messaging.discord, agent.registry)
 
         else:
             print(f"Unknown messaging provider: {provider}", file=sys.stderr)
@@ -189,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument(
         "--provider",
-        choices=["cli", "telegram", "slack"],
+        choices=["cli", "telegram", "discord"],
         default=None,
         help="Override messaging provider",
     )

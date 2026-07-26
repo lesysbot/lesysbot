@@ -42,6 +42,29 @@ class MessagingAdapter(ABC):
         """Request user confirmation before a tool runs.
 
         The default implementation auto-approves. Override in adapters that
-        support interactive confirmation (e.g. CLI prompt, Telegram buttons).
+        support interactive confirmation (e.g. CLI prompt, Telegram/Discord
+        buttons).
         """
         return True
+
+
+def split_message(text: str, max_len: int) -> list[str]:
+    """Split *text* into chunks of at most *max_len* characters.
+
+    Every chat platform caps a single message (Telegram at 4096, Discord at
+    2000) and rejects anything over it, so a long tool result has to be sent as
+    several messages rather than dropped.
+
+    Empty/whitespace-only input yields no chunks — both APIs reject an empty
+    message body, which would otherwise surface as a confusing send failure
+    instead of the no-op it really is.
+    """
+    if not text.strip():
+        return []
+    if len(text) <= max_len:
+        return [text]
+    chunks: list[str] = []
+    while text:
+        chunks.append(text[:max_len])
+        text = text[max_len:]
+    return chunks
