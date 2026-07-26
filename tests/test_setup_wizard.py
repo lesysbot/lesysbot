@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from lesysbot.core.config import LLMConfig
 from lesysbot.setup import apply as apply_mod
 from lesysbot.setup import wizard
 from lesysbot.setup.wizard import SetupAborted, WizardState
@@ -252,7 +253,9 @@ def test_read_config_state_falls_back_and_survives_junk(tmp_path):
     # runs on (the model defaults), never to blanks.
     cfg.write_text("messaging:\n  provider: cli\n")
     st = apply_mod.read_config_state(cfg)
-    assert (st.llm_model, st.llm_base_url) == ("llama3.2", "http://localhost:11434/v1")
+    fallback = LLMConfig()                         # whatever the bot ships as default
+    assert (st.llm_model, st.llm_base_url) == (fallback.model, fallback.base_url)
+    assert st.llm_model and st.llm_base_url        # …and never blank
     assert st.llm_choice == 1                      # Ollama
     assert st.msg_provider == "cli"
 
