@@ -39,9 +39,14 @@ class TelegramConfig(BaseModel):
     allowed_user_ids: list[int] = Field(default_factory=list)
 
 
-class SlackConfig(BaseModel):
-    bot_token: str = ""
-    app_token: str = ""
+class DiscordConfig(BaseModel):
+    # A single bot token from the Discord developer portal. Note the bot also
+    # needs the Message Content intent enabled there, or the gateway delivers
+    # every message with an empty `content` and the bot looks deaf.
+    token: str = ""
+    # Numeric Discord user ids (snowflakes). Empty = allow everyone, which on
+    # Discord means anyone who shares a server with the bot can DM it.
+    allowed_user_ids: list[int] = Field(default_factory=list)
 
 
 class StartupNoticeConfig(BaseModel):
@@ -50,8 +55,8 @@ class StartupNoticeConfig(BaseModel):
     # report (CPU/GPU temp, disk, internet speed; each only if the host can
     # answer). Remote providers only: the CLI never sends it.
     enabled: bool = True
-    # Who to ping: Telegram chat ids or Slack channel ids. Telegram falls back
-    # to allowed_user_ids when empty; Slack needs an explicit entry.
+    # Who to ping: Telegram chat ids, or Discord user/channel ids. Both fall
+    # back to their allowed_user_ids when empty.
     notify: list[int | str] = Field(default_factory=list)
     # Include an internet speed measurement (downloads `speedtest_mb` MB).
     speedtest: bool = True
@@ -59,9 +64,9 @@ class StartupNoticeConfig(BaseModel):
 
 
 class MessagingConfig(BaseModel):
-    provider: str = "cli"  # cli | telegram | slack
+    provider: str = "cli"  # cli | telegram | discord
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
-    slack: SlackConfig = Field(default_factory=SlackConfig)
+    discord: DiscordConfig = Field(default_factory=DiscordConfig)
     startup_notice: StartupNoticeConfig = Field(default_factory=StartupNoticeConfig)
 
 

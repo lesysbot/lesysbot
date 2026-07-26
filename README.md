@@ -1,7 +1,7 @@
 <img src="assets/brand/lesysbot-wordmark.svg" alt="LeSysBot" width="380">
 
 **Chat with your own machine.** Ask it a question in plain language — from your
-terminal, from Telegram on your phone, or from Slack — and it answers, using
+terminal, from Telegram on your phone, or from Discord — and it answers, using
 tools that can read and control that machine.
 
 ```
@@ -84,7 +84,7 @@ health in a browser. The background service keeps it online; `lesysbot` on its
 own prints the same health summary in your terminal.
 
 That's it. The full walkthrough — including how to reach it from Telegram or
-Slack — is in **[Getting started](docs/getting-started.md)**, or on the docs
+Discord — is in **[Getting started](docs/getting-started.md)**, or on the docs
 site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
 
 ---
@@ -94,7 +94,7 @@ site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
 | I want to… | Go to |
 |---|---|
 | Use it day to day | [Everyday use](docs/usage.md) |
-| Message it from my phone | [Telegram & Slack](docs/adapters.md) |
+| Message it from my phone | [Telegram & Discord](docs/adapters.md) |
 | Give it a new ability | [Write a tool](docs/writing-tools.md) |
 | Install tools other people wrote | [Install tools](docs/installing-tools.md) |
 | Manage it from a browser | [Control panel](docs/management-ui.md) |
@@ -139,7 +139,7 @@ Three layers that barely know about each other, wired together by one `Agent`:
 
 ```mermaid
 flowchart TD
-    you["you (CLI / Telegram / Slack)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter"]
+    you["you (CLI / Telegram / Discord)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter"]
     adapter --> agent["Agent"]
     agent -- chat --> llm["LLM (Ollama, vLLM, OpenAI, …)"]
     llm -- "call disk_usage(path='/')" --> agent
@@ -160,12 +160,14 @@ logging — is in **[How it works](docs/architecture.md)**.
 <summary><b>Everything it can do (full feature list)</b></summary>
 
 - **Local models by default** — Ollama, vLLM, LlamaCpp; or point it at OpenAI
-- **Three ways to chat** — terminal, Telegram, Slack
+- **Three ways to chat** — terminal, Telegram, Discord
 - **Tools as folders** — drop one in `tools/`, it's live without a restart
 - **Install tools from GitHub** — `lesysbot tools install owner/repo`, no
   registry involved
 - **Call tools without the model** — `/tool_name args` runs directly, and works
-  even when no model is running
+  even when no model is running. Every tool is registered as a real slash command
+  in Telegram's `/` menu and Discord's command picker, so you can pick one from a
+  list instead of remembering its name
 - **Cross-platform aware** — tools declare which OSes and binaries they need and
   explain themselves instead of failing
 - **Confirmation prompts** — destructive tools wait for your approval
@@ -174,7 +176,7 @@ logging — is in **[How it works](docs/architecture.md)**.
 - **Always-on local control panel** — the service serves a
   [localhost-only UI](docs/management-ui.md) for config, tools and health at
   `http://127.0.0.1:8700`
-- **Boot notification** — a Telegram/Slack bot pings you with a system report
+- **Boot notification** — a Telegram/Discord bot pings you with a system report
   when the machine comes up
 - **Prometheus + Grafana stack** — set up by the installer on all three OSes,
   plus `share_dashboard` to publish an expiring public snapshot link

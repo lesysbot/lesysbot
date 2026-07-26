@@ -12,7 +12,7 @@ runs everywhere, as your normal user — no sudo setup, nothing to configure.
 
 Reboot/power-off are **scheduled 1 minute out**, not immediate: an instant
 poweroff would kill LeSysBot before its reply reaches you, so a remote
-(Telegram/Slack) user would never see whether the command was accepted. The
+(Telegram/Discord) user would never see whether the command was accepted. The
 delay guarantees the acknowledgment arrives — and leaves a window to abort
 with `/cancel_shutdown`.
 

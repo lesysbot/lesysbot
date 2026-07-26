@@ -156,11 +156,11 @@ Common causes:
 - The model backend wasn't up yet when the service started.
 - Wrong working directory — the service must run from the folder holding
   `config.yaml` and `tools/`, normally `~/.lesysbot`.
-- A wrong or revoked Telegram/Slack token.
+- A wrong or revoked Telegram/Discord token.
 
 ### "Another instance is already running"
 
-Only one copy of a Telegram or Slack bot can poll at a time (Telegram rejects
+Only one copy of a Telegram or Discord bot can poll at a time (Telegram rejects
 both otherwise), so LeSysBot takes a lock and refuses the second, naming the PID
 that holds it. Stop the service first:
 
@@ -186,19 +186,23 @@ no restart needed.
 
 ---
 
-## Telegram and Slack
+## Telegram and Discord
 
 | Symptom | Fix |
 |---|---|
 | Telegram replies `Unauthorized.` | Your numeric ID isn't in `allowed_user_ids`. Check it with [@userinfobot](https://t.me/userinfobot). |
 | Telegram: no response at all | Wrong token, or the bot isn't running. Check the service status and the log. |
 | Telegram: replies show raw `*asterisks*` | Harmless — the model produced Markdown Telegram couldn't parse, so it was sent as plain text instead of being dropped. |
-| `The 'slack' provider needs a dependency that isn't installed` | `pip install ".[slack]"` |
-| Slack: `not_authed` / `invalid_auth` | Tokens swapped. `bot_token` is `xoxb-…`, `app_token` is `xapp-…`. |
-| Slack: never answers a DM | Socket Mode must be on, the app installed, and the manifest's `message.im` event plus `im:history` scope present. Reinstall the app after any scope change. |
-| Slack: `/tool` does nothing | Slack owns the leading `/`. Type `/ disk_usage path=/tmp` — with a space. |
+| `The 'discord' provider needs a dependency that isn't installed` | `pip install ".[discord]"` |
+| Discord: online but ignores every message | **MESSAGE CONTENT INTENT** is off. Enable it under **Bot → Privileged Gateway Intents** and restart — the log names it too. |
+| Discord: `Discord rejected the bot token` | Wrong or revoked token. **Bot → Reset Token**, then update `config.yaml`. |
+| Discord: replies `Unauthorized.` | Your user ID isn't in `allowed_user_ids`. Re-copy it with Developer Mode on. |
+| Discord: no answer in a channel | The bot only answers channel messages that **@-mention** it. DMs need no mention. |
+| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled and platform-unavailable tools are left out on purpose. |
+| A tool never appears in the `/` menu | Its name must be lowercase letters, digits or `_` (both platforms' rule); the log names any tool skipped for this. It still works typed out. |
+| Discord: can't open a DM with the bot | You don't share a server with it — re-run the OAuth2 invite URL. |
 
-Full setup for both: [Telegram & Slack](adapters.md).
+Full setup for both: [Telegram & Discord](adapters.md).
 
 ---
 
@@ -264,7 +268,7 @@ logging:
 
 In an interactive chat the console stays quiet regardless (only warnings and
 worse) so log lines don't interrupt you — the file gets everything. For a
-Telegram/Slack service, `level` controls both.
+Telegram/Discord service, `level` controls both.
 
 </details>
 

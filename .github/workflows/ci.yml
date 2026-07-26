@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install
-        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, slack
+        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, discord
       - name: Lint
         run: ruff check lesysbot/ tests/ tools/
       - name: Test
@@ -46,7 +46,7 @@ jobs:
         run: |
           python - <<'PY'
           import importlib.util as u
-          for mod in ("telegram", "slack_bolt", "aiohttp"):
+          for mod in ("telegram", "discord", "aiohttp"):
               assert u.find_spec(mod) is None, f"{mod} leaked into the base install"
           PY
       - name: CLI smoke test
@@ -72,3 +72,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: shellcheck
         run: shellcheck --severity=error scripts/*.sh
+
+  # The single check `main`'s branch ruleset requires. Requiring the matrix jobs
+  # by name instead would wedge every PR on "Expected — waiting for status" the
+  # moment the matrix changes (a dropped Python version, a renamed runner), since
+  # the old check name never reports again. This name is stable, so the matrix
+  # above stays free to change.
+  ci-ok:
+    name: CI OK
+    if: always()   # must still run — and fail — when a dependency failed
+    needs: [test, base-install, powershell-lint, shell-lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

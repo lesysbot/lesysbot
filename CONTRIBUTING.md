@@ -39,7 +39,7 @@ git checkout -b my-change
 ```
 
 **Step 2 — Install in editable mode with dev extras** (adds `pytest` + `ruff`
-on top of `[all]`, so Telegram and Slack are both importable):
+on top of `[all]`, so Telegram and Discord are both importable):
 
 ```bash
 pip install -e ".[dev]"
@@ -83,7 +83,7 @@ lesysbot/            the package
 ├─ core/             Agent (the tool-calling loop), config, paths, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
-├─ messaging/        CLI / Telegram / Slack adapters + the base interface
+├─ messaging/        CLI / Telegram / Discord adapters + the base interface
 └─ install/          `lesysbot tools install` — fetch tool packages from GitHub
 tools/             bundled tool packages (the catalog users get seeded with)
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
@@ -148,14 +148,23 @@ adapters are imported lazily so optional deps don't break other providers) and
 add a config model for its credentials in
 [lesysbot/core/config.py](lesysbot/core/config.py) + [config/default.yaml](config/default.yaml).
 
-**Step 3 — Document it:** a setup section in
-[docs/adapters.md](docs/adapters.md) following the Telegram/Slack pattern
+**Step 3 — Offer the tools as native commands** *(if the platform has a command
+menu)*: take the registry as an optional second constructor argument and build
+the menu from [lesysbot/messaging/commands.py](lesysbot/messaging/commands.py) —
+`all_commands(registry)` for the specs, `to_slash_text()` to render an
+invocation back into `/name key=value` so it re-enters `Agent._handle_slash`
+rather than becoming a second dispatch path. Register once at startup and treat
+failure as non-fatal; see the Telegram and Discord adapters.
+
+**Step 4 — Document it:** a setup section in
+[docs/adapters.md](docs/adapters.md) following the Telegram/Discord pattern
 (create the bot → get tokens → configure → run → troubleshoot), and a mention
 in [docs/configuration.md](docs/configuration.md)'s reference block.
 
-**Step 4 — Test:** adapters are hard to unit-test against a live platform, so
+**Step 5 — Test:** adapters are hard to unit-test against a live platform, so
 at minimum exercise the confirm/deny path and describe your manual test in the
-PR.
+PR. `tests/test_discord.py` shows the pattern: stub the client's connect call so
+the registered handlers can be driven directly, no network needed.
 
 ---
 
@@ -253,6 +262,88 @@ docs: explain trace file rotation
 **Step 3 — Push and open the PR.** Explain *what* and *why*, note anything you
 couldn't test automatically (PowerShell, a live platform), and link related
 issues. Small focused PRs get reviewed fastest.
+
+CI runs automatically on the PR. What has to be green before it can merge is
+[§9](#9-how-main-is-protected).
+
+---
+
+## 9. How `main` is protected
+
+You can't push to `main` directly — every change lands through a pull request.
+Two things gate the merge button:
+
+- **`CI OK` must be green.** That's a single check that turns green only when
+  the whole matrix, the base-install job and both script linters have passed.
+- **Your branch must be up to date with `main`.** If `main` moved while you
+  worked, merge it in (`git merge origin/main`) and push again; GitHub will
+  re-run CI on the result.
+
+Nothing else blocks you — reviews are set to **0 required approvals**, so a
+maintainer can merge their own PR once CI is green.
+
+<details>
+<summary><b>Why one <code>CI OK</code> check instead of the twelve real ones</b></summary>
+
+`.github/workflows/ci.yml` produces twelve checks — nine from the
+`{ubuntu, macos, windows} × {3.11, 3.12, 3.13}` matrix, plus
+`Base install (no extras)`, `PowerShell script analysis` and
+`Shell script analysis`.
+
+Requiring those by name is a trap: the moment the matrix changes — a dropped
+Python version, a renamed runner — the required check name never reports again,
+and **every open PR hangs on "Expected — waiting for status"** with no way out
+but an admin bypass. So the ruleset requires only `ci-ok`, an aggregation job
+that `needs:` all four:
+
+```yaml
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [test, base-install, powershell-lint, shell-lint]
+```
+
+`if: always()` is load-bearing. Without it GitHub *skips* the job when a
+dependency fails, and a skipped required check reports as success — a green
+gate over a red matrix. With it, the job runs and explicitly exits 1.
+
+Expect `CI OK` to sit queued until all twelve upstream checks finish, so a PR
+looks stalled for a few minutes even when everything is green. That's inherent
+to the pattern, not a misconfiguration.
+
+</details>
+
+<details>
+<summary><b>Maintainers — applying or changing the ruleset</b></summary>
+
+The policy is version-controlled at
+[`.github/rulesets/main.json`](.github/rulesets/main.json). GitHub does **not**
+read it from the repo automatically — it is applied by import:
+
+**UI:** Settings → Rules → Rulesets → **New ruleset** → *Import a ruleset* →
+pick the file.
+
+**API** (needs a PAT with `admin:repo_hook`/repo admin scope):
+
+```bash
+gh api --method POST /repos/lesysbot/lesysbot/rulesets \
+  --input .github/rulesets/main.json
+```
+
+Two things to finish in the UI after importing:
+
+1. **Bypass list** — ships empty. Add **Repository admin** unless you want a
+   locked-out admin with a broken CI runner to have no recovery path.
+2. **Require linear history** — deliberately **off**. It's compatible with this
+   repo but changes habit: it forbids merge commits on `main`, so the green
+   button becomes squash-or-rebase only. Past PRs here merged with merge commits
+   (`1acc21e Merge pull request #2 …`), so turning it on is a workflow decision,
+   not a security one. The genuinely protective rules are the other four.
+
+Changing the policy? Edit the JSON *and* re-import — an edit made only in the UI
+silently drifts from the file, which defeats keeping it in the repo at all.
+
+</details>
 
 ---
 

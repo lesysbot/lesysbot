@@ -61,9 +61,15 @@ def test_explicit_notify_wins_and_coerces_ints():
     assert notice.resolve_recipients(s) == ["333", "C0FFEE"]
 
 
-def test_slack_has_no_default_recipients():
-    s = _settings(provider="slack")
-    assert notice.resolve_recipients(s) == []
+def test_recipients_default_to_discord_allowlist():
+    s = _settings(provider="discord", discord={"allowed_user_ids": [444, 555]})
+    assert notice.resolve_recipients(s) == ["444", "555"]
+
+
+def test_cli_has_no_default_recipients():
+    # The CLI never sends a startup notice, and no other provider has an
+    # allow-list to fall back to.
+    assert notice.resolve_recipients(_settings(provider="cli")) == []
 
 
 # ── send flow ──────────────────────────────────────────────────────────────
@@ -84,7 +90,8 @@ async def test_notice_without_recipients_sends_nothing(monkeypatch):
     adapter = FakeAdapter()
     adapter.ready.set()
 
-    await notice.send_startup_notice(adapter, _settings(provider="slack"))
+    # discord with an empty allow-list and no explicit notify: nobody to ping.
+    await notice.send_startup_notice(adapter, _settings(provider="discord"))
     assert adapter.sent == []
 
 

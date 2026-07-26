@@ -2,7 +2,7 @@
 
 LeSysBot runs in the background so two things are always there: the
 [control panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
-Telegram or Slack — the bot answering your messages. This page covers keeping it
+Telegram or Discord — the bot answering your messages. This page covers keeping it
 alive, starting it at boot, and finding the logs when something's off.
 
 Installing LeSysBot itself is in [Getting started](getting-started.md).
@@ -80,7 +80,7 @@ The graphical Task Scheduler (`taskschd.msc`) works too — the task is called
 
 ## The message you get when it starts
 
-With Telegram or Slack, LeSysBot messages you as soon as it connects. Since the
+With Telegram or Discord, LeSysBot messages you as soon as it connects. Since the
 service starts at boot, that doubles as a "your machine just came up" ping.
 
 It's a short report — CPU temperature, GPU temperature, disk usage, internet
@@ -93,12 +93,13 @@ Turn it off or tune it in your config:
 messaging:
   startup_notice:
     enabled: true
-    notify: []          # Telegram chat ids / Slack channel ids
+    notify: []          # Telegram chat ids / Discord user or channel ids
     speedtest: true     # set false to skip the speed measurement
 ```
 
-Telegram falls back to `allowed_user_ids` when `notify` is empty. Slack has no
-equivalent default, so put a channel id there.
+Both providers fall back to their `allowed_user_ids` when `notify` is empty, so
+usually there is nothing to set. A Discord entry may also be a **channel** id, if
+you'd rather the report landed in a channel than in your DMs.
 
 ---
 

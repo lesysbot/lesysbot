@@ -1,6 +1,6 @@
 ---
 name: develop-lesysbot
-description: Maintain and extend the LeSysBot codebase — dev environment setup, architecture map (what lives where, which files to touch for which change), running tests and lint, adding a messaging adapter or config setting, install-script rules, docs conventions, and the PR checklist. Use when asked to "fix a bug in lesysbot", "add a feature", "add a Slack/Discord adapter", "run the tests", or "contribute to lesysbot".
+description: Maintain and extend the LeSysBot codebase — dev environment setup, architecture map (what lives where, which files to touch for which change), running tests and lint, adding a messaging adapter or config setting, install-script rules, docs conventions, and the PR checklist. Use when asked to "fix a bug in lesysbot", "add a feature", "add a Discord adapter", "run the tests", or "contribute to lesysbot".
 ---
 
 # Develop LeSysBot (maintainers & contributors)
@@ -48,7 +48,7 @@ lesysbot/
 ├─ llm/            single AsyncOpenAI client, configurable base_url (all backends)
 ├─ mcp/            registry (discovery/hot-reload/gating), @tool decorator,
 │                  CLITool, platform gating, `lesysbot tools` CLI
-├─ messaging/      base interface + CLI / Telegram / Slack adapters,
+├─ messaging/      base interface + CLI / Telegram / Discord adapters,
 │                  startup notice
 └─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)

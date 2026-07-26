@@ -72,7 +72,7 @@ async def delete_logs(directory: str) -> str: ...
 `confirm=True` gives a generic prompt; a string customizes it. It gates
 **LLM-initiated** calls only — a user typing `/delete_logs …` runs immediately
 (typing the command *is* the confirmation). CLI asks y/n; Telegram shows
-✅/❌ buttons (120 s timeout); Slack auto-approves by default.
+✅/❌ buttons (120 s timeout); Discord shows the same buttons (300 s timeout).
 
 ## Cross-platform gating
 

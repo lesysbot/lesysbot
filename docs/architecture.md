@@ -18,7 +18,7 @@ LeSysBot is three independent layers wired together by one class, `Agent`:
 
 ```mermaid
 flowchart TD
-    you["you (CLI / Telegram / Slack)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter<br>(how you reach it)"]
+    you["you (CLI / Telegram / Discord)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter<br>(how you reach it)"]
     adapter --> agent["Agent<br>(the middleman)"]
     agent --> llm["LLMClient<br>(the model)"]
     agent -- "run a tool" --> registry["ToolRegistry<br>(what it can do)"]
@@ -26,7 +26,7 @@ flowchart TD
 ```
 
 - **MessagingAdapter** ([lesysbot/messaging/](../lesysbot/messaging/)) — where
-  messages come from and where replies go: your terminal, Telegram, or Slack.
+  messages come from and where replies go: your terminal, Telegram, or Discord.
 - **Agent** ([lesysbot/core/agent.py](../lesysbot/core/agent.py)) — the middleman.
   It keeps per-user conversation history, asks the LLM what to do, runs the
   tools the LLM asks for, and loops until there's a final answer.
@@ -64,9 +64,9 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
    directory and, with `hot_reload: true`, starts a watcher that reloads them
    whenever a `.py` file changes.
 6. **Pick the adapter.** An `if/elif` on `messaging.provider` imports and
-   constructs the CLI, Telegram, or Slack adapter. Adapters are imported
+   constructs the CLI, Telegram, or Discord adapter. Adapters are imported
    *lazily* so a missing optional dependency doesn't break the others — the
-   Telegram and Slack packages are the `telegram`/`slack` extras, and picking a
+   Telegram and Discord packages are the `telegram`/`discord` extras, and picking a
    provider you haven't installed names the extra to add.
 7. **Wire confirmation.** `agent.set_confirm_fn(adapter.confirm)` connects the
    adapter's confirmation UI (terminal `y/n`, Telegram buttons) to the agent,
@@ -76,7 +76,7 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
    requesting user *after* its reply — the bundled `power` tool uses it to
    announce "powering off now" just before a scheduled shutdown fires.
 8. **Run.** `await adapter.start(agent.handle)` blocks for the life of the
-   process. A *background* asyncio task, the **startup notice** (Telegram/Slack
+   process. A *background* asyncio task, the **startup notice** (Telegram/Discord
    only, on by default), waits for the adapter to connect and then pings the
    configured chat with a short system report — CPU/GPU temperature, disk usage,
    internet speed — so a service that starts at boot tells you the machine just
@@ -156,7 +156,7 @@ commands still work, and the full traceback goes to the log at DEBUG level.
 Along the way, three optional callbacks keep the CLI display live: `on_status`
 drives the `Thinking…` / `Running <tool>…` spinner, `on_token` streams the
 answer text, and `on_reasoning` streams a reasoning model's thinking. Adapters
-that don't pass them (Telegram, Slack) are simply unaffected.
+that don't pass them (Telegram, Discord) are simply unaffected.
 
 ---
 
@@ -259,8 +259,16 @@ The three built-ins:
   allow-list, and ✅/❌
   inline buttons for confirmation. Malformed Markdown falls back to plain text
   so no reply is ever dropped.
-- **Slack** ([lesysbot/messaging/slack.py](../lesysbot/messaging/slack.py)) —
-  Socket Mode DMs (the `slack` extra: `slack-bolt` + `aiohttp`).
+- **Discord** ([lesysbot/messaging/discord.py](../lesysbot/messaging/discord.py)) —
+  gateway websocket; DMs, plus channel messages that @-mention the bot. ✅/❌
+  button confirmations (the `discord` extra: `discord.py`).
+
+Both remote adapters also publish the tool list as **native platform slash
+commands** — Telegram's `/` menu, Discord's typed command picker — built from one
+set of specs in
+[lesysbot/messaging/commands.py](../lesysbot/messaging/commands.py). Those
+commands rebuild the `/name key=value` text and re-enter `Agent._handle_slash`,
+so there is still exactly one place a tool call is dispatched.
 
 Adding a platform means subclassing the base and adding one `elif` in
 `__main__.py` — the step-by-step is in
@@ -383,6 +391,7 @@ PID must not read as "running".
 | Add a capability (new tool) | a new folder in `tools/` — no core code | [Write a tool](writing-tools.md) |
 | Share a tool with others | a GitHub repo — nothing else | [Share your tools](sharing-tools.md) |
 | Support a new chat platform | new file in [lesysbot/messaging/](../lesysbot/messaging/) + one `elif` in [lesysbot/__main__.py](../lesysbot/__main__.py) | [Adapters §4](adapters.md#4-building-a-custom-adapter) |
+| Change what appears in a platform's `/` menu | [lesysbot/messaging/commands.py](../lesysbot/messaging/commands.py) | [Adapters §2.5](adapters.md#25-the-command-menu), [§3.8](adapters.md#38-running-tools-from-the-command-picker) |
 | Support a new LLM backend | usually nothing — set `llm.base_url` | [Settings](configuration.md#switching-model-backend) |
 | Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
