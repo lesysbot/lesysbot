@@ -53,6 +53,16 @@ Smaller models call tools unreliably. In order of effectiveness:
 The model is loading into memory. Later replies are much faster. `ollama ps`
 shows what's currently loaded; a model unloads after a few idle minutes.
 
+### I sent a second message and nothing happened
+
+Each conversation advances one turn at a time, so a message sent while the bot
+is still working waits for the current answer before it starts. Nothing is
+dropped — you'll get both replies, in order. This is most noticeable when a
+confirmation prompt is sitting unanswered: that turn stays open until you tap a
+button (or it times out after five minutes), and anything you type meanwhile
+queues behind it. Answer the prompt, or run the tool yourself with `/tool_name`
+— slash commands skip the queue entirely and work even mid-turn.
+
 ### It forgot what we were talking about
 
 History is trimmed past `agent.max_history` (default 50 messages), and `/clear`
