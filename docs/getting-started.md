@@ -27,10 +27,11 @@ brew install ollama
 # Windows — download the installer from https://ollama.com/download
 ```
 
-Then pull a model. `llama3.2` is small (~2 GB) and a fine starting point:
+Then pull a model. `qwen3.5:4b` is small, runs on almost anything, and is
+reliable at picking the right tool:
 
 ```bash
-ollama pull llama3.2
+ollama pull qwen3.5:4b
 ```
 
 Check it's up:
@@ -101,7 +102,7 @@ All four speak the same protocol, so this only picks a URL and a key.
 
 - **Ollama** — the wizard runs `ollama list` and shows the models you already
   have as a menu. The last entry lets you type any model name and pulls it on
-  the spot. No models yet? It offers to download one (default `llama3.2`). No
+  the spot. No models yet? It offers to download one (default `qwen3.5:4b`). No
   Ollama CLI on PATH? It asks for a name to use once Ollama is available.
 - **OpenAI** — asks for a model (`gpt-4o`) and your API key. The key is stored
   in `config.yaml`, so keep that file private.
@@ -213,7 +214,7 @@ messaging:
 
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama default
-  model: "llama3.2"             # a model you've pulled (ollama list)
+  model: "qwen3.5:4b"           # a model you've pulled (ollama list)
   api_key: "ollama"             # any non-empty string for Ollama/vLLM
 ```
 

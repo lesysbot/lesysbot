@@ -21,7 +21,7 @@ messaging:
 
 llm:
   base_url: "http://localhost:11434/v1"  # Ollama default
-  model: "llama3.2"      # matches the code default and the quick-start `ollama pull`
+  model: "qwen3.5:4b"    # matches the code default and the quick-start `ollama pull`
   api_key: "ollama"      # Placeholder — required by openai SDK
   temperature: 0.7
   max_tokens: 4096

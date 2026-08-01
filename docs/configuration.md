@@ -63,7 +63,7 @@ Set `LESYSBOT_HOME` to use somewhere other than `~/.lesysbot`.
 ```yaml
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama, running locally
-  model: "llama3.2"                       # a model you've pulled
+  model: "qwen3.5:4b"                     # a model you've pulled
   api_key: "ollama"                       # any non-empty string for local backends
 ```
 
@@ -233,7 +233,7 @@ messaging:
 # ── The model ─────────────────────────────────────────────────────────────────
 llm:
   base_url: "http://localhost:11434/v1"
-  model: "llama3.2"
+  model: "qwen3.5:4b"
   api_key: "ollama"          # any string for local backends; a real key for OpenAI
   temperature: 0.7
   max_tokens: 4096
@@ -324,7 +324,7 @@ With `logging.trace_file` set, each message you send produces one JSON line:
   "turns": [
     {
       "index": 1,
-      "model": "llama3.2",
+      "model": "qwen3.5:4b",
       "messages": 3,
       "response_type": "tool_calls",
       "ms": 840.0,
@@ -334,7 +334,7 @@ With `logging.trace_file` set, each message you send produces one JSON line:
     },
     {
       "index": 2,
-      "model": "llama3.2",
+      "model": "qwen3.5:4b",
       "messages": 5,
       "response_type": "text",
       "ms": 620.0,

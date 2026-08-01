@@ -8,7 +8,7 @@ Every model here supports tool calling, which LeSysBot needs. Using OpenAI or
 another remote service instead? You can skip this page —
 see [Settings](configuration.md#switching-model-backend).
 
-**In a hurry:** `ollama pull llama3.2` works on almost anything and is what the
+**In a hurry:** `ollama pull qwen3.5:4b` works on almost anything and is what the
 quick start uses. Move up a tier when you notice it picking the wrong tool.
 
 ---
@@ -20,7 +20,7 @@ KV cache and OS.
 
 | GPU VRAM | Recommended model | Pull command |
 |---|---|---|
-| 4 GB | Qwen3.5 4B | `ollama pull qwen3.5:4b` |
+| 4 GB | Qwen3.5 4B (quick-start default) | `ollama pull qwen3.5:4b` |
 | 8 GB | Qwen3.5 9B ⭐ | `ollama pull qwen3.5` |
 | 12 GB | Gemma4 12B | `ollama pull gemma4:12b` |
 | 16 GB | Qwen3 14B | `ollama pull qwen3:14b` |
@@ -33,7 +33,7 @@ KV cache and OS.
 
 | Tier | Model | VRAM | Why pick it |
 |---|---|---|---|
-| 4 GB | Llama 3.2 3B (`llama3.2`) | ~3.6 GB | Small, fast starting point (~2 GB download) |
+| 4 GB | Llama 3.2 3B (`llama3.2`) | ~3.6 GB | Smaller still (~2 GB download); weaker tool calling |
 | 8 GB | Gemma4 12B (`gemma4:12b`) | ~7.6 GB | Native function calling; multimodal |
 | 12 GB | DeepSeek R1 14B (`deepseek-r1:14b`) | ~9.5 GB | Strong reasoning / chain-of-thought |
 | 16 GB | Gemma4 e4b (`gemma4:e4b`) | ~9.6 GB | MoE — very fast for its quality |
@@ -74,7 +74,7 @@ The commands you'll actually need:
 ```bash
 ollama list                 # what's downloaded
 ollama pull qwen3.5         # download a model
-ollama rm llama3.2          # delete one
+ollama rm qwen3.5:4b        # delete one
 ollama ps                   # what's loaded in GPU memory right now
 ollama stop qwen3.5         # unload a model, free VRAM
 ollama run qwen3.5          # chat REPL — quick test before wiring into LeSysBot

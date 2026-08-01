@@ -14,7 +14,7 @@ pip install -e ".[dev]"
 # Fix by re-running:  pip install -e .
 
 # Run the bot (CLI mode — no messaging credentials needed)
-lesysbot --provider cli --model llama3.2
+lesysbot --provider cli --model qwen3.5:4b
 
 # Run with verbose logging
 lesysbot --provider cli -v

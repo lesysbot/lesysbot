@@ -30,7 +30,7 @@ lesysbot
 
     LLM backend  reachable · 42 ms
     Backend URL  http://localhost:11434/v1
-       Provider  cli · model llama3.2
+       Provider  cli · model qwen3.5:4b
           Tools  12/13 enabled
         Service  running (PID 12934)
   Control panel  online · http://127.0.0.1:8700

@@ -38,7 +38,7 @@ def test_defaults() -> None:
     s = Settings()
     assert s.messaging.provider == "cli"
     assert s.llm.base_url == "http://localhost:11434/v1"
-    assert s.llm.model == "llama3.2"
+    assert s.llm.model == "qwen3.5:4b"
 
 
 def test_from_yaml(tmp_path: Path) -> None:
@@ -68,7 +68,7 @@ def test_env_override(monkeypatch) -> None:
 
 def test_missing_yaml_uses_defaults(tmp_path: Path) -> None:
     s = Settings.from_yaml(tmp_path / "does-not-exist.yaml")
-    assert s.llm.model == "llama3.2"
+    assert s.llm.model == "qwen3.5:4b"
 
 
 def test_bundled_default_does_not_anchor_paths_to_itself(
