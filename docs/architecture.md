@@ -103,6 +103,7 @@ sequenceDiagram
     you->>adapter: "how much disk space is left?"
     adapter->>agent: handle(user_id, text)
     Note over agent: starts with "/" ? run the tool<br>directly — the LLM is never called
+    Note over agent: otherwise take this user's turn lock —<br>one conversation advances one turn at a time
     agent->>agent: append to ConversationHistory
     loop until the model answers in text (max agent.max_tool_calls rounds)
         agent->>llm: chat(history, tool schemas)
@@ -126,6 +127,18 @@ is running, and why slash commands don't appear in conversation history.
 **Step 2 — The message joins the history.** Each user has their own
 `ConversationHistory`, seeded with the system prompt from the config and
 trimmed to `agent.max_history` messages.
+
+Steps 2–6 run under a **per-user lock**, so one person's conversation only ever
+advances one turn at a time: a message that arrives mid-turn waits for the
+current one to finish. That matters because the remote adapters dispatch
+updates concurrently — Telegram *must*, or the button press answering a
+confirmation would queue behind the very handler waiting for it. Without the
+lock, two turns appended into the same history, each then sent the other's
+messages to the model, and the model read the interleaving as a tool call still
+awaiting its result and **ran the tool a second time**. The lock is per user,
+not global, so a slow model call for one person doesn't stall anyone else — and
+Step 1 stays outside it, because `/cancel_shutdown` has to stay answerable
+*while* the turn that scheduled the reboot is still running.
 
 **Step 3 — Ask the LLM.** The agent sends the whole history to
 `LLMClient.chat()`, along with a JSON schema for every enabled tool. The model

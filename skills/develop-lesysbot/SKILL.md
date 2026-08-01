@@ -40,6 +40,15 @@ LLM with all tool schemas, and returned `tool_calls` are executed (parallel via
 `asyncio.gather`, sequential when any tool has `confirm=`) in a loop capped by
 `agent.max_tool_calls`.
 
+That LLM loop holds a **per-user `asyncio.Lock`** (`Agent._turn_lock`), so a
+message arriving mid-turn queues instead of starting a second `handle()` over
+the same history — adapters dispatch updates concurrently (Telegram requires
+`concurrent_updates(True)` for confirmations to work), and two loops sharing one
+`ConversationHistory` made the model re-run tools it had already run and reply
+twice. Keep it **per user, not global**, and keep the `/` path outside it: slash
+commands never touch the history, and `/cancel_shutdown` must stay answerable
+while the turn that scheduled the reboot is still running.
+
 ```
 lesysbot/
 ├─ __main__.py     entry point: flags, logging setup, adapter wiring (if/elif)

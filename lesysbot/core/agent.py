@@ -38,6 +38,8 @@ class Agent:
         self._llm = LLMClient(settings.llm)
         self._registry = ToolRegistry()
         self._histories: dict[str, ConversationHistory] = {}
+        # One turn at a time per user — see `_turn_lock`.
+        self._turn_locks: dict[str, asyncio.Lock] = {}
         self._reload_lock = asyncio.Lock()
         self._confirm_fn: ConfirmCallback | None = None
         self._tracer: TraceWriter | None = (
@@ -139,8 +141,53 @@ class Agent:
         notify.set_current_user(user_id)
 
         if text.startswith("/"):
+            # Slash commands dispatch straight to a tool and never touch the
+            # conversation history, so they deliberately skip the turn lock:
+            # `/cancel_shutdown` has to stay answerable *while* the LLM turn
+            # that scheduled the reboot is still running.
             return await self._handle_slash(text, user_id)
 
+        async with self._turn_lock(user_id):
+            return await self._run_turn(
+                user_id,
+                text,
+                on_token,
+                on_reasoning=on_reasoning,
+                on_status=on_status,
+            )
+
+    def _turn_lock(self, user_id: str) -> asyncio.Lock:
+        """Serialize LLM turns per user — a conversation is a single thread.
+
+        Remote adapters dispatch updates concurrently (Telegram needs
+        ``concurrent_updates(True)`` for the confirmation flow to work at all),
+        so a message arriving while a turn was still running started a *second*
+        `handle()` against the same `ConversationHistory`. The two loops then
+        appended into one list and each re-sent it: every LLM call saw the other
+        conversation's messages spliced into its own, read the resulting
+        interleaving as a tool call still awaiting its result, and ran the tool
+        again — so one request executed `reboot`/`share_dashboard` several times
+        and both loops replied, each quoting the other's results.
+
+        Confirmations make it easy to hit: `confirm()` parks the turn for up to
+        five minutes waiting on a button, and typing another message instead of
+        tapping is the obvious thing to do.
+        """
+        lock = self._turn_locks.get(user_id)
+        if lock is None:
+            # No await between the miss and the insert, so this can't race.
+            lock = self._turn_locks[user_id] = asyncio.Lock()
+        return lock
+
+    async def _run_turn(
+        self,
+        user_id: str,
+        text: str,
+        on_token: Callable[[str], None] | None = None,
+        *,
+        on_reasoning: Callable[[str], None] | None = None,
+        on_status: Callable[[str], None] | None = None,
+    ) -> str:
         history = self._get_history(user_id)
         history.add(Message(role=Role.USER, content=text))
 
