@@ -47,8 +47,9 @@ def test_bare_telegram_token_is_redacted():
     [
         # Fabricated shapes that exercise the regexes but are structurally
         # implausible as real credentials (so secret scanners don't flag them).
-        "xoxb-FAKE-not-a-real-slack-bot-token-placeholder",
-        "xapp-FAKE-not-a-real-slack-app-token-placeholder",
+        # Discord's three-part bot token shape: 24 chars . exactly 6 . 27+.
+        "FAKEfakeFAKEfakeFAKEfake.FAKEfa.FAKE-not-a-real-discord-token",
+        "mfa.FAKE-not-a-real-discord-user-token",
         "sk-FAKE-not-a-real-openai-key-placeholder",
         "sk-proj-FAKE-not-a-real-openai-key-placeholder",
     ],

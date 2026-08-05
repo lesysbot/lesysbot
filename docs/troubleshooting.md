@@ -53,6 +53,16 @@ Smaller models call tools unreliably. In order of effectiveness:
 The model is loading into memory. Later replies are much faster. `ollama ps`
 shows what's currently loaded; a model unloads after a few idle minutes.
 
+### I sent a second message and nothing happened
+
+Each conversation advances one turn at a time, so a message sent while the bot
+is still working waits for the current answer before it starts. Nothing is
+dropped — you'll get both replies, in order. This is most noticeable when a
+confirmation prompt is sitting unanswered: that turn stays open until you tap a
+button (or it times out after five minutes), and anything you type meanwhile
+queues behind it. Answer the prompt, or run the tool yourself with `/tool_name`
+— slash commands skip the queue entirely and work even mid-turn.
+
 ### It forgot what we were talking about
 
 History is trimmed past `agent.max_history` (default 50 messages), and `/clear`
@@ -151,11 +161,11 @@ Common causes:
 - The model backend wasn't up yet when the service started.
 - Wrong working directory — the service must run from the folder holding
   `config.yaml` and `tools/`, normally `~/.lesysbot`.
-- A wrong or revoked Telegram/Slack token.
+- A wrong or revoked Telegram/Discord token.
 
 ### "Another instance is already running"
 
-Only one copy of a Telegram or Slack bot can poll at a time (Telegram rejects
+Only one copy of a Telegram or Discord bot can poll at a time (Telegram rejects
 both otherwise), so LeSysBot takes a lock and refuses the second, naming the PID
 that holds it. Stop the service first:
 
@@ -181,29 +191,33 @@ no restart needed.
 
 ---
 
-## Telegram and Slack
+## Telegram and Discord
 
 | Symptom | Fix |
 |---|---|
 | Telegram replies `Unauthorized.` | Your numeric ID isn't in `allowed_user_ids`. Check it with [@userinfobot](https://t.me/userinfobot). |
 | Telegram: no response at all | Wrong token, or the bot isn't running. Check the service status and the log. |
 | Telegram: replies show raw `*asterisks*` | Harmless — the model produced Markdown Telegram couldn't parse, so it was sent as plain text instead of being dropped. |
-| `The 'slack' provider needs a dependency that isn't installed` | `pip install ".[slack]"` |
-| Slack: `not_authed` / `invalid_auth` | Tokens swapped. `bot_token` is `xoxb-…`, `app_token` is `xapp-…`. |
-| Slack: never answers a DM | Socket Mode must be on, the app installed, and the manifest's `message.im` event plus `im:history` scope present. Reinstall the app after any scope change. |
-| Slack: `/tool` does nothing | Slack owns the leading `/`. Type `/ disk_usage path=/tmp` — with a space. |
+| `The 'discord' provider needs a dependency that isn't installed` | `pip install ".[discord]"` |
+| Discord: online but ignores every message | **MESSAGE CONTENT INTENT** is off. Enable it under **Bot → Privileged Gateway Intents** and restart — the log names it too. |
+| Discord: `Discord rejected the bot token` | Wrong or revoked token. **Bot → Reset Token**, then update `config.yaml`. |
+| Discord: replies `Unauthorized.` | Your user ID isn't in `allowed_user_ids`. Re-copy it with Developer Mode on. |
+| Discord: no answer in a channel | The bot only answers channel messages that **@-mention** it. DMs need no mention. |
+| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled and platform-unavailable tools are left out on purpose. |
+| A tool never appears in the `/` menu | Its name must be lowercase letters, digits or `_` (both platforms' rule); the log names any tool skipped for this. It still works typed out. |
+| Discord: can't open a DM with the bot | You don't share a server with it — re-run the OAuth2 invite URL. |
 
-Full setup for both: [Telegram & Slack](adapters.md).
+Full setup for both: [Telegram & Discord](adapters.md).
 
 ---
 
-## Management panel and dashboards
+## Control panel and dashboards
 
 | Symptom | Fix |
 |---|---|
 | `lesysbot` prints status when you wanted a chat | Use `lesysbot --provider cli`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
 | The panel says **offline** | The service isn't running — start it (`systemctl --user start lesysbot`, `launchctl start com.lesysbot.lesysbot`, `Start-ScheduledTask -TaskName 'LeSysBot'`). To use it without a service: `lesysbot manage`. |
-| The log says `Management panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
+| The log says `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
 | The UI port is taken | `lesysbot manage --port 9000`, or change `management.port`. |
 | The UI isn't reachable from another machine | Correct — it binds `127.0.0.1` only, deliberately, and rejects non-localhost `Host` headers. Use SSH port forwarding if you need remote access. |
 | Grafana shows empty panels | Give the exporters a minute of data first. If it stays empty, see [A few dashboard panels are empty](#a-few-dashboard-panels-are-empty) below. |
@@ -296,7 +310,7 @@ logging:
 
 In an interactive chat the console stays quiet regardless (only warnings and
 worse) so log lines don't interrupt you — the file gets everything. For a
-Telegram/Slack service, `level` controls both.
+Telegram/Discord service, `level` controls both.
 
 </details>
 

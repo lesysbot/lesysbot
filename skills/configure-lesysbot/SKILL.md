@@ -5,7 +5,7 @@ description: Change any LeSysBot setting — where the config file lives, the fu
 
 # Configure LeSysBot
 
-> **Prefer a UI?** The management panel at **http://127.0.0.1:8700** (served by the
+> **Prefer a UI?** The control panel at **http://127.0.0.1:8700** (served by the
 > background service; `lesysbot manage` if it's stopped) is a localhost-only web
 > panel with a validating `config.yaml` editor and live tool toggles. This skill
 > covers the file itself, which the panel reads and writes. Bare `lesysbot`
@@ -47,17 +47,17 @@ CLI sessions just pick up the new config on the next launch.
 
 ```yaml
 messaging:
-  provider: cli              # cli | telegram | slack
+  provider: cli              # cli | telegram | discord
   telegram:
     token: "YOUR_BOT_TOKEN"
     allowed_user_ids: []     # empty = allow EVERYONE; e.g. [123456789]
-  slack:
-    bot_token: "xoxb-..."
-    app_token: "xapp-..."    # Socket Mode app token
-  startup_notice:            # ping when the bot comes up (Telegram/Slack only)
+  discord:
+    token: "YOUR_BOT_TOKEN"
+    allowed_user_ids: []     # empty = anyone sharing a server with the bot
+  startup_notice:            # ping when the bot comes up (Telegram/Discord only)
     enabled: true            # for a service this doubles as a boot notification
-    notify: []               # Telegram chat ids / Slack channel ids;
-                             # Telegram falls back to allowed_user_ids when empty
+    notify: []               # Telegram chat ids / Discord user or channel ids;
+                             # falls back to that provider's allowed_user_ids
     speedtest: true          # include internet speed (downloads speedtest_mb MB)
     speedtest_mb: 5
 
@@ -91,13 +91,13 @@ logging:
 
 Both log files rotate on time (date-suffixed, e.g. `lesysbot.log.2026-06-21`) so
 neither grows unbounded. In interactive CLI the console only shows WARNING+
-(the file still gets everything at `level`); the Telegram/Slack daemons honour
+(the file still gets everything at `level`); the Telegram/Discord daemons honour
 `level` on the console too. `-v` forces DEBUG.
 
 Credentials are redacted before anything is written, so tokens never reach
 disk — a Telegram call logs as `bot<redacted>/getUpdates`. Necessary because
 the Telegram API puts the token in the URL path and `httpx` logs every request
-at INFO. Covers token shapes (Telegram, Slack `xoxb-`/`xapp-`, OpenAI `sk-`)
+at INFO. Covers token shapes (Telegram, Discord's three-part token, OpenAI `sk-`)
 plus the exact values in the active config, in tracebacks as well as messages;
 short values are skipped so the default `api_key: ollama` is not redacted.
 Never disable this to make logs "readable" — the token is the one thing that
@@ -148,7 +148,7 @@ probing, so the status screen never advertises another service as Grafana.
 |---|---|
 | `-c / --config PATH` | config file path |
 | `-v / --verbose` | `logging.level` → DEBUG |
-| `--provider cli\|telegram\|slack` | `messaging.provider` |
+| `--provider cli\|telegram\|discord` | `messaging.provider` |
 | `--model NAME` | `llm.model` |
 | `--base-url URL` | `llm.base_url` |
 
@@ -162,5 +162,5 @@ Useful to audit what the LLM decided and where time went.
 ## Related
 
 - LLM backend switching in detail: [switch-llm-backend](../switch-llm-backend/SKILL.md).
-- Telegram/Slack credentials: [setup-messaging](../setup-messaging/SKILL.md).
+- Telegram/Discord credentials: [setup-messaging](../setup-messaging/SKILL.md).
 - Restart/log commands per OS: [manage-service](../manage-service/SKILL.md).

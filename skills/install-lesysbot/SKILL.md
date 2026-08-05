@@ -6,9 +6,9 @@ description: Install LeSysBot from scratch on Linux, macOS, or Windows — prere
 # Install LeSysBot
 
 LeSysBot is a local AI assistant: an LLM (Ollama by default) plus a set of tools it
-can call, reachable from the terminal, Telegram, or Slack. Installing it means:
+can call, reachable from the terminal, Telegram, or Discord. Installing it means:
 install the Python package, write a config, and register the background service
-that serves the management panel (and any Telegram/Slack bot).
+that serves the control panel (and any Telegram/Discord bot).
 
 ## 1. Prerequisites
 
@@ -71,11 +71,12 @@ The prompts, in order:
 3. **How to reach LeSysBot** — `1) Terminal only` (default), `2) Telegram`
    (asks bot token from @BotFather + allowed user IDs; at least one numeric
    ID is required — it re-asks on blank/invalid input),
-   `3) Slack` (asks `xoxb-…` bot token + `xapp-…` app token),
+   `3) Discord` (asks bot token + allowed user IDs, same validation;
+   the bot needs MESSAGE CONTENT INTENT enabled in the developer portal),
    `4) ← Back` (re-pick the LLM backend).
    The terminal always works regardless: `lesysbot --provider cli`.
 4. **"Service"** — asked for **every** provider (systemd / launchd / Task
-   Scheduler), because the service also serves the always-on management panel:
+   Scheduler), because the service also serves the always-on control panel:
    `1) Start now and automatically after reboot` (default; "at login" on
    Windows), `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
    On the kept-config path this is a plain
@@ -84,7 +85,9 @@ The prompts, in order:
    anything written), `2) Change LLM backend`, `3) Change how to reach
    LeSysBot`, `4) Change startup behaviour`,
    last) `Quit — exit without writing config`. On the kept-config path it's
-   a plain **"Apply these settings?" `[Y/n]`**.
+   a plain **"Apply these settings?" `[Y/n]`**, and the summary shows the
+   settings read back from the existing `config.yaml` (marked *kept as-is*) —
+   only the service/startup choice is being decided there.
 
 The wizard never uses `sudo` — and neither does any tool. No official package
 requires root, a sudoers rule, or an Administrator prompt, so there is never a
@@ -93,8 +96,8 @@ privileged follow-up step: install a package and it works.
 What the wizard does: writes **`~/.lesysbot/config.yaml`**, seeds
 **`~/.lesysbot/tools/`** (never clobbers an existing one), installs the `lesysbot`
 command, and installs + starts the background service running from
-`~/.lesysbot` — for every provider, since that service hosts the management panel
-(`http://127.0.0.1:8700`) as well as any Telegram/Slack bot. Re-running it stops
+`~/.lesysbot` — for every provider, since that service hosts the control panel
+(`http://127.0.0.1:8700`) as well as any Telegram/Discord bot. Re-running it stops
 and replaces an existing service. `LESYSBOT_HOME` overrides the `~/.lesysbot`
 location.
 
@@ -125,7 +128,7 @@ Set `LESYSBOT_SKIP_DASHBOARD=1` to skip this step on an unattended install.
 ```bash
 git clone https://github.com/lesysbot/lesysbot.git
 cd lesysbot
-pip install ".[all]"             # telegram + slack extras
+pip install ".[all]"             # telegram + discord extras
 # pip install .                  # minimal: terminal chat and tools only
 # pip install -e ".[dev]"        # development (adds pytest + ruff)
 lesysbot --help                    # verify the command exists
@@ -136,7 +139,7 @@ Edit the essentials in `config.yaml`:
 
 ```yaml
 messaging:
-  provider: cli                 # cli | telegram | slack
+  provider: cli                 # cli | telegram | discord
 llm:
   base_url: "http://localhost:11434/v1"   # Ollama default
   model: "qwen3.5:4b"           # a model you've pulled (ollama list)
@@ -149,7 +152,7 @@ Run it:
 
 ```bash
 lesysbot                          # health + metrics for ./config.yaml, then exit
-lesysbot run                      # the service: management panel + bot
+lesysbot run                      # the service: control panel + bot
 lesysbot --provider cli -v        # force CLI chat + verbose logging
 lesysbot -c /path/to/config.yaml  # explicit config
 lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
@@ -175,6 +178,6 @@ If `lesysbot: command not found`: pip's scripts dir isn't on PATH —
 
 - Change settings later: [configure-lesysbot](../configure-lesysbot/SKILL.md) —
   edit `~/.lesysbot/config.yaml`, restart the service.
-- Telegram/Slack details: [setup-messaging](../setup-messaging/SKILL.md).
+- Telegram/Discord details: [setup-messaging](../setup-messaging/SKILL.md).
 - Pick a model for the hardware: [switch-llm-backend](../switch-llm-backend/SKILL.md).
 - Remove everything: [uninstall-lesysbot](../uninstall-lesysbot/SKILL.md).

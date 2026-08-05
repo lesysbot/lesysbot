@@ -1,6 +1,6 @@
 """Dependency-free control-panel server (stdlib ``http.server``).
 
-Serves a single-page management panel plus a small JSON API for LeSysBot's config
+Serves a single-page control panel plus a small JSON API for LeSysBot's config
 and tools. It is bound to **loopback only** and rejects requests whose ``Host``
 header isn't localhost (DNS-rebinding protection), so it is never reachable from
 the network. There is no auth — the trust boundary is "you have a shell on this
@@ -389,7 +389,7 @@ def _bind(settings: Settings, registry, want: int, *, step: bool) -> _Server | N
 
 @dataclass
 class BackgroundUI:
-    """A management panel running in a daemon thread beside the bot."""
+    """A control panel running in a daemon thread beside the bot."""
 
     server: _Server
     thread: threading.Thread
@@ -404,7 +404,7 @@ def serve_background(settings: Settings, *, registry=None,
                      port: int | None = None) -> BackgroundUI | None:
     """Serve the panel from a daemon thread and return immediately.
 
-    Used by ``lesysbot run`` so the management panel is online for as long as the
+    Used by ``lesysbot run`` so the control panel is online for as long as the
     service is. Returns ``None`` (never raises) when the port is unavailable:
     the panel is a companion to the bot, so a busy port must not take the whole
     service down — usually it means a second copy is already serving it.
@@ -421,7 +421,7 @@ def serve_background(settings: Settings, *, registry=None,
 
 def serve(settings: Settings, *, registry=None, port: int | None = None,
           open_browser: bool = False) -> None:
-    """Start the management panel on loopback and serve until interrupted."""
+    """Start the control panel on loopback and serve until interrupted."""
     import webbrowser
 
     want = port or settings.management.port
@@ -429,10 +429,10 @@ def serve(settings: Settings, *, registry=None, port: int | None = None,
 
     httpd = _bind(settings, reg, want, step=True)
     if httpd is None:
-        raise OSError(f"No free port in {want}..{want + 19} for the management panel.")
+        raise OSError(f"No free port in {want}..{want + 19} for the control panel.")
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}"
-    print(f"\n  \033[1mManagement panel:\033[0m {url}   (localhost only · Ctrl-C to stop)\n")
+    print(f"\n  \033[1mControl panel:\033[0m {url}   (localhost only · Ctrl-C to stop)\n")
     if open_browser:
         try:
             webbrowser.open(url)
@@ -441,7 +441,7 @@ def serve(settings: Settings, *, registry=None, port: int | None = None,
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nManagement panel stopped.")
+        print("\nControl panel stopped.")
     finally:
         httpd.shutdown()
         httpd.server_close()

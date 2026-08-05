@@ -62,7 +62,7 @@ def _setup_logging(verbose: bool, log_cfg: LogConfig, interactive: bool = False)
 
 
 def _start_ui(settings: Settings, registry):
-    """Bring the management panel up beside the bot (service mode only).
+    """Bring the control panel up beside the bot (service mode only).
 
     The panel is meant to be online whenever LeSysBot is, so it rides along in
     the same process — sharing the bot's registry, so a toggle in the browser
@@ -75,14 +75,14 @@ def _start_ui(settings: Settings, registry):
     ui = serve_background(settings, registry=registry)
     if ui is None:
         logging.getLogger(__name__).warning(
-            "Management panel not started — port %d is already in use.", settings.management.port
+            "Control panel not started — port %d is already in use.", settings.management.port
         )
     else:
         # The log line is for the service journal; the banner is for a human who
         # started it in a terminal (bold escapes would just litter a log file).
-        logging.getLogger(__name__).info("Management panel on %s", ui.url)
+        logging.getLogger(__name__).info("Control panel on %s", ui.url)
         if sys.stdout.isatty():
-            print(f"\n  \033[1mManagement panel:\033[0m {ui.url}   (localhost only)\n")
+            print(f"\n  \033[1mControl panel:\033[0m {ui.url}   (localhost only)\n")
     return ui
 
 
@@ -97,7 +97,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
 
     provider = settings.messaging.provider
 
-    # Service mode: the management panel comes up first, so it answers even if the
+    # Service mode: the control panel comes up first, so it answers even if the
     # messaging adapter later fails to start.
     ui = _start_ui(settings, agent.registry) if serve_ui else None
 
@@ -106,7 +106,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
     # remote channel configured" — the panel is the whole job.
     if serve_ui and provider == "cli":
         logging.getLogger(__name__).info(
-            "Provider 'cli' — no remote channel to serve; running the management panel only."
+            "Provider 'cli' — no remote channel to serve; running the control panel only."
         )
         if sys.stdout.isatty():
             print("  Provider is 'cli' — no remote chat to serve.\n"
@@ -122,19 +122,23 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
     # Adapters are imported lazily so a missing optional dependency only affects
     # the provider that needs it. Report that as one actionable line rather than
     # an ImportError traceback — for a background service it is the only clue
-    # the user gets (`slack-bolt` ships without aiohttp, for instance).
+    # the user gets.
     try:
         if provider == "cli":
             from lesysbot.messaging.cli import CLIAdapter
             adapter = CLIAdapter()
 
+        # The remote adapters take the registry so they can publish the tool list
+        # as native slash commands (Telegram's `/` menu, Discord's command
+        # picker). Sharing the agent's own registry means the menu offers exactly
+        # the tools the agent would run.
         elif provider == "telegram":
             from lesysbot.messaging.telegram import TelegramAdapter
-            adapter = TelegramAdapter(settings.messaging.telegram)
+            adapter = TelegramAdapter(settings.messaging.telegram, agent.registry)
 
-        elif provider == "slack":
-            from lesysbot.messaging.slack import SlackAdapter
-            adapter = SlackAdapter(settings.messaging.slack)
+        elif provider == "discord":
+            from lesysbot.messaging.discord import DiscordAdapter
+            adapter = DiscordAdapter(settings.messaging.discord, agent.registry)
 
         else:
             print(f"Unknown messaging provider: {provider}", file=sys.stderr)
@@ -189,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument(
         "--provider",
-        choices=["cli", "telegram", "slack"],
+        choices=["cli", "telegram", "discord"],
         default=None,
         help="Override messaging provider",
     )
@@ -197,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default=None, help="Override LLM base URL")
 
     # Subcommands. Bare `lesysbot` prints status and exits; the background
-    # service runs `lesysbot run` (bot + always-on management panel);
+    # service runs `lesysbot run` (bot + always-on control panel);
     # `lesysbot --provider …` runs the bot in the foreground.
     from lesysbot.cli import register_all
 
@@ -209,16 +213,16 @@ def build_parser() -> argparse.ArgumentParser:
     # and `lesysbot manage -c …` works regardless of flag order — the same pattern
     # every artifact verb uses.
     run = subparsers.add_parser(
-        "run", help="Run the service: the management panel plus the bot (what the "
+        "run", help="Run the service: the control panel plus the bot (what the "
                     "background service uses)"
     )
     run.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
     manage = subparsers.add_parser(
-        "manage", help="Open the management panel (localhost only; the service already serves it)"
+        "manage", help="Open the control panel (localhost only; the service already serves it)"
     )
     manage.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
-    manage.add_argument("--port", type=int, default=None, help="Management panel port")
-    manage.add_argument("--open", action="store_true", help="Open the management panel in a browser")
+    manage.add_argument("--port", type=int, default=None, help="Control panel port")
+    manage.add_argument("--open", action="store_true", help="Open the control panel in a browser")
     register_all(subparsers)
     return parser
 
@@ -251,7 +255,7 @@ def _print_status(settings: Settings) -> dict:
     """The status screen shown by bare `lesysbot` / `lesysbot manage`.
 
     Bare `lesysbot` is a read-only health view and nothing else — it starts no
-    server, because the management panel is served by the background service.
+    server, because the control panel is served by the background service.
     Returns the status snapshot so callers can reuse it.
     """
     from rich.console import Console
@@ -293,7 +297,7 @@ def _print_status(settings: Settings) -> dict:
     unavail = f" · {tools['unavailable']} unavailable here" if tools["unavailable"] else ""
     t.add_row("Tools", f"{tools['enabled']}/{tools['total']} enabled{unavail}")
     t.add_row("Service", service)
-    t.add_row("Management panel", panel)
+    t.add_row("Control panel", panel)
     gf = st.get("grafana")
     if gf and gf.get("reachable"):
         ver = f" · v{gf['version']}" if gf.get("version") else ""
@@ -345,7 +349,7 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
     st = _print_status(settings)
     ui = (st.get("panel") if port is None else detect_panel(settings, port)) or {}
     if ui.get("running"):
-        print(f"  The management panel is already served by the LeSysBot service: {ui['url']}\n")
+        print(f"  The control panel is already served by the LeSysBot service: {ui['url']}\n")
         if open_browser:
             import webbrowser
 
@@ -364,7 +368,7 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
 def _runs_the_bot(command, args) -> bool:
     """Does this invocation start a long-running process?
 
-    `run` is the service (bot + management panel); an explicit `--provider` is the
+    `run` is the service (bot + control panel); an explicit `--provider` is the
     foreground bot — most often `lesysbot --provider cli` for a terminal chat.
     Everything else (bare `lesysbot`) is the read-only status view.
     """
@@ -415,14 +419,14 @@ def main() -> None:
     settings = _load_settings(args)
 
     if command == "manage":
-        # Console-only logging (no chat) for the management panel.
+        # Console-only logging (no chat) for the control panel.
         _setup_logging(args.verbose, settings.logging, interactive=True)
         _manage(settings, port=getattr(args, "port", None),
                 open_browser=getattr(args, "open", False))
         return
 
     if not _runs_the_bot(command, args):
-        # Bare `lesysbot`: health and metrics, then exit. The management panel is
+        # Bare `lesysbot`: health and metrics, then exit. The control panel is
         # already online — the service serves it — so there's nothing to start.
         _setup_logging(args.verbose, settings.logging, interactive=True)
         _print_status(settings)

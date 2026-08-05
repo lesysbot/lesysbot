@@ -1,6 +1,6 @@
 ---
 name: develop-lesysbot
-description: Maintain and extend the LeSysBot codebase — dev environment setup, architecture map (what lives where, which files to touch for which change), running tests and lint, adding a messaging adapter or config setting, install-script rules, docs conventions, and the PR checklist. Use when asked to "fix a bug in lesysbot", "add a feature", "add a Slack/Discord adapter", "run the tests", or "contribute to lesysbot".
+description: Maintain and extend the LeSysBot codebase — dev environment setup, architecture map (what lives where, which files to touch for which change), running tests and lint, adding a messaging adapter or config setting, install-script rules, docs conventions, and the PR checklist. Use when asked to "fix a bug in lesysbot", "add a feature", "add a Discord adapter", "run the tests", or "contribute to lesysbot".
 ---
 
 # Develop LeSysBot (maintainers & contributors)
@@ -40,6 +40,15 @@ LLM with all tool schemas, and returned `tool_calls` are executed (parallel via
 `asyncio.gather`, sequential when any tool has `confirm=`) in a loop capped by
 `agent.max_tool_calls`.
 
+That LLM loop holds a **per-user `asyncio.Lock`** (`Agent._turn_lock`), so a
+message arriving mid-turn queues instead of starting a second `handle()` over
+the same history — adapters dispatch updates concurrently (Telegram requires
+`concurrent_updates(True)` for confirmations to work), and two loops sharing one
+`ConversationHistory` made the model re-run tools it had already run and reply
+twice. Keep it **per user, not global**, and keep the `/` path outside it: slash
+commands never touch the history, and `/cancel_shutdown` must stay answerable
+while the turn that scheduled the reboot is still running.
+
 ```
 lesysbot/
 ├─ __main__.py     entry point: flags, logging setup, adapter wiring (if/elif)
@@ -48,7 +57,7 @@ lesysbot/
 ├─ llm/            single AsyncOpenAI client, configurable base_url (all backends)
 ├─ mcp/            registry (discovery/hot-reload/gating), @tool decorator,
 │                  CLITool, platform gating, `lesysbot install` CLI
-├─ messaging/      base interface + CLI / Telegram / Slack adapters,
+├─ messaging/      base interface + CLI / Telegram / Discord adapters,
 │                  startup notice
 └─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)

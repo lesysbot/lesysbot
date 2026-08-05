@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from lesysbot.mcp import tool
 from lesysbot.mcp.registry import ToolRegistry
 
 
@@ -346,3 +347,80 @@ def test_openai_schema_shape(tmp_path: Path) -> None:
     assert schemas[0]["type"] == "function"
     assert schemas[0]["function"]["name"] == "f"
     assert schemas[0]["function"]["parameters"]["required"] == ["x"]
+
+
+# ── argument coercion ──────────────────────────────────────────────────────
+# Arguments arrive as text from two directions that can't type them: a
+# `/tool size_mb=10` slash command parsed out of a chat message, and an LLM
+# quoting numbers in its tool-call JSON. call() coerces to the declared types.
+
+
+def _typed_registry() -> ToolRegistry:
+    registry = ToolRegistry()
+
+    @tool(description="echo argument types")
+    def probe(count: int, ratio: float, flag: bool, name: str = "dflt") -> str:
+        return f"{count!r} {ratio!r} {flag!r} {name!r}"
+
+    registry.register_callable(probe)
+    return registry
+
+
+async def test_string_arguments_are_coerced_to_declared_types() -> None:
+    registry = _typed_registry()
+    out = await registry.call("probe", {"count": "3", "ratio": "1.5", "flag": "true"})
+    assert out == "3 1.5 True 'dflt'"
+
+
+async def test_already_typed_arguments_pass_through() -> None:
+    registry = _typed_registry()
+    out = await registry.call("probe", {"count": 3, "ratio": 1.5, "flag": False})
+    assert out == "3 1.5 False 'dflt'"
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [("yes", True), ("y", True), ("1", True), ("on", True), ("TRUE", True),
+     ("no", False), ("n", False), ("0", False), ("off", False), ("False", False)],
+)
+async def test_boolean_spellings(raw, expected) -> None:
+    registry = _typed_registry()
+    out = await registry.call("probe", {"count": "1", "ratio": "1", "flag": raw})
+    assert out.split()[2] == repr(expected)
+
+
+async def test_integral_float_is_accepted_for_an_int_parameter() -> None:
+    # An LLM emitting 3.0 for an int parameter means 3.
+    registry = _typed_registry()
+    out = await registry.call("probe", {"count": "3.0", "ratio": "1", "flag": "y"})
+    assert out.startswith("3 ")
+
+
+@pytest.mark.parametrize(
+    "args,message",
+    [
+        ({"count": "abc"}, "count must be a whole number"),
+        ({"count": "3.5"}, "count must be a whole number"),
+        ({"ratio": "wide"}, "ratio must be a number"),
+        ({"flag": "maybe"}, "flag must be true or false"),
+    ],
+)
+async def test_uncoercible_argument_reports_the_parameter(args, message) -> None:
+    registry = _typed_registry()
+    call_args = {"count": "1", "ratio": "1", "flag": "y", **args}
+    out = await registry.call("probe", call_args)
+    assert message in out
+    assert out.startswith("Tool error:")
+
+
+async def test_unknown_and_untyped_arguments_are_left_alone() -> None:
+    registry = ToolRegistry()
+
+    @tool(description="takes anything")
+    def loose(payload: dict, extra: str = "") -> str:
+        return f"{payload!r} {extra!r}"
+
+    registry.register_callable(loose)
+    # dict/list have no textual form worth guessing — passed through untouched.
+    out = await registry.call("loose", {"payload": "{not json}", "extra": "x"})
+    assert out == "'{not json}' 'x'"

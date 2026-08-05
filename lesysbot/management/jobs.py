@@ -1,4 +1,4 @@
-"""Background jobs for the management panel.
+"""Background jobs for the control panel.
 
 Installing something can take tens of seconds — a zipball download, then pip.
 The panel's request handler cannot simply do that: the browser would hang with

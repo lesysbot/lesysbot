@@ -48,7 +48,7 @@ pip install ".[all]"              # same extras the install scripts use
 # — or, for a development checkout —
 pip install -e ".[dev]"
 
-# restart the service (Telegram/Slack installs only):
+# restart the service (Telegram/Discord installs only):
 systemctl --user restart lesysbot                          # Linux
 launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot    # macOS
 ```

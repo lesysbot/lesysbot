@@ -44,15 +44,18 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Tool listed but "⚠ unavailable here" | Deliberate gating: wrong OS for its `platforms`, or a `requires` binary not on PATH. Install the binary or run on a supported OS. |
 | `/tool` returns "disabled" | It was disabled — `lesysbot enable NAME`. It applies live (the bot watches `tool_state.json`). |
 | `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, add it (Windows: Python `Scripts\` dir). |
-| Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Slack tokens. |
-| Management panel unreachable (`lesysbot` shows it offline) | The service isn't running — start it (see [manage-service](../manage-service/SKILL.md)); or serve it ad-hoc with `lesysbot manage`. |
-| Log: `Management panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |
+| Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Discord tokens. |
+| Control panel unreachable (`lesysbot` shows it offline) | The service isn't running — start it (see [manage-service](../manage-service/SKILL.md)); or serve it ad-hoc with `lesysbot manage`. |
+| Log: `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |
 | Telegram: `Unauthorized.` | Your ID isn't in `allowed_user_ids` — re-check via @userinfobot. |
 | Telegram: no response at all | Wrong token or the bot isn't running. |
 | Telegram: raw `*markdown*` in replies | Harmless fallback — unformattable Markdown is sent as plain text. |
-| "The 'slack' provider needs a dependency that isn't installed" | `pip install ".[slack]"`. |
-| Slack: `not_authed`/`invalid_auth` | Tokens wrong or swapped: `xoxb-` = bot_token, `xapp-` = app_token. |
-| Slack: never responds to DMs | Socket Mode off, or scopes/`message.im` event missing — fix the app config and **reinstall the app**. |
+| "The 'discord' provider needs a dependency that isn't installed" | `pip install ".[discord]"`. |
+| Discord: connects but ignores everything | MESSAGE CONTENT INTENT is off — enable it under Bot → Privileged Gateway Intents, restart. |
+| Discord: `Discord rejected the bot token` | Wrong/revoked token — Bot → Reset Token, update config. |
+| Discord: silent in channels | Channel messages must **@-mention** the bot; DMs need no mention. |
+| Tool missing from the `/` menu | Menu is built at startup — restart. Discord also needs the `applications.commands` invite scope. Disabled/unavailable tools are excluded by design. |
+| A tool never shows in the `/` menu | Name must be `[a-z0-9_]` (both platforms' rule) — see the startup warning. Still callable as typed text. |
 | Config edits don't apply | Wrong file — check the search order (`-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml` → …) and that the service was restarted. Env vars/flags override the file. |
 | Install: `tools dir already has X` | Folder not created by the installer — `--force` to overwrite. |
 | Changed settings, old bot still polling | A leftover service from a previous install — stop/remove it (see [manage-service](../manage-service/SKILL.md)). |

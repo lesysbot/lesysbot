@@ -1,4 +1,4 @@
-# Management panel
+# Control panel
 
 A small web page for the two things you change most — your **settings** and your
 **tools** — plus a status screen that answers "is it working?" at a glance.
@@ -33,7 +33,7 @@ lesysbot
        Provider  cli · model qwen3.5:4b
           Tools  12/13 enabled
         Service  running (PID 12934)
-  Management panel  online · http://127.0.0.1:8700
+  Control panel  online · http://127.0.0.1:8700
         Grafana  http://localhost:3001 · v11.5.1
          Config  /home/you/.lesysbot/config.yaml
 ```

@@ -11,7 +11,7 @@ lesysbot dashboard render             # write it out for Grafana
 ```
 
 Grafana picks up the change within 30 seconds. Or use the **Dashboards** tab in
-the management panel at <http://127.0.0.1:8700> and click Render.
+the control panel at <http://127.0.0.1:8700> and click Render.
 
 ## Why a dashboard sometimes doesn't appear
 

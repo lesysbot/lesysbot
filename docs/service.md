@@ -1,8 +1,8 @@
 # Run as a service
 
 LeSysBot runs in the background so two things are always there: the
-[management panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
-Telegram or Slack — the bot answering your messages. This page covers keeping it
+[control panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
+Telegram or Discord — the bot answering your messages. This page covers keeping it
 alive, starting it at boot, and finding the logs when something's off.
 
 Installing LeSysBot itself is in [Getting started](getting-started.md).
@@ -16,7 +16,7 @@ on macOS, Task Scheduler on Windows. It runs from `~/.lesysbot`, restarts itself
 if it crashes, and starts on boot if you asked for that.
 
 It's installed even if you picked **Terminal only**: the service is what keeps
-the management panel online. With that provider there's no chat to serve, so the
+the control panel online. With that provider there's no chat to serve, so the
 panel is all it does — your terminal chat is still something you start yourself
 with `lesysbot --provider cli`.
 
@@ -80,7 +80,7 @@ The graphical Task Scheduler (`taskschd.msc`) works too — the task is called
 
 ## The message you get when it starts
 
-With Telegram or Slack, LeSysBot messages you as soon as it connects. Since the
+With Telegram or Discord, LeSysBot messages you as soon as it connects. Since the
 service starts at boot, that doubles as a "your machine just came up" ping.
 
 It's a short report — CPU temperature, GPU temperature, disk usage, internet
@@ -93,12 +93,13 @@ Turn it off or tune it in your config:
 messaging:
   startup_notice:
     enabled: true
-    notify: []          # Telegram chat ids / Slack channel ids
+    notify: []          # Telegram chat ids / Discord user or channel ids
     speedtest: true     # set false to skip the speed measurement
 ```
 
-Telegram falls back to `allowed_user_ids` when `notify` is empty. Slack has no
-equivalent default, so put a channel id there.
+Both providers fall back to their `allowed_user_ids` when `notify` is empty, so
+usually there is nothing to set. A Discord entry may also be a **channel** id, if
+you'd rather the report landed in a channel than in your DMs.
 
 ---
 
@@ -131,7 +132,7 @@ You need this if you installed manually, or want something the wizard doesn't
 offer. One rule matters more than the rest: **the service must run from the
 directory holding your `config.yaml` and `tools/`** — normally `~/.lesysbot`.
 
-Use the `run` subcommand — that's the service: the management panel plus the bot. A
+Use the `run` subcommand — that's the service: the control panel plus the bot. A
 bare `lesysbot` only prints status and exits, so a unit that calls it would come
 straight back down.
 
@@ -142,7 +143,7 @@ straight back down.
 
 ```ini
 [Unit]
-Description=LeSysBot — local AI assistant with tools (management panel + bot)
+Description=LeSysBot — local AI assistant with tools (control panel + bot)
 After=network.target
 
 [Service]
@@ -248,7 +249,7 @@ Start-Process lesysbot -ArgumentList run -WindowStyle Hidden   # stop: Stop-Proc
 
 ## Only one at a time
 
-Two copies would fight — over the management panel's port, and, with Telegram, over
+Two copies would fight — over the control panel's port, and, with Telegram, over
 the same messages (Telegram rejects both with a `409`). So the service takes a
 lock at startup and a second one refuses to start, naming the process that holds
 it.

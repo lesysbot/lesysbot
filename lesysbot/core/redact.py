@@ -17,7 +17,7 @@ Two sources of truth for what counts as a secret:
   with no configuration at all, which matters because the worst leak (the
   Telegram URL) is logged by a library before anything registers a secret.
 * **Registered values** (:func:`add_secret`) — the exact strings from the
-  active config, so an OpenAI key or a Slack token is scrubbed even when it
+  active config, so an OpenAI key or a Discord token is scrubbed even when it
   shows up somewhere no pattern anticipated.
 
 Registration deliberately ignores short values: ``llm.api_key`` is ``"ollama"``
@@ -48,9 +48,12 @@ _PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<=bot)(\d{6,}:[A-Za-z0-9_-]{20,})"),
     # Telegram token standing alone (config echo, error message, traceback).
     re.compile(r"\b\d{8,}:[A-Za-z0-9_-]{30,}\b"),
-    # Slack tokens: xoxb-/xoxp-/xoxa-/xoxr-/xoxs- and app-level xapp-.
-    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
-    re.compile(r"\bxapp-[A-Za-z0-9-]{10,}\b"),
+    # Discord bot token: three base64url parts — the app's snowflake, a
+    # 6-character timestamp, then an HMAC (e.g. "MTIz….GhIjKl.mNoPqR…").
+    # The fixed-length middle part is what keeps this off ordinary dotted text.
+    re.compile(r"\b[A-Za-z0-9_-]{23,30}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,}\b"),
+    # The mfa.<hmac> form, in case a user token is pasted in by mistake.
+    re.compile(r"\bmfa\.[A-Za-z0-9_-]{20,}\b"),
     # OpenAI-style keys, including the project-scoped sk-proj- form.
     re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b"),
 )
@@ -73,8 +76,7 @@ def add_secret(value: str | None) -> None:
 def register_settings_secrets(settings: Settings) -> None:
     """Register every credential the active config carries."""
     add_secret(settings.messaging.telegram.token)
-    add_secret(settings.messaging.slack.bot_token)
-    add_secret(settings.messaging.slack.app_token)
+    add_secret(settings.messaging.discord.token)
     add_secret(settings.llm.api_key)
 
 

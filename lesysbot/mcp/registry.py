@@ -24,6 +24,76 @@ def _make_stub(name: str, reason: str) -> Callable:
     return _stub
 
 
+_TRUTHY = frozenset({"true", "yes", "y", "1", "on"})
+_FALSY = frozenset({"false", "no", "n", "0", "off"})
+
+
+def coerce_arguments(
+    properties: dict[str, Any], arguments: dict[str, Any]
+) -> dict[str, Any]:
+    """Coerce string arguments to the JSON types the tool declared.
+
+    Arguments reach a tool as text from two directions that can't type them:
+    a `/tool size_mb=10` slash command is parsed out of a chat message, and an
+    LLM emitting tool-call JSON routinely quotes numbers. Without this, a tool
+    annotated `size_mb: float` is handed `"10"` and either raises deep inside or
+    silently does string arithmetic.
+
+    Only *strings* are converted, and only where the declared type says to —
+    values that already arrive correctly typed pass through untouched. Raises
+    :class:`ValueError` with a message meant for the user when a value can't be
+    converted; `call()` returns that instead of letting a traceback surface.
+    """
+    coerced: dict[str, Any] = {}
+    for key, value in arguments.items():
+        want = (properties.get(key) or {}).get("type")
+        if not isinstance(value, str) or want in (None, "string"):
+            coerced[key] = value
+            continue
+        text = value.strip()
+        if want == "integer":
+            coerced[key] = _to_int(key, text)
+        elif want == "number":
+            coerced[key] = _to_float(key, text)
+        elif want == "boolean":
+            coerced[key] = _to_bool(key, text)
+        else:
+            # array/object — a chat argument has no sane textual form for these,
+            # so pass the string through and let the tool decide.
+            coerced[key] = value
+    return coerced
+
+
+def _to_int(key: str, text: str) -> int:
+    try:
+        return int(text)
+    except ValueError:
+        # "3.0" from an LLM means 3; "3.5" for an int parameter does not.
+        try:
+            number = float(text)
+        except ValueError:
+            raise ValueError(f"{key} must be a whole number, got {text!r}") from None
+        if not number.is_integer():
+            raise ValueError(f"{key} must be a whole number, got {text!r}") from None
+        return int(number)
+
+
+def _to_float(key: str, text: str) -> float:
+    try:
+        return float(text)
+    except ValueError:
+        raise ValueError(f"{key} must be a number, got {text!r}") from None
+
+
+def _to_bool(key: str, text: str) -> bool:
+    low = text.lower()
+    if low in _TRUTHY:
+        return True
+    if low in _FALSY:
+        return False
+    raise ValueError(f"{key} must be true or false, got {text!r}")
+
+
 @functools.cache
 def _stdlib_dirs() -> tuple[str, ...]:
     """Interpreter-owned import roots — fixed for the life of the process."""
@@ -259,7 +329,16 @@ class ToolRegistry:
             return f"Unknown tool: {name}"
         if not self.is_enabled(name):
             return f"Tool '{name}' is disabled. Run `lesysbot tools enable {name}` to use it."
-        fn: Callable = self._tools[name]["fn"]
+        meta = self._tools[name]
+        fn: Callable = meta["fn"]
+        try:
+            arguments = coerce_arguments(
+                meta["parameters"].get("properties", {}), arguments
+            )
+        except ValueError as exc:
+            # A wrong-typed argument is the caller's mistake, not a tool crash —
+            # say which parameter and what it wanted.
+            return f"Tool error: {exc}"
         try:
             result = await fn(**arguments)
             return str(result)

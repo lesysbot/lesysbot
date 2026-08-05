@@ -113,6 +113,97 @@ async def test_nonempty_llm_reply_passes_through(monkeypatch) -> None:
     assert reply == "Download: 61 Mbps"
 
 
+async def test_concurrent_messages_from_one_user_are_serialized(monkeypatch) -> None:
+    """A second message mid-turn must queue, not interleave into the history.
+
+    Remote adapters dispatch updates concurrently, so a message sent while a
+    turn was still running started a *second* `handle()` over the same
+    `ConversationHistory`. Both loops appended into one list, so each LLM call
+    saw the other conversation spliced into its own, re-ran a tool that had
+    already answered, and both replied — the user got one tool run twice and two
+    replies quoting each other.
+    """
+    import asyncio
+
+    settings = Settings()
+    settings.logging.trace_file = None
+    agent = Agent(settings)
+
+    tool_runs = 0
+
+    @tool(description="Take a snapshot")
+    async def snap() -> str:
+        nonlocal tool_runs
+        tool_runs += 1
+        return "snapshot taken"
+
+    agent.registry.register_callable(snap)
+
+    first_turn_started = asyncio.Event()
+    in_flight = 0
+    overlapped = False
+    sizes: list[int] = []
+    calls = 0
+
+    async def fake_chat(messages, tools=None, on_token=None, on_reasoning=None):
+        nonlocal in_flight, overlapped, calls
+        in_flight += 1
+        overlapped = overlapped or in_flight > 1
+        sizes.append(len(messages))
+        calls += 1
+        try:
+            first_turn_started.set()
+            # Hold the turn open long enough for the second message to land
+            # mid-flight — what a pending confirmation does for up to 5 minutes.
+            await asyncio.sleep(0.05)
+            if calls == 1:
+                return Message(
+                    role=Role.ASSISTANT,
+                    content="",
+                    tool_calls=[ToolCall(id="c1", name="snap", arguments={})],
+                )
+            return Message(role=Role.ASSISTANT, content="done")
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(agent._llm, "chat", fake_chat)
+
+    first = asyncio.create_task(agent.handle("u1", "take a snapshot"))
+    await first_turn_started.wait()
+    second = asyncio.create_task(agent.handle("u1", "and again"))
+    await asyncio.gather(first, second)
+
+    assert not overlapped, "two turns ran against the same conversation at once"
+    assert tool_runs == 1, "the tool ran again for a request that never asked for it"
+    # system+user → +assistant(tool_calls)+tool → +assistant+user: each turn sees
+    # the previous one finished, never a tool call still waiting for its result.
+    assert sizes == [2, 4, 6]
+
+
+async def test_turns_for_different_users_run_concurrently(monkeypatch) -> None:
+    # The turn lock is per user, not global: one person's slow model call must
+    # not stall everyone else's bot.
+    import asyncio
+
+    settings = Settings()
+    settings.logging.trace_file = None
+    agent = Agent(settings)
+
+    both_in_flight = asyncio.Barrier(2)
+
+    async def fake_chat(messages, tools=None, on_token=None, on_reasoning=None):
+        await both_in_flight.wait()  # deadlocks (and times out) if serialized
+        return Message(role=Role.ASSISTANT, content="ok")
+
+    monkeypatch.setattr(agent._llm, "chat", fake_chat)
+
+    replies = await asyncio.wait_for(
+        asyncio.gather(agent.handle("u1", "hi"), agent.handle("u2", "hi")),
+        timeout=5,
+    )
+    assert replies == ["ok", "ok"]
+
+
 TOGGLE_TOOL = '''
 from lesysbot.mcp import tool
 

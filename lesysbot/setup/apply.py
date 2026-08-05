@@ -35,9 +35,9 @@ messaging:
     token: "{tg_token}"
     allowed_user_ids: {tg_allowed_ids}
 
-  slack:
-    bot_token: "{slack_bot}"
-    app_token: "{slack_app}"
+  discord:
+    token: "{dc_token}"
+    allowed_user_ids: {dc_allowed_ids}
 
 llm:
   base_url: "{base_url}"
@@ -78,8 +78,8 @@ def write_config(st: WizardState, data_dir: Path) -> Path:
             provider=st.msg_provider,
             tg_token=st.tg_token,
             tg_allowed_ids=st.tg_allowed_ids,
-            slack_bot=st.slack_bot,
-            slack_app=st.slack_app,
+            dc_token=st.dc_token,
+            dc_allowed_ids=st.dc_allowed_ids,
             base_url=st.llm_base_url,
             model=st.llm_model,
             api_key=st.llm_api_key,
@@ -623,74 +623,74 @@ def start_dashboard(ui, data_dir: Path, runner=subprocess.run) -> bool:
     return _grafana_linux(ui, data_dir, mon, start, finish_cmd, runner)
 
 
+def _section(data: dict, key: str) -> dict:
+    value = data.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _ids(value) -> tuple[str, str]:
+    """An ``allowed_user_ids`` list as the wizard's ``(raw, yaml_list)`` pair."""
+    ids = [str(v).strip() for v in value] if isinstance(value, list) else []
+    ids = [v for v in ids if v]
+    return ",".join(ids), "[" + ", ".join(ids) + "]"
+
+
+def _llm_choice(base_url: str, api_key: str) -> int:
+    """Which Step-1 menu entry an existing llm section came from."""
+    if "api.openai.com" in base_url:
+        return 2
+    if "11434" in base_url:
+        return 1
+    return 3 if api_key == "vllm" else 4
+
+
+def read_config_state(config_file: Path) -> WizardState:
+    """Rebuild a :class:`WizardState` from an existing config.yaml.
+
+    The kept-config path skips the wizard chain, so without this the summary
+    would describe a blank default state (empty model, empty allow-list)
+    instead of the install the user is actually keeping. Best-effort: an
+    unreadable or oddly shaped config degrades to whatever did parse.
+    """
+    import yaml
+
+    st = WizardState()
+    try:
+        data = yaml.safe_load(config_file.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return st
+    if not isinstance(data, dict):
+        return st
+
+    msg = _section(data, "messaging")
+    provider = str(msg.get("provider") or "").strip()
+    if provider:
+        st.msg_provider = provider
+    st.msg_choice = {"telegram": 2, "discord": 3}.get(st.msg_provider, 1)
+
+    tg = _section(msg, "telegram")
+    st.tg_token = str(tg.get("token") or "")
+    st.tg_raw_ids, st.tg_allowed_ids = _ids(tg.get("allowed_user_ids"))
+    dc = _section(msg, "discord")
+    st.dc_token = str(dc.get("token") or "")
+    st.dc_raw_ids, st.dc_allowed_ids = _ids(dc.get("allowed_user_ids"))
+
+    # A config may legitimately omit keys — the bot then runs on the model's
+    # own defaults, so those are what the summary should show.
+    from lesysbot.core.config import LLMConfig
+
+    fallback = LLMConfig()
+    llm = _section(data, "llm")
+    st.llm_base_url = str(llm.get("base_url") or fallback.base_url)
+    st.llm_model = str(llm.get("model") or fallback.model)
+    st.llm_api_key = str(llm.get("api_key") or fallback.api_key)
+    st.llm_choice = _llm_choice(st.llm_base_url, st.llm_api_key)
+    return st
+
+
 def read_provider(config_file: Path) -> str:
     """Best-effort provider from an existing config.yaml (kept-config path)."""
-    for line in config_file.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("provider:"):
-            value = stripped.split(":", 1)[1].strip().strip("\"'")
-            if value:
-                return value
-    return "cli"
-
-
-def mask_secret(value: str, tail: int = 4) -> str:
-    """Render a credential for on-screen confirmation — masked, last few kept.
-
-    The tail (not the head) is what's shown: it's enough to tell "this is the
-    token I pasted" from "this is the old one" when both were copied from the
-    same BotFather chat, and unlike a prefix it gives away nothing about the
-    token's *shape* (Telegram's bot id, Slack's ``xoxb-``/``xapp-`` marker) that
-    an onlooker could use to narrow a guess. A secret too short to have a tail
-    worth showing is masked whole.
-
-    Telegram tokens are ``<bot id>:<secret>`` and the bot id is public — it *is*
-    the bot's user id, visible to anyone who messages it — so that half stays
-    readable, because it's what actually identifies which bot is configured.
-    """
-    if not value:
-        return ""
-    bot_id, sep, secret = value.partition(":")
-    if sep and bot_id.isdigit():
-        return f"{bot_id}:{mask_secret(secret, tail)}"
-    if len(value) <= tail:
-        return "*" * len(value)
-    return "*" * 8 + value[-tail:]
-
-
-def load_existing(config_file: Path) -> dict:
-    """What an existing config.yaml actually says, for the kept-config summary.
-
-    The summary is the user's last chance to check what setup is about to act
-    on, so on the keep-my-config path it has to show *their* settings — not the
-    empty `WizardState` defaults, which rendered as ``LLM  ()`` and ``Allowed
-    []`` and looked like setup had lost the configuration.
-
-    Parsed through :class:`Settings` so this agrees with what the bot will
-    actually load (``${VAR}`` expansion included) rather than re-implementing a
-    YAML reader. Never raises: a config too broken to parse still has to reach
-    the summary, where the user can see the problem and abort. Tokens come back
-    already masked by :func:`mask_secret`, so a raw credential never leaves this
-    function — "is a token set" isn't the question a user re-running setup has,
-    "is it *the right one*" is, and only the caller printing it could get that
-    wrong.
-    """
-    from lesysbot.core.config import Settings
-
-    try:
-        settings = Settings.from_yaml(config_file)
-    except Exception:                       # unreadable / invalid YAML / bad types
-        return {"provider": read_provider(config_file), "unreadable": True}
-    return {
-        "provider": settings.messaging.provider,
-        "llm_model": settings.llm.model,
-        "llm_base_url": settings.llm.base_url,
-        "allowed_ids": list(settings.messaging.telegram.allowed_user_ids),
-        "telegram_token": mask_secret(settings.messaging.telegram.token),
-        "slack_bot_token": mask_secret(settings.messaging.slack.bot_token),
-        "slack_app_token": mask_secret(settings.messaging.slack.app_token),
-        "unreadable": False,
-    }
+    return read_config_state(config_file).msg_provider
 
 
 def lesysbot_binary() -> str:
@@ -706,7 +706,7 @@ def lesysbot_binary() -> str:
 # ── Linux (systemd --user) ────────────────────────────────────────────────────
 _UNIT_TEMPLATE = """\
 [Unit]
-Description=LeSysBot — local AI assistant with tools (management panel + bot)
+Description=LeSysBot — local AI assistant with tools (control panel + bot)
 After=network.target
 
 [Service]
@@ -911,7 +911,7 @@ def setup_service(ui, st: WizardState, data_dir: Path, runner=subprocess.run) ->
 
 # ── Epilogue ──────────────────────────────────────────────────────────────────
 def control_panel_url() -> str:
-    """Where the service serves the management panel (config's ``management.port``)."""
+    """Where the service serves the control panel (config's ``management.port``)."""
     from lesysbot.core.config import Settings
 
     try:
@@ -922,12 +922,13 @@ def control_panel_url() -> str:
 
 def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> None:
     ui.say("\n  [bold]How to use[/bold]\n")
-    if provider in ("telegram", "slack"):
-        place = "Telegram" if provider == "telegram" else "Slack"
+    if provider in ("telegram", "discord"):
+        place = "Telegram" if provider == "telegram" else "Discord"
         first = (
             "Open Telegram and find the bot you created with @BotFather"
             if provider == "telegram"
-            else "Invite the bot to a channel, or open a direct message with it"
+            else "Invite the bot to your server with its OAuth2 URL, then DM it "
+                 "(or @-mention it in a channel)"
         )
         ui.say(f"  LeSysBot is running as a [bold]{place}[/bold] bot.\n")
         ui.say(f"    1. {first}")
@@ -947,7 +948,7 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
         ui.say("    • Leave                    type [bold]exit[/bold]")
 
     ui.say("\n  Full usage guide:  [bold]docs/usage.md[/bold]")
-    ui.say(f"  Management panel:     [bold]{control_panel_url()}[/bold]  "
+    ui.say(f"  Control panel:     [bold]{control_panel_url()}[/bold]  "
            "(settings, tools, health — always on)")
     # Follow the port the stack was actually configured with, like every other
     # site does — a stack moved to 3001 was being advertised on 3000, where the

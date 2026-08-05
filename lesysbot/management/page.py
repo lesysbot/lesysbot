@@ -1,4 +1,4 @@
-"""The management panel single page, inlined so it always ships with the package
+"""The control panel single page, inlined so it always ships with the package
 (no package-data wiring, works in a PyInstaller build too).
 
 The brand mark and favicon are rendered to SVG here from the sprite in
@@ -305,7 +305,7 @@ async function loadStatus(){
   ];
   $('#statusCards').innerHTML=cards.map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]||''}</div></div>`).join('');
   const meta=[['Base URL',st.base_url],['Config file',st.config_path||'(built-in defaults)'],
-    ['Home',st.home],['Tools dir',st.tools_dir],['Management panel port',st.panel_port]];
+    ['Home',st.home],['Tools dir',st.tools_dir],['Control panel port',st.panel_port]];
   $('#statusMeta').innerHTML='<tr><th>Key</th><th>Value</th></tr>'+meta.map(m=>`<tr><td>${m[0]}</td><td class="mono">${esc(m[1])}</td></tr>`).join('');
   if(st.registry_error) toast('Tool registry warning: '+st.registry_error,'bad');
 }

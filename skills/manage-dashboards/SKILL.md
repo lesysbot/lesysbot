@@ -33,7 +33,7 @@ before setup skips the step entirely.
 Key properties to know before you start:
 
 - **Separate from the bot.** This stack runs as its own processes; LeSysBot's
-  only listener is its localhost management panel (port 8700). Everything it
+  only listener is its localhost control panel (port 8700). Everything it
   exposes binds to **`127.0.0.1` only** (nothing on the LAN) and needs **no
   sudo/admin**.
 - **Standard components only** — Prometheus, Grafana, `node_exporter`,

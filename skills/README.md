@@ -25,7 +25,7 @@ skills and it works standalone:
 | "how do I use it", "run a tool", "why did it ask for confirmation" | [use-lesysbot](use-lesysbot/SKILL.md) |
 | "change a setting", "edit the config", "increase history", "turn off logging" | [configure-lesysbot](configure-lesysbot/SKILL.md) |
 | "change from ollama to vllm", "use OpenAI", "switch the model" | [switch-llm-backend](switch-llm-backend/SKILL.md) |
-| "connect telegram", "set up slack", "message it from my phone" | [setup-messaging](setup-messaging/SKILL.md) |
+| "connect telegram", "set up discord", "message it from my phone" | [setup-messaging](setup-messaging/SKILL.md) |
 | "install/disable/remove a tool", "list my tools" | [manage-tools](manage-tools/SKILL.md) |
 | "restart the bot", "is it running", "start on boot", "show the logs" | [manage-service](manage-service/SKILL.md) |
 | "monitor my system", "CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard" | [manage-dashboards](manage-dashboards/SKILL.md) |

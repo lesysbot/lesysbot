@@ -21,7 +21,7 @@ powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1   # if blocked
 It undoes everything the installer set up, in order:
 
 1. **Stops and removes the background service** (systemd / launchd / Task
-   Scheduler) — every install has one, since it serves the management panel. On
+   Scheduler) — every install has one, since it serves the control panel. On
    Linux it also offers to disable `loginctl` linger if the installer enabled it.
 2. **Reports leftover sudoers rules** from older versions
    (`/etc/sudoers.d/lesysbot-rtcwake`, `…-shutdown-wake`) and prints the `rm`

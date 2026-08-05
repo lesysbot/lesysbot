@@ -1,5 +1,5 @@
 """Gather a snapshot of LeSysBot's state — shared by the CLI status screen
-(bare ``lesysbot``) and the management panel's ``/api/status`` endpoint."""
+(bare ``lesysbot``) and the control panel's ``/api/status`` endpoint."""
 from __future__ import annotations
 
 from typing import Any
@@ -29,7 +29,7 @@ __all__ = ["detect_grafana", "grafana_candidates", "detect_panel", "panel_url",
 
 
 def panel_url(settings: Settings, port: int | None = None) -> str:
-    """Where the management panel lives (loopback only — the host isn't settable)."""
+    """Where the control panel lives (loopback only — the host isn't settable)."""
     return f"http://127.0.0.1:{port or settings.management.port}"
 
 
@@ -40,7 +40,7 @@ PANEL_SERVICE_ID = "lesysbot-management"
 
 def detect_panel(settings: Settings, port: int | None = None,
                  timeout: float = 0.7) -> dict:
-    """Is the always-on management panel answering? ``{url, port, running}``.
+    """Is the always-on control panel answering? ``{url, port, running}``.
 
     The panel is served by the background service (``lesysbot run``), so this is
     how the CLI status screen — a short-lived, read-only process — reports it.
@@ -120,7 +120,7 @@ async def gather_status(
         grafana = detect_grafana()
         panel = detect_panel(settings)
 
-    # The service runs for every provider now — it hosts the management panel even
+    # The service runs for every provider now — it hosts the control panel even
     # when there's no remote chat to poll — so its state is always reported.
     try:
         from lesysbot.core.singleton import holder_pid, instance_key, is_running

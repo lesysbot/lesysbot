@@ -568,7 +568,7 @@ def build_node() -> dict:
 
     g.row("Overview")
     g.stat("CPU Busy",
-           [(f'100 - (avg(rate(node_cpu_seconds_total{{mode="idle",instance=~"$instance"}}[$__rate_interval])) * 100)',
+           [('100 - (avg(rate(node_cpu_seconds_total{mode="idle",instance=~"$instance"}[$__rate_interval])) * 100)',
              "cpu")],
            "percent", w=4, gauge=True, minv=0, maxv=100, thresholds=PCT)
     # Linux exposes MemAvailable/MemTotal; macOS node_exporter does not — it has

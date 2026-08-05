@@ -5,22 +5,22 @@ description: Day-to-day use of a running LeSysBot — chatting with the LLM, run
 
 # Using LeSysBot
 
-Everything here works the same in CLI, Telegram, and Slack.
+Everything here works the same in CLI, Telegram, and Discord.
 
 ## Start a session
 
 ```bash
-lesysbot --provider cli     # force a terminal chat (works even if config says telegram/slack)
-lesysbot run                # the service: management panel + bot (what systemd/launchd runs)
+lesysbot --provider cli     # force a terminal chat (works even if config says telegram/discord)
+lesysbot run                # the service: control panel + bot (what systemd/launchd runs)
 lesysbot                    # health + metrics, then exits — NOT a chat, starts nothing
 ```
 
-Bare `lesysbot` only prints status (backend, tools, service, management panel,
+Bare `lesysbot` only prints status (backend, tools, service, control panel,
 Grafana), so use `--provider cli` to chat. `lesysbot run` is the service, not a
-chat: with `provider: cli` it serves the management panel and idles. A CLI session
+chat: with `provider: cli` it serves the control panel and idles. A CLI session
 runs *alongside* the service — separate history; they don't conflict.
 
-The management panel is always on at **http://127.0.0.1:8700** (`management.port`),
+The control panel is always on at **http://127.0.0.1:8700** (`management.port`),
 served by the service.
 
 ## Two ways to interact
@@ -33,8 +33,11 @@ served by the service.
 | Added to history | Yes | No (stateless one-shot) |
 | Best for | Questions, multi-step requests | Running a known tool exactly; when the LLM is offline |
 
-Both reach the same tools. In **Slack**, a leading `/` collides with Slack's own
-slash commands — type `/ ` *with a space* first: `/ disk_usage path=/tmp`.
+Both reach the same tools. **Telegram and Discord also list every tool in the
+platform's own `/` menu** (registered at startup), so you can pick a tool instead
+of remembering its name — on Discord that gives you a labelled, typed field per
+parameter. Newly installed or re-enabled tools join the menu on the next restart;
+they are callable as typed text immediately.
 
 ## Built-in commands (handled by LeSysBot, not the LLM)
 
@@ -65,7 +68,7 @@ call** — typing `/tool_name …` yourself runs immediately (you already decide
 |---|---|
 | CLI | Prints tool name, args, prompt; asks `y/n` |
 | Telegram | ✅ Yes / ❌ No inline buttons; auto-cancels after 120 s |
-| Slack | Auto-approves by default |
+| Discord | ✅ Yes / ❌ No message buttons; auto-cancels after 300 s |
 
 ## Conversation history
 

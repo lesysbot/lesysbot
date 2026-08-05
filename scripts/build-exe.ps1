@@ -11,7 +11,7 @@
 
 param(
     [switch]$OneFile,        # produce a single lesysbot.exe instead of a one-folder build
-    [switch]$SkipProviders,  # smaller CLI-only exe (no Telegram/Slack bundled)
+    [switch]$SkipProviders,  # smaller CLI-only exe (no Telegram/Discord bundled)
     [switch]$Clean           # remove build/, dist/ and the build venv first
 )
 
@@ -63,7 +63,7 @@ $VenvPy = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path $VenvPy)) { Die "venv python not found at $VenvPy" }
 
 & $VenvPy -m pip install --quiet --upgrade pip
-# .[all] pulls Telegram and Slack (incl. aiohttp); the bare
+# .[all] pulls Telegram and Discord; the bare
 # install is the CLI-only build.
 if ($SkipProviders) { & $VenvPy -m pip install --quiet . }
 else                { & $VenvPy -m pip install --quiet ".[all]" }

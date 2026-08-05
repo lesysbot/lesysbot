@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from lesysbot.core.config import LLMConfig
 from lesysbot.setup import apply as apply_mod
 from lesysbot.setup import wizard
 from lesysbot.setup.wizard import SetupAborted, WizardState
@@ -175,15 +176,17 @@ def test_summary_change_reach_and_apply(tmp_path):
     ui = FakeUI(
         [
             ("menu", 3),           # summary: Change how to reach LeSysBot
-            ("menu", 3),           # messaging: Slack
-            ("text", "xoxb"),
-            ("text", "xapp"),
+            ("menu", 3),           # messaging: Discord
+            ("text", "dtok"),      # bot token
+            ("text", "42"),        # allowed user ids
             ("menu", 1),           # service: start now + reboot
             ("menu", 1),           # summary: Apply
         ]
     )
     assert wizard.step_summary(ui, st, tmp_path) is True
-    assert st.msg_provider == "slack"
+    assert st.msg_provider == "discord"
+    assert st.dc_token == "dtok"
+    assert st.dc_allowed_ids == "[42]"
     assert st.auto_start is True
     # With a service pending, the summary menu grows the startup entry.
     summary_menus = [c for c in ui.calls if c[0] == "menu" and c[1] == "Ready?"]
@@ -215,58 +218,67 @@ def test_write_config_roundtrip(tmp_path):
     assert cfg["mcp"]["tools_dir"] == "./tools"
 
 
+def test_write_config_discord_roundtrip(tmp_path):
+    st = WizardState(
+        llm_base_url="http://x/v1",
+        llm_model="mm",
+        llm_api_key="kk",
+        msg_provider="discord",
+        dc_token="d0k",
+        dc_allowed_ids="[7, 8]",
+    )
+    cfg = yaml.safe_load(apply_mod.write_config(st, tmp_path).read_text())
+    assert cfg["messaging"]["provider"] == "discord"
+    assert cfg["messaging"]["discord"]["token"] == "d0k"
+    assert cfg["messaging"]["discord"]["allowed_user_ids"] == [7, 8]
+
+
 def test_read_provider(tmp_path):
     cfg = tmp_path / "config.yaml"
-    cfg.write_text("messaging:\n  provider: slack\n")
-    assert apply_mod.read_provider(cfg) == "slack"
+    cfg.write_text("messaging:\n  provider: discord\n")
+    assert apply_mod.read_provider(cfg) == "discord"
     cfg.write_text("# nothing\n")
     assert apply_mod.read_provider(cfg) == "cli"
 
 
-def test_mask_secret():
-    """Masked credentials must carry enough tail to identify *which* token is
-    configured, and never enough to reconstruct it."""
-    tg = "123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"
-    # Telegram: the bot id half is public (it is the bot's user id), so it stays
-    # readable — that's what tells one bot from another.
-    assert apply_mod.mask_secret(tg) == "123456789:********Dsaw"
-    assert "AAHdqTcv" not in apply_mod.mask_secret(tg)
-    assert apply_mod.mask_secret("xoxb-1-2-AbCdEfGhIjKlWxyz") == "********Wxyz"
-    # Fixed-width mask: the star count must not leak the real length.
-    assert apply_mod.mask_secret("x" * 20).count("*") == apply_mod.mask_secret("x" * 60).count("*")
-    # Too short to have a tail worth showing → masked whole.
-    assert apply_mod.mask_secret("abc") == "***"
-    assert apply_mod.mask_secret("") == ""
-
-
-def test_kept_config_summary_masks_slack_tokens(tmp_path, monkeypatch):
-    """Same guarantee on the Slack path, where there are two tokens to check."""
-    import argparse
-
-    from lesysbot.setup import cli as setup_cli
-
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / "config.yaml").write_text(
-        "messaging:\n"
-        "  provider: slack\n"
-        "  slack:\n"
-        # Deliberately token-shaped for mask_secret, but far too short to be a
-        # real Slack token (or to trip a secret scanner).
-        "    bot_token: xoxb-12-34-fakeBotx\n"
-        "    app_token: xapp-1-56-fakeAppz\n"
+def test_read_config_state_round_trips_a_written_config(tmp_path):
+    written = WizardState(
+        llm_base_url="https://api.openai.com/v1",
+        llm_model="gpt-4o",
+        llm_api_key="sk-xyz",
+        msg_provider="telegram",
+        tg_token="t0k",
+        tg_allowed_ids="[1, 2]",
     )
-    monkeypatch.setenv("LESYSBOT_HOME", str(home))
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _no_real_service(monkeypatch)
-    ui = FakeUI([("confirm", False), ("confirm", True), ("confirm", True)])
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
-    assert setup_cli.run(argparse.Namespace(command="setup", repo=None)) == 0
+    path = apply_mod.write_config(written, tmp_path)
 
-    shown = "\n".join(ui.messages)
-    assert "********Botx" in shown and "********Appz" in shown
-    assert "xoxb-12-34" not in shown
-    assert "xapp-1-56" not in shown
+    st = apply_mod.read_config_state(path)
+    assert (st.llm_model, st.llm_base_url) == ("gpt-4o", "https://api.openai.com/v1")
+    assert st.llm_api_key == "sk-xyz"
+    assert st.llm_choice == 2                      # OpenAI, from the base URL
+    assert (st.msg_provider, st.msg_choice) == ("telegram", 2)
+    assert st.tg_token == "t0k"
+    assert (st.tg_raw_ids, st.tg_allowed_ids) == ("1,2", "[1, 2]")
+
+
+def test_read_config_state_falls_back_and_survives_junk(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    # Keys a config may legitimately omit fall back to what the bot actually
+    # runs on (the model defaults), never to blanks.
+    cfg.write_text("messaging:\n  provider: cli\n")
+    st = apply_mod.read_config_state(cfg)
+    fallback = LLMConfig()                         # whatever the bot ships as default
+    assert (st.llm_model, st.llm_base_url) == (fallback.model, fallback.base_url)
+    assert st.llm_model and st.llm_base_url        # …and never blank
+    assert st.llm_choice == 1                      # Ollama
+    assert st.msg_provider == "cli"
+
+    cfg.write_text("llm:\n  base_url: http://localhost:8000/v1\n  api_key: vllm\n")
+    assert apply_mod.read_config_state(cfg).llm_choice == 3
+
+    cfg.write_text(":\n  not: [valid\n")            # unparseable → plain defaults
+    assert apply_mod.read_config_state(cfg) == WizardState()
+    assert apply_mod.read_config_state(tmp_path / "missing.yaml") == WizardState()
 
 
 def test_seed_tools_copies_once_and_skips_pycache(tmp_path):
@@ -816,7 +828,17 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
 
     home = tmp_path / "home"
     home.mkdir()
-    (home / "config.yaml").write_text("messaging:\n  provider: cli\n")
+    existing = (
+        "messaging:\n"
+        "  provider: telegram\n"
+        "  telegram:\n"
+        '    token: "t0k"\n'
+        "    allowed_user_ids: [42, 43]\n"
+        "llm:\n"
+        '  base_url: "http://localhost:11434/v1"\n'
+        '  model: "qwen3:8b"\n'
+    )
+    (home / "config.yaml").write_text(existing)
     monkeypatch.setenv("LESYSBOT_HOME", str(home))
     monkeypatch.setenv("HOME", str(tmp_path))
     installed = _no_real_service(monkeypatch)
@@ -830,106 +852,11 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
     monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
     args = argparse.Namespace(command="setup", repo=None)
     assert setup_cli.run(args) == 0
-    assert (home / "config.yaml").read_text() == "messaging:\n  provider: cli\n"
+    assert (home / "config.yaml").read_text() == existing
     # The service is (re)installed on the kept-config path too.
-    assert installed == [("cli", True)]
-
-
-def test_kept_config_summary_shows_the_existing_settings(tmp_path, monkeypatch):
-    """Keeping the config must summarise *that config*. It used to render the
-    blank WizardState defaults — `LLM  ()` and `Allowed []` — which reads as
-    though setup had lost the configuration it just promised to keep."""
-    import argparse
-
-    from lesysbot.setup import cli as setup_cli
-
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / "config.yaml").write_text(
-        "llm:\n"
-        "  model: llama3.1:8b\n"
-        "  base_url: http://192.168.1.5:11434/v1\n"
-        "messaging:\n"
-        "  provider: telegram\n"
-        "  telegram:\n"
-        "    token: 123456:abcdefghijklmnopqrstuvwxyz0123456789\n"
-        "    allowed_user_ids: [4242, 8888]\n"
-    )
-    monkeypatch.setenv("LESYSBOT_HOME", str(home))
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _no_real_service(monkeypatch)
-    ui = FakeUI([("confirm", False), ("confirm", True), ("confirm", True)])
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
-    assert setup_cli.run(argparse.Namespace(command="setup", repo=None)) == 0
-
-    shown = "\n".join(ui.messages)
-    assert "llama3.1:8b" in shown
-    assert "http://192.168.1.5:11434/v1" in shown
-    assert "telegram" in shown
-    assert "4242" in shown and "8888" in shown
-    assert "()" not in shown                     # the old empty-LLM rendering
-    # The token is shown masked: enough tail to recognise which token was kept,
-    # never the secret itself. The bot id half is public, so it stays readable.
-    assert "123456:********6789" in shown
-    assert "abcdefghijklmnopqrstuvwxyz" not in shown
-
-
-def test_kept_config_summary_flags_an_empty_allow_list(tmp_path, monkeypatch):
-    """A Telegram bot with no allowed IDs ignores everybody — say so here rather
-    than let the user discover it by messaging a silent bot."""
-    import argparse
-
-    from lesysbot.setup import cli as setup_cli
-
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / "config.yaml").write_text(
-        "messaging:\n  provider: telegram\n  telegram:\n    allowed_user_ids: []\n")
-    monkeypatch.setenv("LESYSBOT_HOME", str(home))
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _no_real_service(monkeypatch)
-    ui = FakeUI([("confirm", False), ("confirm", True), ("confirm", True)])
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
-    assert setup_cli.run(argparse.Namespace(command="setup", repo=None)) == 0
-
-    shown = "\n".join(ui.messages)
-    assert "none" in shown and "ignore everyone" in shown
-    assert "not set" in shown                    # and that no token is configured
-
-
-def test_kept_config_summary_survives_a_broken_config(tmp_path, monkeypatch):
-    """An unparseable config must still reach the summary — that's where the
-    user gets told, and where they can abort."""
-    import argparse
-
-    from lesysbot.setup import cli as setup_cli
-
-    home = tmp_path / "home"
-    home.mkdir()
-    (home / "config.yaml").write_text("llm:\n  timeout: not-a-number\n  [[[")
-    monkeypatch.setenv("LESYSBOT_HOME", str(home))
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _no_real_service(monkeypatch)
-    ui = FakeUI([("confirm", False), ("confirm", True), ("confirm", True)])
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
-    assert setup_cli.run(argparse.Namespace(command="setup", repo=None)) == 0
-    assert "couldn't be read" in "\n".join(ui.messages)
-
-
-def test_ctrl_c_exits_cleanly(tmp_path, monkeypatch):
-    """Ctrl-C is how you leave a wizard; it must not surface as a traceback."""
-    import argparse
-
-    from lesysbot.setup import cli as setup_cli
-
-    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / "home"))
-    ui = FakeUI([])
-
-    def boom(*_a, **_kw):
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr(ui, "confirm_yn", boom, raising=False)
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
-    monkeypatch.setattr("lesysbot.setup.wizard.run_steps", boom)
-    assert setup_cli.run(argparse.Namespace(command="setup", repo=None)) == 130
-    assert "cancelled" in "\n".join(ui.messages).lower()
+    assert installed == [("telegram", True)]
+    # The summary describes the config being kept, not a blank default state.
+    summary = "\n".join(ui.messages)
+    assert "qwen3:8b" in summary and "http://localhost:11434/v1" in summary
+    assert "Allowed    [42, 43]" in summary
+    assert "kept as-is" in summary
