@@ -39,6 +39,51 @@ def user_dir() -> Path:
     return Path.home() / ".lesysbot"
 
 
+def bundled_dir() -> Path:
+    """Content that ships *with* LeSysBot: default tools, dashboards, the stack.
+
+    An installed wheel has it at ``lesysbot/_bundled/`` (hatchling copies the
+    repo's top-level directories in at build time). A dev checkout has no such
+    folder, so it falls back to the repo root beside the package — which is
+    where those directories actually live. Both layouts then behave identically,
+    and nothing downstream has to know which one it is running from.
+    """
+    packaged = Path(__file__).resolve().parent.parent / "_bundled"
+    if packaged.is_dir():
+        return packaged
+    return Path(__file__).resolve().parent.parent.parent
+
+
+# The dashboard stack's directory name under the user home.
+DASHBOARD_DIRNAME = "dashboard"
+
+
+def dashboard_dir(base: str | Path | None = None) -> Path:
+    """The dashboard stack directory (Prometheus + Grafana + exporters)."""
+    root = Path(base) if base is not None else user_dir()
+    return root / DASHBOARD_DIRNAME
+
+
+def installed_dashboards_dir(base: str | Path | None = None) -> Path:
+    """Where installed dashboard **packages** live.
+
+    Deliberately nested inside the stack rather than sitting beside it as
+    ``~/.lesysbot/dashboards``: distinguishing the stack from its contents by a
+    trailing `s` is the kind of thing that reads fine in code and ruins an
+    afternoon at a shell prompt.
+    """
+    return dashboard_dir(base) / "installed"
+
+
+def generated_dashboards_dir(base: str | Path | None = None) -> Path:
+    """Where rendered dashboard JSON is written for Grafana to provision.
+
+    Derived output, rewritten on every render — never edit anything here; edit
+    the package under :func:`installed_dashboards_dir` instead.
+    """
+    return dashboard_dir(base) / "grafana" / "dashboards" / "generated"
+
+
 def parse_env_file(path: str | Path) -> dict[str, str]:
     """Parse a simple ``KEY=VALUE`` env file (``#`` comments, quotes stripped).
 

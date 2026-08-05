@@ -8,7 +8,7 @@ description: Install LeSysBot from scratch on Linux, macOS, or Windows — prere
 LeSysBot is a local AI assistant: an LLM (Ollama by default) plus a set of tools it
 can call, reachable from the terminal, Telegram, or Slack. Installing it means:
 install the Python package, write a config, and register the background service
-that serves the control panel (and any Telegram/Slack bot).
+that serves the management panel (and any Telegram/Slack bot).
 
 ## 1. Prerequisites
 
@@ -31,27 +31,21 @@ ollama pull qwen3.5:4b        # small, capable starting point
 curl http://localhost:11434/  # → "Ollama is running"
 ```
 
-## 2. Get the code
+## 2. Path A — guided wizard (recommended for most people)
 
-```bash
-git clone https://github.com/lesysbot/lesysbot.git
-cd lesysbot
-```
-
-## 3. Path A — guided wizard (recommended for most people)
+No clone needed — the package installs straight from GitHub:
 
 ```bash
 # Linux / macOS
-bash scripts/install.sh
+pipx install git+https://github.com/lesysbot/lesysbot && lesysbot setup
 ```
 
 ```powershell
-# Windows — if PowerShell blocks it, use the second form
-.\scripts\install.ps1
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+# Windows
+pipx install git+https://github.com/lesysbot/lesysbot; lesysbot setup
 ```
 
-The script bootstraps (Python check + pip install) and hands off to
+The install hands off to
 **`lesysbot setup`** — the wizard is part of LeSysBot (Rich panels, one
 cross-platform implementation in `lesysbot/setup/`), so **re-run `lesysbot setup`
 anytime to reconfigure without reinstalling**.
@@ -81,7 +75,7 @@ The prompts, in order:
    `4) ← Back` (re-pick the LLM backend).
    The terminal always works regardless: `lesysbot --provider cli`.
 4. **"Service"** — asked for **every** provider (systemd / launchd / Task
-   Scheduler), because the service also serves the always-on control panel:
+   Scheduler), because the service also serves the always-on management panel:
    `1) Start now and automatically after reboot` (default; "at login" on
    Windows), `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
    On the kept-config path this is a plain
@@ -99,12 +93,12 @@ privileged follow-up step: install a package and it works.
 What the wizard does: writes **`~/.lesysbot/config.yaml`**, seeds
 **`~/.lesysbot/tools/`** (never clobbers an existing one), installs the `lesysbot`
 command, and installs + starts the background service running from
-`~/.lesysbot` — for every provider, since that service hosts the control panel
+`~/.lesysbot` — for every provider, since that service hosts the management panel
 (`http://127.0.0.1:8700`) as well as any Telegram/Slack bot. Re-running it stops
 and replaces an existing service. `LESYSBOT_HOME` overrides the `~/.lesysbot`
 location.
 
-It also seeds **`~/.lesysbot/monitoring/`** (the Grafana/Prometheus dashboard) and
+It also seeds **`~/.lesysbot/dashboard/`** (the Grafana/Prometheus dashboard) and
 sets it up — a standard part of LeSysBot. It first **asks for the Grafana username
 and password** LeSysBot should use (defaults `admin`/`admin`), saving them to
 **`~/.lesysbot/grafana.env`** (loaded into the bot's environment at startup, so
@@ -113,17 +107,24 @@ fatal:
 - **Linux** — if Docker is running, it **asks** whether to auto-start the bundled
   stack now or set it up manually; if Docker isn't ready it prints the exact
   no-`sudo` steps to get it going (or run Grafana natively).
-- **macOS/Windows** — it does **not** require Docker Desktop; it warns and
+- **macOS** — it does **not** require Docker Desktop. It **asks** whether to
+  install now, then runs `dashboard/scripts/install-macos.sh`: `brew install`
+  of `grafana`/`prometheus`/`node_exporter`, provisioning written, admin password
+  set, all three started under `brew services`. Without Homebrew it says so
+  (`https://brew.sh`) and falls back to the manual instructions.
+- **Windows** — it does **not** require Docker Desktop; it warns and
   instructs a native Grafana install from `https://grafana.com/grafana/download`
   and how to connect it (auto-detected on `localhost:3000`, else
   `LESYSBOT_GRAFANA_URL`), mentioning the one-command Docker stack only as a
   shortcut when Docker is already running.
 
-Set `LESYSBOT_SKIP_MONITORING=1` to skip this step on an unattended install.
+Set `LESYSBOT_SKIP_DASHBOARD=1` to skip this step on an unattended install.
 
-## 4. Path B — manual install (scriptable, full control)
+## 3. Path B — manual install from a clone (scriptable, full control)
 
 ```bash
+git clone https://github.com/lesysbot/lesysbot.git
+cd lesysbot
 pip install ".[all]"             # telegram + slack extras
 # pip install .                  # minimal: terminal chat and tools only
 # pip install -e ".[dev]"        # development (adds pytest + ruff)
@@ -148,7 +149,7 @@ Run it:
 
 ```bash
 lesysbot                          # health + metrics for ./config.yaml, then exit
-lesysbot run                      # the service: control panel + bot
+lesysbot run                      # the service: management panel + bot
 lesysbot --provider cli -v        # force CLI chat + verbose logging
 lesysbot -c /path/to/config.yaml  # explicit config
 lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
@@ -157,7 +158,7 @@ lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrid
 No service is set up on this path — see [manage-service](../manage-service/SKILL.md)
 to add one by hand.
 
-## 5. Verify the install
+## 4. Verify the install
 
 ```bash
 lesysbot --provider cli

@@ -157,8 +157,8 @@ def test_grafana_autodetect(tmp_path, monkeypatch):
 
 def test_grafana_candidates_prefer_the_configured_port(tmp_path, monkeypatch):
     """The bundled stack's GRAFANA_PORT is probed before the fixed guesses."""
-    (tmp_path / "monitoring").mkdir()
-    (tmp_path / "monitoring" / ".env").write_text("GRAFANA_PORT=3007\n", encoding="utf-8")
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "dashboard" / ".env").write_text("GRAFANA_PORT=3007\n", encoding="utf-8")
     m = load(monkeypatch, tmp_path)
     assert m._candidates()[:2] == ["http://localhost:3007", "http://127.0.0.1:3007"]
     monkeypatch.setattr(m, "_is_grafana", lambda url, **k: "3007" in url)
@@ -172,4 +172,4 @@ async def test_stack_down_is_friendly(tmp_path, monkeypatch):
         raise m._StackDown("connection refused")
     monkeypatch.setattr(m, "_grafana", boom)
     out = await m.share_dashboard(expiration="1h")
-    assert "monitoring stack" in out.lower() or "reach grafana" in out.lower()
+    assert "dashboard stack" in out.lower() or "reach grafana" in out.lower()

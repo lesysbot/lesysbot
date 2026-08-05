@@ -17,6 +17,10 @@ _OS_NAMES = {"Linux": "linux", "Darwin": "macos", "Windows": "windows"}
 # Pretty labels for messages.
 _OS_LABELS = {"linux": "Linux", "macos": "macOS", "windows": "Windows"}
 
+# Spellings of the same machine. A manifest saying `arm64` has to match a Linux
+# box reporting `aarch64`, or every Raspberry Pi reads as the wrong hardware.
+_ARCH_ALIASES = {"amd64": "x86_64", "x64": "x86_64", "aarch64": "arm64"}
+
 
 def current_os() -> str:
     """Return the current OS as one of 'linux' | 'macos' | 'windows'.
@@ -24,6 +28,61 @@ def current_os() -> str:
     Falls back to a lower-cased platform.system() for anything else (e.g. BSD).
     """
     return _OS_NAMES.get(platform.system(), platform.system().lower())
+
+
+def normalize_arch(name: str) -> str:
+    """Fold the common spellings of one architecture onto a single name."""
+    name = name.strip().lower()
+    return _ARCH_ALIASES.get(name, name)
+
+
+def current_arch() -> str:
+    """This machine's CPU architecture, normalized ('x86_64' | 'arm64' | …)."""
+    return normalize_arch(platform.machine())
+
+
+def os_version() -> str:
+    """This machine's OS version, or "" when it can't be determined.
+
+    Deliberately the *marketing* version people recognise and pin against —
+    macOS ``14.5`` rather than the Darwin kernel's ``23.5.0``, Windows ``10``
+    rather than an NT build number — because that is what a package author
+    writes in a manifest and what a user reads back in an error.
+
+    Best-effort by design: an unknown version returns "" and every caller must
+    treat that as "no constraint can be evaluated" rather than a failure. This
+    runs on the status screen, so it never raises and never shells out.
+    """
+    system = platform.system()
+    try:
+        if system == "Darwin":
+            return platform.mac_ver()[0]
+        if system == "Windows":
+            return platform.win32_ver()[0]
+        if system == "Linux":
+            return _linux_version_id()
+    except OSError:
+        return ""
+    return ""
+
+
+def _linux_version_id() -> str:
+    """``VERSION_ID`` from /etc/os-release — the distro release, not the kernel.
+
+    A dashboard branching on Linux cares which Ubuntu it is (which exporters and
+    metric names exist), not which kernel — and ``platform.release()`` only ever
+    answers the latter.
+    """
+    try:
+        with open("/etc/os-release", encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return ""
+    for line in lines:
+        key, _, value = line.partition("=")
+        if key.strip() == "VERSION_ID":
+            return value.strip().strip('"').strip("'")
+    return ""
 
 
 def _label(os_name: str) -> str:

@@ -24,15 +24,33 @@ def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     setup.add_argument(
         "--repo",
         default=None,
-        help="Repo checkout to seed bundled tools/ from (passed by the install scripts)",
+        help="Seed bundled content from this checkout instead of the installed "
+             "copy (for development; not needed for a normal install)",
     )
 
 
 def run(args: argparse.Namespace) -> int:
-    from lesysbot.setup import apply, wizard
+    """Entry point — runs the flow, turning Ctrl-C into a clean exit.
+
+    Ctrl-C is a normal way to leave a wizard (the raw-mode key reader turns
+    ``\\x03`` into ``KeyboardInterrupt`` so menus stay escapable), and nothing
+    above this catches it for the setup path — so it used to end in a traceback
+    that reads like a crash.
+    """
     from lesysbot.setup.ui import make_ui
 
     ui = make_ui()
+    try:
+        return _flow(ui, args)
+    except KeyboardInterrupt:
+        ui.say("\n\n  [yellow]Setup cancelled.[/yellow]")
+        ui.note("Nothing further was changed — re-run `lesysbot setup` anytime.")
+        return 130
+
+
+def _flow(ui, args: argparse.Namespace) -> int:
+    from lesysbot.setup import apply, wizard
+
     data_dir = user_dir()
     data_dir.mkdir(parents=True, exist_ok=True)
     repo_dir = Path(args.repo).resolve() if getattr(args, "repo", None) else None
@@ -69,22 +87,30 @@ def run(args: argparse.Namespace) -> int:
         # service is installed either way (it serves the control panel), so only
         # the autostart question applies here; no step navigation.
         st = wizard.WizardState()
-        provider = apply.read_provider(config_file)
+        existing = apply.load_existing(config_file)
+        provider = existing["provider"]
         st.msg_provider = provider
         needs_service = st.needs_service = True
         ui.say("\n  LeSysBot runs in the background as a service so the control panel "
                "stays online.\n")
         st.auto_start = ui.confirm_yn("Start LeSysBot automatically after reboot?", default=True)
 
-        wizard.show_summary(ui, st, data_dir)
+        wizard.show_summary(ui, st, data_dir, existing=existing)
         if not ui.confirm_yn("Apply these settings?", default=True):
             ui.say("\n  [yellow]Aborted.[/yellow]")
             return 0
 
     if apply.seed_tools(repo_dir, data_dir):
-        ui.ok(f"tools copied to {data_dir / 'tools'}")
-    if apply.seed_monitoring(repo_dir, data_dir):
-        ui.ok(f"monitoring stack copied to {data_dir / 'monitoring'}")
+        ui.ok(f"tools installed in {data_dir / 'tools'}")
+
+    if apply.seed_dashboard(repo_dir, data_dir):
+        # "installed/updated", not "copied": on a re-run this is how a fix to the
+        # stack's scripts or dashboards actually reaches an existing install.
+        ui.ok(f"dashboard stack installed/updated in {data_dir / 'dashboard'}")
+    if apply.seed_dashboards(repo_dir, data_dir):
+        ui.ok("dashboards installed")
+    if apply.seed_catalog(repo_dir, data_dir):
+        ui.ok("marketplace catalog installed — browse it with `lesysbot search`")
 
     ui.say("")
     apply.setup_service(ui, st, data_dir)
@@ -92,7 +118,7 @@ def run(args: argparse.Namespace) -> int:
     # The Grafana dashboard ships with LeSysBot — bring it up as part of setup
     # (idempotent; no-ops when already running). Never optional, but never fatal:
     # a machine without Docker gets clear finish-it instructions, not a failure.
-    apply.start_monitoring(ui, data_dir)
+    apply.start_dashboard(ui, data_dir)
 
     apply.print_epilogue(ui, provider, needs_service, data_dir)
     return 0

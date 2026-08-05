@@ -16,8 +16,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from lesysbot.artifacts.kinds import ArtifactKind
+from lesysbot.artifacts.lockfile import LOCK_NAME
 from lesysbot.core.paths import parse_env_file
 from lesysbot.setup.wizard import WizardState
+
+
+def _now() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 CONFIG_TEMPLATE = """\
 messaging:
@@ -81,71 +89,220 @@ def write_config(st: WizardState, data_dir: Path) -> Path:
     return path
 
 
+def _bundled_source(repo_dir: Path | None, name: str) -> Path | None:
+    """Where bundled *name* comes from: an explicit checkout, else the wheel.
+
+    ``--repo`` still wins so a developer can seed from the tree they are editing;
+    everyone else gets the copy that shipped with the package, which is what
+    makes `pip install lesysbot && lesysbot setup` a complete install.
+    """
+    from lesysbot.core.paths import bundled_dir
+
+    for root in (repo_dir, bundled_dir()):
+        if root is not None and (root / name).is_dir():
+            return root / name
+    return None
+
+
 def seed_tools(repo_dir: Path | None, data_dir: Path) -> bool:
-    """Copy the repo's bundled tools/ on first install; never clobber."""
-    if repo_dir is None:
+    """Install/refresh the bundled tools in ~/.lesysbot, recording them in the lock.
+
+    This used to be ``if dst.exists(): return False`` — copy once, then never
+    again. That meant a fix to a bundled tool could not reach anyone who already
+    had it: every existing install silently kept running the version it was born
+    with, and there was no command that could tell you so.
+
+    Now each package is seeded like anything else installed — refreshed when the
+    shipped copy differs, left alone where the manifest says ``preserve:``, and
+    recorded in the lock as ``bundled: true`` so ``lesysbot list`` shows where it
+    came from and ``lesysbot update`` can refresh it.
+    """
+    src = _bundled_source(repo_dir, "tools")
+    if src is None:
         return False
-    src = repo_dir / "tools"
-    dst = data_dir / "tools"
-    if dst.exists() or not src.is_dir():
-        return False
-    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
-    return True
+    return _seed_packages(src, data_dir / "tools", data_dir, ArtifactKind.TOOL)
 
 
-def seed_monitoring(repo_dir: Path | None, data_dir: Path) -> bool:
-    """Copy the repo's monitoring/ stack into ~/.lesysbot on first install.
+def seed_dashboards(repo_dir: Path | None, data_dir: Path) -> bool:
+    """Install/refresh the bundled dashboard packages, same rules as tools."""
+    from lesysbot.core.paths import installed_dashboards_dir
+
+    src = _bundled_source(repo_dir, "dashboards")
+    if src is None:
+        return False
+    return _seed_packages(src, installed_dashboards_dir(data_dir), data_dir,
+                          ArtifactKind.DASHBOARD)
+
+
+def seed_catalog(repo_dir: Path | None, data_dir: Path) -> bool:
+    """Put the bundled marketplace catalog where `lesysbot search` reads it.
+
+    Only when there isn't one already: a cached copy is *newer* than the bundled
+    one by definition, so overwriting it would undo a `--refresh`.
+    """
+    from lesysbot.artifacts.catalog import CATALOG_NAME
+    from lesysbot.core.paths import bundled_dir
+
+    dst = data_dir / CATALOG_NAME
+    if dst.exists():
+        return False
+    for root in (repo_dir, bundled_dir()):
+        if root is not None and (root / CATALOG_NAME).is_file():
+            shutil.copyfile(root / CATALOG_NAME, dst)
+            return True
+    return False
+
+
+def _seed_packages(src: Path, dst: Path, data_dir: Path, kind) -> bool:
+    """Copy each package folder under *src* into *dst*, recording the lock entry.
+
+    Refreshes a shipped file whose contents differ and leaves the user's alone —
+    the same split ``seed_dashboard`` applies to the stack, but per package,
+    driven by each manifest's ``preserve:`` rather than one global list.
+    """
+    from lesysbot.artifacts.lockfile import ArtifactLock
+    from lesysbot.artifacts.manifest import _package_from
+
+    lock = ArtifactLock(data_dir / LOCK_NAME)
+    changed = False
+    dst.mkdir(parents=True, exist_ok=True)
+
+    for folder in sorted(p for p in src.iterdir() if p.is_dir()):
+        if folder.name.startswith((".", "_")) or folder.name == "__pycache__":
+            continue
+        pkg = _package_from(folder, folder.name)
+        if _copy_package(folder, dst / pkg.name, pkg.preserve):
+            changed = True
+        entry = lock.get(kind, pkg.name) or {}
+        lock.put(kind, pkg.name, {
+            **entry,
+            "name": pkg.name,
+            "kind": kind.value,
+            "bundled": True,
+            "version": pkg.version,
+            "description": pkg.description,
+            "installed_at": entry.get("installed_at") or _now(),
+            "updated_at": _now(),
+        })
+    return changed
+
+
+def _copy_package(src: Path, dst: Path, preserve: list[str]) -> bool:
+    """Refresh *dst* from *src*, keeping the paths named in *preserve*."""
+    changed = False
+    keep = {p.strip("/") for p in preserve}
+    for path in sorted(src.rglob("*")):
+        rel = path.relative_to(src)
+        if "__pycache__" in rel.parts:
+            continue
+        target = dst / rel
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if str(rel) in keep and target.exists():
+            continue
+        if target.exists() and target.read_bytes() == path.read_bytes():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        changed = True
+    return changed
+
+
+# The stack's directory name under ~/.lesysbot.
+DASHBOARD_DIRNAME = "dashboard"
+
+DASHBOARD_SKIP = ("__pycache__", "bin", "run", "native")
+
+# Top-level names the *user* owns. Everything else under the stack dir is program
+# code that ships with the release, and is refreshed on upgrade — see
+# seed_dashboard. `.env` holds ports and the Grafana login; `prometheus/` is
+# where extra scrape targets get added by hand (dashboard/README.md documents
+# exactly that). Both would be destroyed by a refresh, and neither carries fixes.
+DASHBOARD_KEEP = (".env", "prometheus")
+
+
+def seed_dashboard(repo_dir: Path | None, data_dir: Path) -> bool:
+    """Install/refresh the repo's dashboard/ stack in ~/.lesysbot.
 
     The Grafana dashboard is a standard part of LeSysBot, so — like ``tools/`` —
     it is seeded into the installed home, self-contained and re-runnable there
-    even without the source checkout. Never clobbers an existing copy (preserves
-    user edits to ``.env`` / dashboards); runtime dirs (``bin/``, ``run/``) and
-    caches are skipped, and a ``.env`` is seeded from the example so ports/login
-    are editable in one place.
+    even without the source checkout. Runtime dirs (``bin/``, ``run/``,
+    ``native/``) and caches are skipped, and a ``.env`` is seeded from the
+    example so ports/login are editable in one place.
+
+    **Shipped files are refreshed when they differ; the user's are never
+    touched.** The split is ``DASHBOARD_KEEP``: ``.env`` (ports, Grafana login)
+    and ``prometheus/`` (hand-added scrape targets) are seeded once and then left
+    alone forever; the scripts, compose files and Grafana provisioning are
+    program code, and an installed copy of those has no value except to be
+    current.
+
+    This used to add missing files but never update changed ones, and that made
+    the stack effectively unpatchable: a fix to ``install-macos.sh`` or a
+    dashboard could not reach anyone who already had the file, so every existing
+    install silently kept running last release's code. Re-running
+    ``lesysbot setup`` now delivers fixes, which is what a user reasonably
+    expects it to do.
+
+    Returns True when anything was added or refreshed.
     """
-    if repo_dir is None:
+    src = _bundled_source(repo_dir, "dashboard")
+    dst = data_dir / DASHBOARD_DIRNAME
+    if src is None:
         return False
-    src = repo_dir / "monitoring"
-    dst = data_dir / "monitoring"
-    if dst.exists() or not src.is_dir():
-        return False
-    shutil.copytree(
-        src, dst, ignore=shutil.ignore_patterns("__pycache__", "bin", "run")
-    )
+
+    changed = False
+    for path in sorted(src.rglob("*")):
+        rel = path.relative_to(src)
+        if any(part in DASHBOARD_SKIP for part in rel.parts):
+            continue
+        target = dst / rel
+        if path.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if rel.parts[0] in DASHBOARD_KEEP and target.exists():
+            continue
+        # filecmp would be one more import for a comparison this cheap; these are
+        # small text files and the read is what a copy would do anyway.
+        if target.exists() and target.read_bytes() == path.read_bytes():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)          # copy2 keeps the executable bit
+        changed = True
+
     env, example = dst / ".env", dst / ".env.example"
     if not env.exists() and example.exists():
         shutil.copyfile(example, env)
-    return True
+        changed = True
+    return changed
 
 
-def monitoring_dir(data_dir: Path) -> Path:
-    return data_dir / "monitoring"
+def dashboard_dir(data_dir: Path) -> Path:
+    """The installed dashboard stack under *data_dir*.
+
+    Delegates to :func:`lesysbot.core.paths.dashboard_dir` so the wizard and the
+    bot can never disagree about which directory is the live stack.
+    """
+    from lesysbot.core.paths import dashboard_dir as _resolve
+
+    return _resolve(data_dir)
 
 
 GRAFANA_DOWNLOAD = "https://grafana.com/grafana/download"
+BREW_INSTALL = "https://brew.sh"
 
 
 def _grafana_env_path(data_dir: Path) -> Path:
     return data_dir / "grafana.env"
 
 
-DEFAULT_GRAFANA_PORT = "3000"
-
-
-def monitoring_port(mon: Path) -> str:
-    """Grafana's host port from the bundled stack's ``.env``, else 3000.
-
-    That file is the one place the port is set (``GRAFANA_PORT``), and it gets
-    moved off 3000 whenever something else on the machine already owns it — so
-    it, not a fixed 3000, decides where LeSysBot expects Grafana.
-    """
-    port = parse_env_file(mon / ".env").get("GRAFANA_PORT", "")
-    return port if port.isdigit() else DEFAULT_GRAFANA_PORT
+from lesysbot.core.grafana import grafana_port_of_stack as grafana_port  # noqa: E402
 
 
 def grafana_local_url(data_dir: Path) -> str:
     """``http://localhost:<the bundled stack's Grafana port>``."""
-    return f"http://localhost:{monitoring_port(monitoring_dir(data_dir))}"
+    return f"http://localhost:{grafana_port(dashboard_dir(data_dir))}"
 
 
 def default_grafana_url(data_dir: Path) -> str:
@@ -207,7 +364,7 @@ def write_grafana_env(data_dir: Path, url: str, user: str, password: str) -> Pat
     return path
 
 
-def _apply_creds_to_monitoring_env(mon: Path, user: str, password: str) -> None:
+def _apply_creds_to_stack_env(mon: Path, user: str, password: str) -> None:
     """Point the bundled Docker Grafana at the same admin login (fresh installs).
 
     Grafana only honours ``GF_SECURITY_ADMIN_*`` on first boot of an empty
@@ -261,13 +418,12 @@ def _docker_running(runner=subprocess.run) -> bool:
     )
 
 
-def _run_bundled_stack(ui, mon: Path, start: Path, finish_cmd: str, runner,
-                       user: str, url: str) -> bool:
-    """Run the bundled Docker stack (Linux ``start.sh up``) and report."""
-    ui.say("\n  Starting the Grafana monitoring dashboard "
-           "(first run pulls images — may take a few minutes)…\n")
+def _run_stack(ui, mon: Path, script: Path, finish_cmd: str, runner,
+               user: str, url: str, banner: str) -> bool:
+    """Run one of the stack scripts (``bash <script> up``) and report."""
+    ui.say(f"\n  {banner}\n")
     try:
-        rc = runner(["bash", str(start), "up"], cwd=str(mon)).returncode
+        rc = runner(["bash", str(script), "up"], cwd=str(mon)).returncode
     except OSError as e:
         ui.warn(f"Could not start the dashboard: {e}")
         ui.note(f"Finish it later with:  {finish_cmd}")
@@ -281,23 +437,44 @@ def _run_bundled_stack(ui, mon: Path, start: Path, finish_cmd: str, runner,
     return False
 
 
+def _run_bundled_stack(ui, mon: Path, start: Path, finish_cmd: str, runner,
+                       user: str, url: str) -> bool:
+    """Run the bundled Docker stack (Linux ``start.sh up``) and report."""
+    return _run_stack(
+        ui, mon, start, finish_cmd, runner, user, url,
+        "Starting the Grafana dashboard "
+        "(first run pulls images — may take a few minutes)…",
+    )
+
+
+def _run_brew_stack(ui, mon: Path, script: Path, finish_cmd: str, runner,
+                    user: str, url: str) -> bool:
+    """Run the native macOS installer (``install-macos.sh up``) and report."""
+    return _run_stack(
+        ui, mon, script, finish_cmd, runner, user, url,
+        "Installing the Grafana dashboard with Homebrew "
+        "(first run downloads Grafana and Prometheus — may take a few minutes)…",
+    )
+
+
 def _persist_grafana(ui, data_dir: Path, mon: Path, url: str, user: str, password: str) -> None:
     """Save the login where the bot reads it, and point the bundled Grafana at it."""
     env_path = write_grafana_env(data_dir, url, user, password)
-    _apply_creds_to_monitoring_env(mon, user, password)
+    _apply_creds_to_stack_env(mon, user, password)
     ui.ok(f"Grafana login saved to {env_path} — LeSysBot uses it to reach the dashboard")
 
 
 def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str, runner) -> bool:
-    """macOS/Windows: warn, instruct a native Grafana install, then ask the login
-    LeSysBot should use. We deliberately don't require Docker Desktop here —
-    Grafana ships a native package for both OSes. Returns False (nothing started)."""
-    ui.warn("On macOS/Windows the Grafana dashboard is set up by hand — a quick one-time step:")
+    """Warn, instruct a native Grafana install, then ask the login LeSysBot should
+    use. This is Windows' path, and macOS' fallback when Homebrew is absent — we
+    deliberately don't require Docker Desktop on either. Returns False (nothing
+    started)."""
+    ui.warn("The Grafana dashboard is set up by hand here — a quick one-time step:")
     ui.note(f"1. Install Grafana (native package for your OS):  {GRAFANA_DOWNLOAD}")
     ui.note("2. Start Grafana and open  http://localhost:3000  (first login admin / admin).")
     ui.note("3. On the default port 3000 LeSysBot detects Grafana automatically (status")
     ui.note("   screen + 'share dashboard'); on another host/port set LESYSBOT_GRAFANA_URL.")
-    ui.note("   The metrics feed (Prometheus + exporters) is in monitoring/README.md.")
+    ui.note("   The metrics feed (Prometheus + exporters) is in dashboard/README.md.")
     if _docker_running(runner):
         ui.note(f"Shortcut: Docker is running, so you can instead bring up the whole "
                 f"bundled stack in one step:  {finish_cmd}")
@@ -305,6 +482,57 @@ def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str,
     _persist_grafana(ui, data_dir, mon, url, user, password)
     ui.note(f"Set that same login ({user} / the password you entered) as Grafana's admin "
             "when you first open it, so LeSysBot can connect.")
+    return False
+
+
+def _brew_ready() -> bool:
+    return shutil.which("brew") is not None
+
+
+def _grafana_macos(ui, data_dir: Path, mon: Path, finish_cmd: str, runner) -> bool:
+    """macOS: install the whole stack natively with Homebrew — no Docker Desktop.
+
+    ``dashboard/scripts/install-macos.sh`` is the one that does the work (brew
+    install grafana + prometheus + node_exporter, generate the provisioning that
+    puts the dashboard in place, run all three under ``brew services``). Ask
+    *how* first like Linux does, then the login, then run it. Without Homebrew
+    there is nothing to automate, so fall back to the hand-install instructions.
+    """
+    script = mon / "scripts" / "install-macos.sh"
+    if not _brew_ready():
+        ui.warn("Homebrew isn't installed, so the dashboard can't be set up for you.")
+        ui.note(f"Install Homebrew ({BREW_INSTALL}) and re-run 'lesysbot setup' to get")
+        ui.note("it in one step — or do it by hand now:")
+        return _grafana_manual_instructions(ui, data_dir, mon, finish_cmd, runner)
+    if not script.is_file():
+        # Seeding adds missing files, so this means setup ran without a checkout
+        # to copy from (plain `lesysbot setup`, no --repo) against a dashboard/
+        # folder older than the script. Say so — silently falling back to the
+        # manual instructions looks like the automatic path just didn't work.
+        ui.warn(f"{script} is missing, so the dashboard can't be installed for you.")
+        ui.note("Re-run setup from a checkout to seed it:  lesysbot setup --repo <path>")
+        ui.note("Meanwhile, here's the manual route:")
+        return _grafana_manual_instructions(ui, data_dir, mon, finish_cmd, runner)
+
+    brew_cmd = f"bash {script}"
+    auto = True
+    if getattr(ui, "interactive", False):
+        auto = ui.menu(
+            "Set up the Grafana system dashboard now?",
+            [
+                "Install and start it now with Homebrew (recommended)",
+                "I'll set it up manually later",
+            ],
+            default=1,
+        ) == 1
+    url, user, password = ask_grafana_credentials(ui, data_dir)
+    _persist_grafana(ui, data_dir, mon, url, user, password)
+    if auto:
+        return _run_brew_stack(ui, mon, script, brew_cmd, runner, user, url)
+    ui.note(f"OK — install the dashboard whenever you like with:  {brew_cmd}")
+    ui.note(f"(Grafana lands on {url}, log in as {user} — LeSysBot detects it there.)")
+    if _docker_running(runner):
+        ui.note(f"Prefer containers? The bundled Docker stack does the same job:  {finish_cmd}")
     return False
 
 
@@ -350,7 +578,7 @@ def _grafana_linux(ui, data_dir: Path, mon: Path, start: Path, finish_cmd: str, 
     return False
 
 
-def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
+def start_dashboard(ui, data_dir: Path, runner=subprocess.run) -> bool:
     """Set up the Grafana dashboard as part of install — default, not optional.
 
     Each OS flow asks *how* to set it up first, then the Grafana username/password
@@ -360,15 +588,19 @@ def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
     * **Linux** — Docker is the path. If Docker is already running, ask whether to
       **auto-start** the bundled stack now or **set it up manually** later; if it
       isn't running, print the exact (no-sudo) steps to get it ready.
-    * **macOS/Windows** — don't force Docker Desktop: **warn and instruct** a
-      native Grafana install (``grafana.com/grafana/download``) and how to connect
-      it to LeSysBot. If Docker happens to be running, mention the one-command
-      bundled stack as a shortcut.
+    * **macOS** — Homebrew is the path, and it needs no Docker Desktop: ask
+      auto-vs-manual, then run ``scripts/install-macos.sh``, which installs
+      grafana/prometheus/node_exporter and runs them under ``brew services``.
+      Without Homebrew, fall back to the manual instructions below.
+    * **Windows** — don't force Docker Desktop: **warn and instruct** a native
+      Grafana install (``grafana.com/grafana/download``) and how to connect it to
+      LeSysBot. If Docker happens to be running, mention the one-command bundled
+      stack as a shortcut.
 
-    Set ``LESYSBOT_SKIP_MONITORING`` to skip this entirely (unattended installs).
+    Set ``LESYSBOT_SKIP_DASHBOARD`` to skip this entirely (unattended installs).
     Returns True only when the bundled stack was actually started.
     """
-    mon = monitoring_dir(data_dir)
+    mon = dashboard_dir(data_dir)
     if not mon.is_dir():
         return False
     win = sys.platform == "win32"
@@ -377,15 +609,17 @@ def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
         f"powershell -ExecutionPolicy Bypass -File {start}" if win else str(start)
     )
 
-    if os.environ.get("LESYSBOT_SKIP_MONITORING"):
-        ui.warn("Skipping the Grafana dashboard (LESYSBOT_SKIP_MONITORING set).")
-        ui.note(f"Set it up anytime — see monitoring/README.md ({GRAFANA_DOWNLOAD}).")
+    if os.environ.get("LESYSBOT_SKIP_DASHBOARD"):
+        ui.warn("Skipping the Grafana dashboard (LESYSBOT_SKIP_DASHBOARD set).")
+        ui.note(f"Set it up anytime — see dashboard/README.md ({GRAFANA_DOWNLOAD}).")
         return False
 
     # Each flow asks *how* to set the dashboard up first, then the Grafana login,
-    # then persists it (grafana.env + the bundled monitoring/.env).
-    if win or sys.platform == "darwin":
+    # then persists it (grafana.env + the bundled dashboard/.env).
+    if win:
         return _grafana_manual_instructions(ui, data_dir, mon, finish_cmd, runner)
+    if sys.platform == "darwin":
+        return _grafana_macos(ui, data_dir, mon, finish_cmd, runner)
     return _grafana_linux(ui, data_dir, mon, start, finish_cmd, runner)
 
 
@@ -398,6 +632,65 @@ def read_provider(config_file: Path) -> str:
             if value:
                 return value
     return "cli"
+
+
+def mask_secret(value: str, tail: int = 4) -> str:
+    """Render a credential for on-screen confirmation — masked, last few kept.
+
+    The tail (not the head) is what's shown: it's enough to tell "this is the
+    token I pasted" from "this is the old one" when both were copied from the
+    same BotFather chat, and unlike a prefix it gives away nothing about the
+    token's *shape* (Telegram's bot id, Slack's ``xoxb-``/``xapp-`` marker) that
+    an onlooker could use to narrow a guess. A secret too short to have a tail
+    worth showing is masked whole.
+
+    Telegram tokens are ``<bot id>:<secret>`` and the bot id is public — it *is*
+    the bot's user id, visible to anyone who messages it — so that half stays
+    readable, because it's what actually identifies which bot is configured.
+    """
+    if not value:
+        return ""
+    bot_id, sep, secret = value.partition(":")
+    if sep and bot_id.isdigit():
+        return f"{bot_id}:{mask_secret(secret, tail)}"
+    if len(value) <= tail:
+        return "*" * len(value)
+    return "*" * 8 + value[-tail:]
+
+
+def load_existing(config_file: Path) -> dict:
+    """What an existing config.yaml actually says, for the kept-config summary.
+
+    The summary is the user's last chance to check what setup is about to act
+    on, so on the keep-my-config path it has to show *their* settings — not the
+    empty `WizardState` defaults, which rendered as ``LLM  ()`` and ``Allowed
+    []`` and looked like setup had lost the configuration.
+
+    Parsed through :class:`Settings` so this agrees with what the bot will
+    actually load (``${VAR}`` expansion included) rather than re-implementing a
+    YAML reader. Never raises: a config too broken to parse still has to reach
+    the summary, where the user can see the problem and abort. Tokens come back
+    already masked by :func:`mask_secret`, so a raw credential never leaves this
+    function — "is a token set" isn't the question a user re-running setup has,
+    "is it *the right one*" is, and only the caller printing it could get that
+    wrong.
+    """
+    from lesysbot.core.config import Settings
+
+    try:
+        settings = Settings.from_yaml(config_file)
+    except Exception:                       # unreadable / invalid YAML / bad types
+        return {"provider": read_provider(config_file), "unreadable": True}
+    return {
+        "provider": settings.messaging.provider,
+        "llm_model": settings.llm.model,
+        "llm_base_url": settings.llm.base_url,
+        "allowed_ids": list(settings.messaging.telegram.allowed_user_ids),
+        "telegram_token": mask_secret(settings.messaging.telegram.token),
+        "slack_bot_token": mask_secret(settings.messaging.slack.bot_token),
+        "slack_app_token": mask_secret(settings.messaging.slack.app_token),
+        "unreadable": False,
+    }
 
 
 def lesysbot_binary() -> str:
@@ -413,7 +706,7 @@ def lesysbot_binary() -> str:
 # ── Linux (systemd --user) ────────────────────────────────────────────────────
 _UNIT_TEMPLATE = """\
 [Unit]
-Description=LeSysBot — local AI assistant with tools (control panel + bot)
+Description=LeSysBot — local AI assistant with tools (management panel + bot)
 After=network.target
 
 [Service]
@@ -618,11 +911,11 @@ def setup_service(ui, st: WizardState, data_dir: Path, runner=subprocess.run) ->
 
 # ── Epilogue ──────────────────────────────────────────────────────────────────
 def control_panel_url() -> str:
-    """Where the service serves the control panel (config's ``webui.port``)."""
+    """Where the service serves the management panel (config's ``management.port``)."""
     from lesysbot.core.config import Settings
 
     try:
-        return f"http://127.0.0.1:{Settings.load().webui.port}"
+        return f"http://127.0.0.1:{Settings.load().management.port}"
     except Exception:
         return "http://127.0.0.1:8700"
 
@@ -654,10 +947,17 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
         ui.say("    • Leave                    type [bold]exit[/bold]")
 
     ui.say("\n  Full usage guide:  [bold]docs/usage.md[/bold]")
-    ui.say(f"  Control panel:     [bold]{control_panel_url()}[/bold]  "
+    ui.say(f"  Management panel:     [bold]{control_panel_url()}[/bold]  "
            "(settings, tools, health — always on)")
-    ui.say("  Dashboard:         [bold]http://localhost:3000[/bold]  "
-           "(Grafana — login admin / admin)")
+    # Follow the port the stack was actually configured with, like every other
+    # site does — a stack moved to 3001 was being advertised on 3000, where the
+    # thing that took 3000 answers. The username is echoed, the password never:
+    # `ask_grafana_credentials` masks it on the way in, so printing it back here
+    # would undo that.
+    grafana_user = parse_env_file(_grafana_env_path(data_dir)).get(
+        "LESYSBOT_GRAFANA_USER") or "admin"
+    ui.say(f"  Dashboard:         [bold]{default_grafana_url(data_dir)}[/bold]  "
+           f"(Grafana — log in as {grafana_user})")
     ui.say("  Health check:      [bold]lesysbot[/bold]  (status of all of the above)")
     ui.say(f"  Activity logs:     [bold]{data_dir}/logs/lesysbot.log[/bold]")
     ui.say(f"  Reconfigure:       [bold]lesysbot setup[/bold]  (or edit "

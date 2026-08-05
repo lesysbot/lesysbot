@@ -6,7 +6,7 @@ description: Operate LeSysBot as a background service — status, start/stop/res
 # Run and manage LeSysBot as a service
 
 The install wizard registers the service for **every** configuration, not just
-Telegram/Slack: it serves the always-on **control panel**
+Telegram/Slack: it serves the always-on **management panel**
 (`http://127.0.0.1:8700`) and, when a remote provider is configured, runs the
 bot. With `provider: cli` the service serves the panel and idles — the terminal
 chat stays an on-demand `lesysbot --provider cli` session. The service runs from
@@ -17,7 +17,7 @@ The service's exec command is **`lesysbot run`**. Bare `lesysbot` prints health
 and metrics and exits, so a hand-written unit must call `lesysbot run`.
 
 The working rhythm: edit `~/.lesysbot/config.yaml` → restart the service.
-Check state with `lesysbot` (Service / Control panel rows) or the commands below.
+Check state with `lesysbot` (Service / Management panel rows) or the commands below.
 
 Only one instance can run: starting `lesysbot run` manually while the service is
 up refuses with "Another LeSysBot instance … is already running (PID N)" — stop

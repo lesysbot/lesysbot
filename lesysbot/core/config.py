@@ -77,10 +77,15 @@ class LLMConfig(BaseModel):
 class MCPConfig(BaseModel):
     tools_dir: str = "./tools"
     hot_reload: bool = True
-    # Lock file recording where installed tool packages came from
-    # (`lesysbot tools install`): repo, pinned commit, version. Relative paths
-    # anchor to the config dir (so ~/.lesysbot/tools.lock.json when installed).
-    lock_file: str = "tools.lock.json"
+    # Lock file recording where installed packages came from (`lesysbot
+    # install`): kind, repo, pinned commit, version. Relative paths anchor to
+    # the config dir (so ~/.lesysbot/lesysbot.lock.json when installed).
+    #
+    # The default changed from `tools.lock.json` when dashboards became
+    # installable and the lock stopped being about tools. A config still naming
+    # the old file is honoured as-is — it is a path, so pointing at it simply
+    # works — and `ArtifactLock` migrates a v1 file found beside the new one.
+    lock_file: str = "lesysbot.lock.json"
     # Persisted set of tools disabled via `lesysbot tools disable`. Relative
     # paths anchor to the config dir (so ~/.lesysbot/tool_state.json for an
     # installed setup), like tools_dir/logs. The bot watches this file, so a
@@ -110,12 +115,14 @@ class LogConfig(BaseModel):
     backup_count: int = 7
 
 
-class WebUIConfig(BaseModel):
-    # The local control panel, served by the LeSysBot service for as long as it
-    # runs (`lesysbot run`; `lesysbot manage` serves it ad-hoc when the service
-    # is stopped). It is bound to loopback only — the host is deliberately NOT
-    # configurable, so it can never be exposed on the LAN. Only the port is.
+class ManagementConfig(BaseModel):
+    # The local management panel, served by the LeSysBot service for as long as
+    # it runs (`lesysbot run`; `lesysbot manage` serves it ad-hoc when the
+    # service is stopped). It is bound to loopback only — the host is
+    # deliberately NOT configurable, so it can never be exposed on the LAN.
+    # Only the port is.
     port: int = 8700
+
 
 
 class Settings(BaseSettings):
@@ -140,7 +147,7 @@ class Settings(BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
     logging: LogConfig = Field(default_factory=LogConfig)
-    webui: WebUIConfig = Field(default_factory=WebUIConfig)
+    management: ManagementConfig = Field(default_factory=ManagementConfig)
 
     # Absolute path of the config.yaml this instance was loaded from (None when
     # running on built-in defaults). Relative `tools/`/`logs/` paths are anchored

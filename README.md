@@ -32,7 +32,7 @@ stay with you. No account, no cloud service, nothing to sign up for.
 - **Teach it new tricks.** A tool is a folder with a small Python file in it.
   Drop it in and it works — no restart, no registration, no plugin API to learn.
 - **Watch the machine over time.** Installing LeSysBot also sets up a
-  [Grafana dashboard](monitoring/README.md) of CPU, memory, disk, network and
+  [Grafana dashboard](dashboard/README.md) of CPU, memory, disk, network and
   GPU (running at http://localhost:3000) — and the bot can share a snapshot of
   it as a link.
 - **It asks first.** Anything drastic (reboot, power off) waits for your yes.
@@ -54,11 +54,8 @@ ollama pull qwen3.5:4b
 **2. Install LeSysBot**
 
 ```bash
-git clone https://github.com/lesysbot/lesysbot
-cd lesysbot
-
-bash scripts/install.sh      # Linux & macOS
-.\scripts\install.ps1        # Windows (PowerShell)
+pipx install git+https://github.com/lesysbot/lesysbot
+lesysbot setup
 ```
 
 A short wizard asks a few questions. **Press Enter through all of them** and you
@@ -79,7 +76,7 @@ You: /help
       …lists every tool it can run
 ```
 
-**4. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
+**4. Open the management panel** at **http://127.0.0.1:8700** — settings, tools and
 health in a browser. The background service keeps it online; `lesysbot` on its
 own prints the same health summary in your terminal.
 
@@ -97,9 +94,10 @@ site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
 | Message it from my phone | [Telegram & Slack](docs/adapters.md) |
 | Give it a new ability | [Write a tool](docs/writing-tools.md) |
 | Install tools other people wrote | [Install tools](docs/installing-tools.md) |
-| Manage it from a browser | [Control panel](docs/management-ui.md) |
+| Add more graphs | [Install dashboards](docs/installing-dashboards.md) |
+| Manage it from a browser | [Management panel](docs/management-ui.md) |
 | Keep it running in the background | [Run as a service](docs/service.md) |
-| Graph my machine's health | [System monitoring](monitoring/README.md) |
+| Graph my machine's health | [Dashboards](dashboard/README.md) |
 | Fix something that's broken | [Troubleshooting](docs/troubleshooting.md) |
 
 Full index: **[docs/README.md](docs/README.md)**.
@@ -122,12 +120,14 @@ async def hello(name: str) -> str:
 Save the file and it's live — usable as `/hello name=Ada` **and** by the model
 when you say "say hi to Ada". Guide: [Writing tools](docs/writing-tools.md).
 
-Ready-made collections for your OS:
+The ready-made official collection — one install, every OS:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, temps
+lesysbot search                      # browse everything available
+lesysbot install official            # network, temperature, battery, speedtest + dashboards
+
+# …or straight from any GitHub link, for tools and dashboards alike
+lesysbot install owner/repo
 ```
 
 ---
@@ -162,16 +162,16 @@ logging — is in **[How it works](docs/architecture.md)**.
 - **Local models by default** — Ollama, vLLM, LlamaCpp; or point it at OpenAI
 - **Three ways to chat** — terminal, Telegram, Slack
 - **Tools as folders** — drop one in `tools/`, it's live without a restart
-- **Install tools from GitHub** — `lesysbot tools install owner/repo`, no
+- **Install tools from GitHub** — `lesysbot install owner/repo`, no
   registry involved
 - **Call tools without the model** — `/tool_name args` runs directly, and works
   even when no model is running
 - **Cross-platform aware** — tools declare which OSes and binaries they need and
   explain themselves instead of failing
 - **Confirmation prompts** — destructive tools wait for your approval
-- **Terminal tool management** — `lesysbot tools list/enable/disable/remove`,
+- **Terminal tool management** — `lesysbot list/enable/disable/remove`,
   applied to a running bot within a second
-- **Always-on local control panel** — the service serves a
+- **Always-on local management panel** — the service serves a
   [localhost-only UI](docs/management-ui.md) for config, tools and health at
   `http://127.0.0.1:8700`
 - **Boot notification** — a Telegram/Slack bot pings you with a system report
@@ -198,7 +198,7 @@ source code.
 ## Contributing
 
 Most contributions don't touch the core. **A new tool** is a folder in `tools/`
-— or your own repo, which people install with `lesysbot tools install you/repo`,
+— or your own repo, which people install with `lesysbot install you/repo`,
 no pull request needed. **A new chat platform** is one adapter file plus one
 `elif`. **Core fixes** come with a test. Setup, checks, and per-change
 checklists are in [CONTRIBUTING.md](CONTRIBUTING.md).

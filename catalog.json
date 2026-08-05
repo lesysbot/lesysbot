@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "updated": "2026-08-05",
+  "_comment": [
+    "The marketplace index. Every entry is display metadata plus a GitHub link —",
+    "installing one resolves that link through the ordinary installer, with the",
+    "ordinary consent prompt. There is no server that decides what may be",
+    "installed, and nothing you cannot read before you run it.",
+    "",
+    "This copy ships in the wheel so `lesysbot search` works offline. The",
+    "published copy at https://lesysbot.github.io/catalog.json is refreshed by",
+    "`lesysbot search --refresh`; tests/test_catalog.py keeps the two in step."
+  ],
+  "entries": [
+    {
+      "id": "official",
+      "name": "Official Packages",
+      "kind": "tool",
+      "description": "The official collection — network, temperature, battery, speedtest tools and dashboards for every OS",
+      "source": "lesysbot/lesysbot-packages-official",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["network", "temperature", "battery", "speedtest", "official"],
+      "official": true
+    },
+    {
+      "id": "network-traffic",
+      "name": "Network Traffic dashboard",
+      "kind": "dashboard",
+      "description": "Per-interface network throughput over time, adapted to this host's exporter",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/network-traffic",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["network", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "gpu-detail",
+      "name": "GPU Detail dashboard",
+      "kind": "dashboard",
+      "description": "NVIDIA GPU utilization, memory, temperature and power draw",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/gpu-detail",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "windows"],
+      "tags": ["gpu", "nvidia", "grafana", "official"],
+      "official": true
+    }
+  ]
+}

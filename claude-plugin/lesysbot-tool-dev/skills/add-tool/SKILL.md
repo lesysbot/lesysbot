@@ -16,8 +16,9 @@ instance is registered and becomes both an LLM-callable function and a
 
 Pick by the repo you're in:
 
-- **Tools-collection repo** (e.g. `lesysbot-linux-tools-official`): each package
-  is a subdirectory of the repo's `tools/` folder — `<repo>/tools/<tool-name>/`.
+- **Package-collection repo** (e.g. `lesysbot-packages-official`): each tool
+  package is a subdirectory of the repo's `tools/` folder —
+  `<repo>/tools/<tool-name>/` (dashboard packages go under `dashboards/`).
   Add a row to the catalog table in the repo's root `README.md` if it has one.
 - **Standalone single-tool repo**: the repo root *is* the package —
   `README.md` + `tool.py` at the top level.
@@ -71,7 +72,7 @@ the installer, so a collection repo can keep those alongside packages.
    package's `requirements.txt` (printed at install time, not auto-installed).
 
 4. **Write `README.md`** with frontmatter mirroring the code (for humans, any
-   catalog, and the tools CLI — `lesysbot tools list/info` display it)
+   catalog, and the tools CLI — `lesysbot list/info` display it)
    and a short usage blurb:
 
    ```markdown
@@ -80,7 +81,7 @@ the installer, so a collection repo can keep those alongside packages.
    description: Search files by pattern
    platforms: all
    requires: []
-   version: "1.0.0"        # shown/recorded by `lesysbot tools …`; bump on release
+   version: "1.0.0"        # shown/recorded by `lesysbot install`/`list`; bump on release
    ---
    # find-files
    **Runs on:** Linux · macOS · Windows · **Needs:** nothing
@@ -106,7 +107,7 @@ the installer, so a collection repo can keep those alongside packages.
 - A registered tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in the repo you're in (or the bundled
   ones: https://github.com/lesysbot/lesysbot/tree/main/tools).
-- The folder shape above is exactly what `lesysbot tools install owner/repo[/subdir]`
+- The folder shape above is exactly what `lesysbot install owner/repo[/subdir]`
   downloads, so a package pushed to GitHub is installable as-is — see
   https://github.com/lesysbot/lesysbot/blob/main/docs/sharing-tools.md.
 

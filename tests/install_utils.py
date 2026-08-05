@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import zipfile
 
-from lesysbot.install.errors import FetchError
+from lesysbot.artifacts.errors import FetchError
 
 SHA = "0123456789abcdef0123456789abcdef01234567"
 

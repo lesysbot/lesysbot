@@ -108,7 +108,7 @@ Helper edits hot-reload too.
 ---
 name: gpu-temp
 description: Read NVIDIA GPU temperature
-version: "1.0.0"          # optional; shown by `lesysbot tools list/info`
+version: "1.0.0"          # optional; shown by `lesysbot list/info`
 platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
@@ -133,7 +133,7 @@ Any public repo containing the package shape is installable by anyone —
 nothing to register or publish:
 
 ```bash
-lesysbot tools install you/lesysbot-gpu-temp
+lesysbot install you/lesysbot-gpu-temp
 ```
 
 - **Single-tool repo:** the repo root *is* the package (README.md + tool.py +
@@ -150,7 +150,7 @@ lesysbot tools install you/lesysbot-gpu-temp
 Checklist before sharing: imports = stdlib + declared `requirements.txt` deps
 with `ImportError` handled; destructive actions have `confirm=`;
 `platforms`/`requires` declared where not universal; frontmatter filled in;
-tested via `lesysbot tools install you/repo@your-branch` or a local copy.
+tested via `lesysbot install you/repo@your-branch` or a local copy.
 
 ## Related
 

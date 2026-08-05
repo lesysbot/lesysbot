@@ -131,7 +131,7 @@ def test_resolve_paths_anchors_to_config_dir(tmp_path: Path) -> None:
     s = Settings.from_yaml(cfg)
     resolve_paths(s)
     assert s.mcp.tools_dir == str(tmp_path / "tools")
-    assert s.mcp.lock_file == str(tmp_path / "tools.lock.json")
+    assert s.mcp.lock_file == str(tmp_path / "lesysbot.lock.json")
     assert s.mcp.state_file == str(tmp_path / "tool_state.json")
 
 

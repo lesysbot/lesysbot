@@ -7,7 +7,7 @@ version: "1.1.0"
 ---
 # share-dashboard
 
-**Runs on:** Linux · macOS · Windows · **Needs:** the [monitoring stack](../../monitoring/README.md) running (Grafana + Prometheus)
+**Runs on:** Linux · macOS · Windows · **Needs:** the [dashboard stack](../../dashboard/README.md) running (Grafana + Prometheus)
 
 Turn "share me the dashboard" into a link. This publishes a **point-in-time
 snapshot** of your System Overview dashboard — the current graphs baked in as
@@ -60,7 +60,7 @@ Grafana's registry as the source of truth.
 ## Configuration (all optional)
 
 Defaults assume the bundled stack on the same machine. **The tool finds Grafana
-automatically** — it probes the port set in `~/.lesysbot/monitoring/.env`
+automatically** — it probes the port set in `~/.lesysbot/dashboard/.env`
 (`GRAFANA_PORT`) first, then the usual 3000/3001, and uses the first that answers
 as Grafana (verified via `/api/health`), so a stack bumped to 3001 because 3000
 was taken still works with no config. `LESYSBOT_GRAFANA_URL` wins **when Grafana

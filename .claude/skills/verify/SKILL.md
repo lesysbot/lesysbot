@@ -7,7 +7,7 @@ description: How to run and drive LeSysBot end-to-end in an isolated scratch env
 
 ## Gotcha first: stale-install shadowing
 
-The install wizard (`scripts/install.sh`) does a **non-editable** `pip install`,
+A plain `pip install .` is **non-editable**,
 which shadows this repo for any run outside the repo directory (`lesysbot` then
 uses the old site-packages copy — new subcommands/flags "don't exist").
 Always check and fix before verifying:

@@ -21,7 +21,7 @@ You:
 ```
 
 > **`lesysbot` on its own does something different** — it prints health and
-> metrics (backend, tools, service, [control panel](management-ui.md), Grafana)
+> metrics (backend, tools, service, [management panel](management-ui.md), Grafana)
 > and exits. To chat, use `lesysbot --provider cli`.
 
 Already running as a Telegram or Slack service? A terminal chat runs happily
@@ -179,19 +179,19 @@ file. Full list: [Settings](configuration.md).
 From any terminal, whether or not the bot is running:
 
 ```bash
-lesysbot tools list                # everything installed, with its status
-lesysbot tools info gpu_temp       # what it takes, where it came from
-lesysbot tools disable gpu_temp    # hide it from the model; /gpu_temp refuses too
-lesysbot tools enable gpu_temp     # back on
-lesysbot tools remove gpu_temp     # delete it (asks first)
-lesysbot tools install owner/repo  # add tools from GitHub
+lesysbot list                # everything installed, with its status
+lesysbot info gpu_temp       # what it takes, where it came from
+lesysbot disable gpu_temp    # hide it from the model; /gpu_temp refuses too
+lesysbot enable gpu_temp     # back on
+lesysbot remove gpu_temp     # delete it (asks first)
+lesysbot install owner/repo  # add tools from GitHub
 ```
 
 **Enabling and disabling applies within a second** to a running bot — no restart.
 **Removing** deletes the tool's whole folder, including any sibling tools defined
 alongside it; those are listed before you confirm.
 
-You can do all of this from the [control panel](management-ui.md) too, if you'd
+You can do all of this from the [management panel](management-ui.md) too, if you'd
 rather click.
 
 Installing is covered properly in [Install tools](installing-tools.md).

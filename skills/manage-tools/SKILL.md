@@ -5,25 +5,25 @@ description: Install, list, enable/disable, and remove LeSysBot tools — from G
 
 # Manage LeSysBot tools
 
-You can also do all of this from the **control panel** (always on at
+You can also do all of this from the **management panel** (always on at
 `http://127.0.0.1:8700`): a Tools tab lists every tool with enable/disable
 toggles, an install box (paste `owner/repo`), and a remove button. It writes the
 same state file and tools dir as the CLI below, so the two are interchangeable.
 
 Tools live as folder packages (or loose `.py` files) in the tools dir —
-`~/.lesysbot/tools/` for an installed setup. The `lesysbot tools` CLI manages
+`~/.lesysbot/tools/` for an installed setup. The `lesysbot install` CLI manages
 them, with no running bot needed; it acts on the same state file and directory
 the bot loads.
 
 ## The CLI
 
 ```bash
-lesysbot tools install owner/repo   # install package(s) from a GitHub repo
-lesysbot tools list                 # every tool: status, source package, origin
-lesysbot tools info gpu_temp        # params, platform gating, provenance
-lesysbot tools disable gpu_temp     # hide from the LLM; /gpu_temp refuses to run
-lesysbot tools enable gpu_temp      # turn it back on
-lesysbot tools remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes skips)
+lesysbot install owner/repo   # install package(s) from a GitHub repo
+lesysbot list                 # every tool: status, source package, origin
+lesysbot info gpu_temp        # params, platform gating, provenance
+lesysbot disable gpu_temp     # hide from the LLM; /gpu_temp refuses to run
+lesysbot enable gpu_temp      # turn it back on
+lesysbot remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes skips)
 ```
 
 - **disable/enable** — reversible, persisted to `tool_state.json`. A disabled
@@ -44,11 +44,11 @@ lesysbot tools remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes ski
 Installs are **by GitHub link only** — no registry or catalog:
 
 ```bash
-lesysbot tools install owner/repo                  # whole repo (HEAD)
-lesysbot tools install owner/repo@v1.2             # pin branch / tag / 40-hex SHA
-lesysbot tools install owner/repo/tools/gpu-temp   # one package in a bigger repo
-lesysbot tools install https://github.com/owner/repo
-lesysbot tools install owner/repo --only gpu-temp  # cherry-pick from a multi-tool repo
+lesysbot install owner/repo                  # whole repo (HEAD)
+lesysbot install owner/repo@v1.2             # pin branch / tag / 40-hex SHA
+lesysbot install owner/repo/tools/gpu-temp   # one package in a bigger repo
+lesysbot install https://github.com/owner/repo
+lesysbot install owner/repo --only gpu-temp  # cherry-pick from a multi-tool repo
 ```
 
 Downloads as a zip (no git binary needed), prints the plan — package names,
@@ -66,7 +66,7 @@ writing. A running bot with hot-reload activates new packages immediately.
   create (hand-written tools are safe); `--force` overrides.
 - **Updating:** re-install a package the lock already owns and it's replaced
   in place — that *is* the update path.
-- Bundled packages install by path: `lesysbot tools install lesysbot/lesysbot/tools/gpu-temp`.
+- Bundled packages install by path: `lesysbot install lesysbot/lesysbot/tools/gpu-temp`.
 
 What counts as a package in a repo: a root `tool.py` makes the repo itself one
 package; otherwise every immediate subdir holding a non-`_` `.py` is one —

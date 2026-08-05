@@ -5,7 +5,7 @@ description: Change any LeSysBot setting — where the config file lives, the fu
 
 # Configure LeSysBot
 
-> **Prefer a UI?** The control panel at **http://127.0.0.1:8700** (served by the
+> **Prefer a UI?** The management panel at **http://127.0.0.1:8700** (served by the
 > background service; `lesysbot manage` if it's stopped) is a localhost-only web
 > panel with a validating `config.yaml` editor and live tool toggles. This skill
 > covers the file itself, which the panel reads and writes. Bare `lesysbot`
@@ -121,7 +121,7 @@ LESYSBOT_LOGGING__LEVEL=DEBUG
 
 ## Grafana connection (`~/.lesysbot/grafana.env`)
 
-The monitoring dashboard's connection is **not** in `config.yaml`. `lesysbot
+The dashboard's connection is **not** in `config.yaml`. `lesysbot
 setup` asks for the Grafana username/password and writes
 `~/.lesysbot/grafana.env`; the bot loads it into its environment at startup, so
 the `share_dashboard` tool and the status screen authenticate:
@@ -137,7 +137,7 @@ Edit the file (or set the same env vars directly — an explicit env var wins ov
 the file) to change the login or point at another host/port.
 
 The **URL** rarely needs editing: LeSysBot probes `GRAFANA_PORT` from
-`~/.lesysbot/monitoring/.env` first, then `localhost:3000`/`3001`, verifying each
+`~/.lesysbot/dashboard/.env` first, then `localhost:3000`/`3001`, verifying each
 answers as Grafana (`/api/health`). `LESYSBOT_GRAFANA_URL` is honoured **when
 Grafana answers there**; a stale value (stack moved off that port) falls back to
 probing, so the status screen never advertises another service as Grafana.

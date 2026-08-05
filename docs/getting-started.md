@@ -49,19 +49,29 @@ curl http://localhost:11434/          # → "Ollama is running"
 ## 2. Install LeSysBot
 
 ```bash
-git clone https://github.com/lesysbot/lesysbot
-cd lesysbot
+pipx install git+https://github.com/lesysbot/lesysbot
+lesysbot setup
 ```
+
+That's it — no clone, no build step. The tools, the dashboards and the
+Prometheus/Grafana stack all ship inside the package, so this works offline and
+`lesysbot update` can refresh them later.
+
+<details>
+<summary><b>Installing from a git checkout instead</b></summary>
+
+For working *on* LeSysBot, or to run an unreleased version:
 
 ```bash
-bash scripts/install.sh          # Linux / macOS
-```
-```powershell
-.\scripts\install.ps1            # Windows (PowerShell)
+git clone https://github.com/lesysbot/lesysbot
+cd lesysbot
+pip install ".[all]"
+lesysbot setup
 ```
 
-> **PowerShell blocked the script?** Run
-> `powershell -ExecutionPolicy Bypass -File scripts\install.ps1` instead.
+Same wizard, same result — the only difference is where the package came from.
+
+</details>
 
 A wizard opens and asks a handful of short questions. **Press Enter through all
 of them** for a working local bot you chat with in your terminal. Nothing is
@@ -134,7 +144,7 @@ channels that run in the background.
 **"Service" — start now, or also at every reboot? `[1]`**
 Option 1 starts it now and again on every boot; option 2 starts it now only.
 Every setup gets the service, whichever channel you picked: it serves the
-[control panel](management-ui.md) (settings, tools, health) and, with Telegram or
+[management panel](management-ui.md) (settings, tools, health) and, with Telegram or
 Slack, receives your messages. A terminal chat is still yours to start — the
 service never opens one.
 
@@ -146,7 +156,7 @@ writing anything.
 
 **The Grafana dashboard — set up during install**
 After it writes the config, setup also seeds the
-[monitoring stack](../monitoring/README.md) into `~/.lesysbot/monitoring` and
+[dashboard stack](../dashboard/README.md) into `~/.lesysbot/dashboard` and
 gets you to a Grafana dashboard at **http://localhost:3000**. It first asks **how**
 you want it set up (see per-OS below), then the **Grafana username and password**
 LeSysBot should use to reach it (defaults `admin` / `admin`; the password is
@@ -161,8 +171,24 @@ and always no-`sudo`, never fatal to the install:
   entered. If Docker isn't ready, it prints the exact steps to get it going
   (install Docker Engine, start the daemon, or join the `docker` group) — or run
   Grafana natively instead.
-- **macOS / Windows** — setup **doesn't require Docker Desktop**. It warns and
-  walks you through a native Grafana install from
+- **macOS** — Homebrew is the path, and it **doesn't require Docker Desktop**.
+  Setup asks whether to install it now, then `brew install`s Grafana, Prometheus
+  and `node_exporter`, wires the datasource and dashboard up, sets Grafana's
+  admin password to the one you entered, and runs all three under `brew
+  services` so they survive a reboot. Nothing else to do — open
+  `http://localhost:3000`. If Homebrew isn't installed, setup says so and falls
+  back to the manual instructions below.
+
+  It asks **one extra question here**: whether to install a small helper for
+  CPU/GPU **die temperature**. macOS publishes that only through a private
+  framework or root-only `powermetrics`, and LeSysBot never uses `sudo`, so those
+  two tiles need `macmon` (Apple Silicon) or `smctemp` (either chip). The answer
+  **defaults to no**, only the tool that can work on your Mac is offered, and a
+  failed install never fails the setup — every other panel works without it, and
+  you can add one at any time. Answer up front, or skip the prompt entirely on an
+  unattended install, with `LESYSBOT_TEMP_HELPER=macmon|smctemp|none`.
+- **Windows** — setup **doesn't require Docker Desktop**. It warns and walks you
+  through a native Grafana install from
   [grafana.com/grafana/download](https://grafana.com/grafana/download): install
   it, open `http://localhost:3000`, and **set Grafana's admin login to the
   username/password you entered** so LeSysBot connects (it detects Grafana on
@@ -170,8 +196,15 @@ and always no-`sudo`, never fatal to the install:
   If you *do* have Docker running, it also points out the one-command bundled
   stack as a shortcut.
 
-Set `LESYSBOT_SKIP_MONITORING=1` before running setup to skip this step entirely
+Set `LESYSBOT_SKIP_DASHBOARD=1` before running setup to skip this step entirely
 (e.g. an unattended install that shouldn't pull images or prompt).
+
+**Re-running setup is how the stack gets updated.** From a checkout, it refreshes
+the shipped scripts, dashboards and compose files in `~/.lesysbot/dashboard`
+whenever they've changed upstream, while leaving the two things you own alone
+forever: `.env` (ports, Grafana login) and `prometheus/` (any scrape targets you
+added). Re-run your OS's start script afterwards so the dashboard is rebuilt with
+the new code.
 
 </details>
 
@@ -222,7 +255,7 @@ For OpenAI, change those three lines to
 **Run it**
 
 ```bash
-lesysbot run                      # control panel + bot, using ./config.yaml
+lesysbot run                      # management panel + bot, using ./config.yaml
 lesysbot --provider cli -v        # force a terminal chat, verbose
 lesysbot -c /path/to/config.yaml  # status for a config somewhere else
 ```
@@ -266,12 +299,10 @@ Day-to-day guide: **[Everyday use](usage.md)**.
 
 ## 4. Give it more to do
 
-**Install a ready-made collection for your OS:**
+**Install the ready-made official collection** — one repo, every OS:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, temps
+lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, dashboards
 ```
 
 A running bot picks them up immediately. More in
@@ -316,7 +347,7 @@ Full guide: **[Write a tool](writing-tools.md)**.
 
 ## 5. Manage it from a browser
 
-The control panel is always on — the background service serves it:
+The management panel is always on — the background service serves it:
 
 ```
 http://127.0.0.1:8700
@@ -324,7 +355,7 @@ http://127.0.0.1:8700
 
 Edit settings and toggle, install, or remove tools there. It's bound to
 `127.0.0.1`, so it never appears on your network. See
-[Control panel](management-ui.md).
+[Management panel](management-ui.md).
 
 To check on things from a terminal instead, run `lesysbot` with no arguments: it
 prints health and metrics — backend, tools, service, panel, Grafana — and exits.
@@ -351,10 +382,10 @@ It works backwards through what the installer did:
    asking for your password. Current LeSysBot needs no root, so this usually
    prints nothing.
 3. **Uninstalls the `lesysbot` package** via pip.
-4. **Offers to stop the Grafana monitoring dashboard** (the Docker containers
+4. **Offers to stop the Grafana dashboard** (the Docker containers
    setup started). It stops them without removing the Docker volumes, so your
    stored history survives a reinstall.
-5. **Asks before deleting `~/.lesysbot`** — your config, tools, monitoring stack,
+5. **Asks before deleting `~/.lesysbot`** — your config, tools, dashboard stack,
    and logs. The default is **No**, so a later reinstall finds everything as you
    left it.
 
@@ -369,6 +400,6 @@ It works backwards through what the installer did:
 | Add abilities | [Write a tool](writing-tools.md) · [Install tools](installing-tools.md) |
 | Change model, history size, logging | [Settings](configuration.md) |
 | Keep it running in the background | [Run as a service](service.md) |
-| Graph the machine over time | [System monitoring](../monitoring/README.md) |
+| Graph the machine over time | [Dashboards](../dashboard/README.md) |
 | Fix something | [Troubleshooting](troubleshooting.md) |
 | Understand the internals | [How it works](architecture.md) |

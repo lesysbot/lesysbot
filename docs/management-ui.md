@@ -1,4 +1,4 @@
-# Control panel
+# Management panel
 
 A small web page for the two things you change most — your **settings** and your
 **tools** — plus a status screen that answers "is it working?" at a glance.
@@ -33,7 +33,7 @@ lesysbot
        Provider  cli · model qwen3.5:4b
           Tools  12/13 enabled
         Service  running (PID 12934)
-  Control panel  online · http://127.0.0.1:8700
+  Management panel  online · http://127.0.0.1:8700
         Grafana  http://localhost:3001 · v11.5.1
          Config  /home/you/.lesysbot/config.yaml
 ```
@@ -62,7 +62,7 @@ lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 **Status** — whether your model backend is reachable and how fast it answers,
 which provider and model are active, how many tools are on, whether the
 background bot service is running, a link to your
-[Grafana dashboard](../monitoring/README.md) if the monitoring stack is up, and
+[Grafana dashboard](../dashboard/README.md) if the dashboard stack is up, and
 where your config and tools actually live.
 
 **Tools** — every tool with its current state:

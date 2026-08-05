@@ -113,7 +113,7 @@ messaging:
 ## 4. Back to terminal-only
 
 Set `provider: cli` (or re-run the wizard and pick Terminal) and restart the
-service. It keeps running — it still serves the control panel — but stops polling
+service. It keeps running — it still serves the management panel — but stops polling
 Telegram/Slack; chat with `lesysbot --provider cli`. See
 [manage-service](../manage-service/SKILL.md).
 

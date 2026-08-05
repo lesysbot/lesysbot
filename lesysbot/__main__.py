@@ -62,7 +62,7 @@ def _setup_logging(verbose: bool, log_cfg: LogConfig, interactive: bool = False)
 
 
 def _start_ui(settings: Settings, registry):
-    """Bring the control panel up beside the bot (service mode only).
+    """Bring the management panel up beside the bot (service mode only).
 
     The panel is meant to be online whenever LeSysBot is, so it rides along in
     the same process — sharing the bot's registry, so a toggle in the browser
@@ -70,19 +70,19 @@ def _start_ui(settings: Settings, registry):
     port (almost always a second copy already serving) is logged and the bot
     carries on.
     """
-    from lesysbot.webui.server import serve_background
+    from lesysbot.management.server import serve_background
 
     ui = serve_background(settings, registry=registry)
     if ui is None:
         logging.getLogger(__name__).warning(
-            "Control panel not started — port %d is already in use.", settings.webui.port
+            "Management panel not started — port %d is already in use.", settings.management.port
         )
     else:
         # The log line is for the service journal; the banner is for a human who
         # started it in a terminal (bold escapes would just litter a log file).
-        logging.getLogger(__name__).info("Control panel on %s", ui.url)
+        logging.getLogger(__name__).info("Management panel on %s", ui.url)
         if sys.stdout.isatty():
-            print(f"\n  \033[1mControl panel:\033[0m {ui.url}   (localhost only)\n")
+            print(f"\n  \033[1mManagement panel:\033[0m {ui.url}   (localhost only)\n")
     return ui
 
 
@@ -97,7 +97,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
 
     provider = settings.messaging.provider
 
-    # Service mode: the control panel comes up first, so it answers even if the
+    # Service mode: the management panel comes up first, so it answers even if the
     # messaging adapter later fails to start.
     ui = _start_ui(settings, agent.registry) if serve_ui else None
 
@@ -106,7 +106,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
     # remote channel configured" — the panel is the whole job.
     if serve_ui and provider == "cli":
         logging.getLogger(__name__).info(
-            "Provider 'cli' — no remote channel to serve; running the control panel only."
+            "Provider 'cli' — no remote channel to serve; running the management panel only."
         )
         if sys.stdout.isatty():
             print("  Provider is 'cli' — no remote chat to serve.\n"
@@ -197,28 +197,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default=None, help="Override LLM base URL")
 
     # Subcommands. Bare `lesysbot` prints status and exits; the background
-    # service runs `lesysbot run` (bot + always-on control panel);
+    # service runs `lesysbot run` (bot + always-on management panel);
     # `lesysbot --provider …` runs the bot in the foreground.
-    from lesysbot.mcp.cli import register_subcommands
-    from lesysbot.setup.cli import register_subcommand as register_setup
+    from lesysbot.cli import register_all
 
-    subparsers = parser.add_subparsers(dest="command", metavar="{run,manage,tools,setup}")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        metavar="{install,search,list,doctor,dashboard,run,manage,setup}",
+    )
     # Re-add -c on each leaf (SUPPRESS default) so a root-level -c isn't clobbered
-    # and `lesysbot manage -c …` works regardless of flag order — same pattern as
-    # the `tools` subcommands.
+    # and `lesysbot manage -c …` works regardless of flag order — the same pattern
+    # every artifact verb uses.
     run = subparsers.add_parser(
-        "run", help="Run the service: the control panel plus the bot (what the "
+        "run", help="Run the service: the management panel plus the bot (what the "
                     "background service uses)"
     )
     run.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
     manage = subparsers.add_parser(
-        "manage", help="Open the control panel (localhost only; the service already serves it)"
+        "manage", help="Open the management panel (localhost only; the service already serves it)"
     )
     manage.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
-    manage.add_argument("--port", type=int, default=None, help="Control panel port")
-    manage.add_argument("--open", action="store_true", help="Open the control panel in a browser")
-    register_subcommands(subparsers)
-    register_setup(subparsers)
+    manage.add_argument("--port", type=int, default=None, help="Management panel port")
+    manage.add_argument("--open", action="store_true", help="Open the management panel in a browser")
+    register_all(subparsers)
     return parser
 
 
@@ -250,7 +251,7 @@ def _print_status(settings: Settings) -> dict:
     """The status screen shown by bare `lesysbot` / `lesysbot manage`.
 
     Bare `lesysbot` is a read-only health view and nothing else — it starts no
-    server, because the control panel is served by the background service.
+    server, because the management panel is served by the background service.
     Returns the status snapshot so callers can reuse it.
     """
     from rich.console import Console
@@ -275,7 +276,7 @@ def _print_status(settings: Settings) -> dict:
         service = f"[green]running[/green]{pid}"
     else:
         service = "[dim]stopped[/dim] — start it with " + _service_start_hint()
-    ui = st.get("webui") or {}
+    ui = st.get("panel") or {}
     if ui.get("running"):
         panel = f"[green]online[/green] · [link={ui['url']}]{ui['url']}[/link]"
     else:
@@ -292,7 +293,7 @@ def _print_status(settings: Settings) -> dict:
     unavail = f" · {tools['unavailable']} unavailable here" if tools["unavailable"] else ""
     t.add_row("Tools", f"{tools['enabled']}/{tools['total']} enabled{unavail}")
     t.add_row("Service", service)
-    t.add_row("Control panel", panel)
+    t.add_row("Management panel", panel)
     gf = st.get("grafana")
     if gf and gf.get("reachable"):
         ver = f" · v{gf['version']}" if gf.get("version") else ""
@@ -301,9 +302,9 @@ def _print_status(settings: Settings) -> dict:
         # configured (LESYSBOT_GRAFANA_URL) but nothing answered there or on the
         # usual ports — don't offer it as a working link
         t.add_row("Grafana", f"[dim]not answering at {gf['url']} — "
-                             "start it with monitoring/scripts/start.sh[/dim]")
+                             "start it with dashboard/scripts/start.sh[/dim]")
     else:
-        t.add_row("Grafana", "[dim]not running — start it with monitoring/scripts/start.sh[/dim]")
+        t.add_row("Grafana", "[dim]not running — start it with dashboard/scripts/start.sh[/dim]")
     t.add_row("Config", st["config_path"] or "[dim](built-in defaults)[/dim]")
     from lesysbot.core.banner import banner
 
@@ -339,12 +340,12 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
     points at it (and opens it, with --open); it starts one itself when nothing
     is serving — a dev checkout, or while the service is stopped.
     """
-    from lesysbot.core.status import detect_webui
+    from lesysbot.core.status import detect_panel
 
     st = _print_status(settings)
-    ui = (st.get("webui") if port is None else detect_webui(settings, port)) or {}
+    ui = (st.get("panel") if port is None else detect_panel(settings, port)) or {}
     if ui.get("running"):
-        print(f"  The control panel is already served by the LeSysBot service: {ui['url']}\n")
+        print(f"  The management panel is already served by the LeSysBot service: {ui['url']}\n")
         if open_browser:
             import webbrowser
 
@@ -354,7 +355,7 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
                 pass
         return
 
-    from lesysbot.webui.server import serve
+    from lesysbot.management.server import serve
 
     serve(settings, registry=getattr(_print_status, "registry", None),
           port=port, open_browser=open_browser)
@@ -363,7 +364,7 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
 def _runs_the_bot(command, args) -> bool:
     """Does this invocation start a long-running process?
 
-    `run` is the service (bot + control panel); an explicit `--provider` is the
+    `run` is the service (bot + management panel); an explicit `--provider` is the
     foreground bot — most often `lesysbot --provider cli` for a terminal chat.
     Everything else (bare `lesysbot`) is the read-only status view.
     """
@@ -401,27 +402,27 @@ def main() -> None:
     args = build_parser().parse_args()
 
     command = getattr(args, "command", None)
-    if command == "setup":
-        from lesysbot.setup.cli import run as run_setup
 
-        sys.exit(run_setup(args))
-    if command in ("tools", "tool"):
-        from lesysbot.mcp.cli import run as run_tool_cli
+    # Everything that manages LeSysBot rather than *being* LeSysBot — install,
+    # search, doctor, dashboard, setup — is handled by lesysbot.cli and exits
+    # before any bot setup runs.
+    from lesysbot.cli import dispatch, handles
 
-        sys.exit(run_tool_cli(args))
+    if handles(command):
+        sys.exit(dispatch(args))
 
     # command is now one of: None (bare), "run", "manage".
     settings = _load_settings(args)
 
     if command == "manage":
-        # Console-only logging (no chat) for the control panel.
+        # Console-only logging (no chat) for the management panel.
         _setup_logging(args.verbose, settings.logging, interactive=True)
         _manage(settings, port=getattr(args, "port", None),
                 open_browser=getattr(args, "open", False))
         return
 
     if not _runs_the_bot(command, args):
-        # Bare `lesysbot`: health and metrics, then exit. The control panel is
+        # Bare `lesysbot`: health and metrics, then exit. The management panel is
         # already online — the service serves it — so there's nothing to start.
         _setup_logging(args.verbose, settings.logging, interactive=True)
         _print_status(settings)

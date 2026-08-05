@@ -297,7 +297,7 @@ full reference is in [Configuration](configuration.md).
 
 ## 8. The tool installer
 
-`lesysbot tools install owner/repo` ([lesysbot/install/](../lesysbot/install/))
+`lesysbot install owner/repo` ([lesysbot/install/](../lesysbot/install/))
 downloads a tool folder package from GitHub **into the same tools directory
 the bot loads** — so a running bot picks it up via hot reload. The pipeline,
 one module per stage:
@@ -328,10 +328,10 @@ Two independent records of what happened
 
 ---
 
-## 10. The control panel and CLI dispatch
+## 10. The management panel and CLI dispatch
 
-The one network listener in the project is the control panel in
-[lesysbot/webui/](../lesysbot/webui/) — a stdlib `ThreadingHTTPServer` bound to
+The one network listener in the project is the management panel in
+[lesysbot/management/](../lesysbot/management/) — a stdlib `ThreadingHTTPServer` bound to
 `127.0.0.1` only, with a DNS-rebinding guard that rejects any request whose
 `Host` header isn't loopback. It has no authentication because the trust
 boundary is having a shell on the machine — the same access as editing
@@ -351,14 +351,14 @@ It exposes `GET /api/status`, `/api/tools`, `/api/config` and
 `POST /api/config`, `/api/tools/{toggle,install,remove}`. Config writes are
 validated against the settings schema *before* the file is touched. Toggling a
 tool goes through `registry.set_enabled()`, which persists to `mcp.state_file`
-— the same file the `lesysbot tools` CLI writes, and the one a running bot
+— the same file the `lesysbot install` CLI writes, and the one a running bot
 watches, which is why a toggle applies live while other settings need a restart.
 
 **Which thing does `lesysbot` start?** `__main__.main()` decides:
 
 | You type | You get |
 |---|---|
-| `lesysbot run` | the service: control panel + bot (what every service template runs) |
+| `lesysbot run` | the service: management panel + bot (what every service template runs) |
 | `lesysbot --provider …` | the bot in the foreground, no panel |
 | `lesysbot manage` | the panel — or just its URL, when the service already serves it |
 | `lesysbot` | health and metrics, then exit — starts nothing |
@@ -370,7 +370,7 @@ poll, so it serves the panel and idles.
 The status snapshot behind both the terminal view and `/api/status` lives in
 [lesysbot/core/status.py](../lesysbot/core/status.py). It probes the panel
 (`/api/ping`, which identifies our server rather than trusting whatever holds the
-port) and the [monitoring stack](../monitoring/README.md), and reports the
+port) and the [dashboard stack](../dashboard/README.md), and reports the
 service by testing the single-instance lock — a leftover lock *file* with a stale
 PID must not read as "running".
 
@@ -388,7 +388,7 @@ PID must not read as "running".
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the control panel | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
+| Change the management panel | [lesysbot/management/](../lesysbot/management/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
 
 ---
 

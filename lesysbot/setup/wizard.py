@@ -274,17 +274,57 @@ def run_steps(ui, st: WizardState, start: int) -> None:
             step = 0 if step_autostart(ui, st) else 2
 
 
-def show_summary(ui, st: WizardState, data_dir: Path) -> None:
+def _say_secret(ui, label: str, masked: str) -> None:
+    """One masked-credential row, or a warning when the credential is missing."""
+    ui.say(f"  {label:<10} {masked or '[yellow]not set — the bot will not connect[/yellow]'}")
+
+
+def show_summary(ui, st: WizardState, data_dir: Path, existing: dict | None = None) -> None:
+    """Render the pre-Apply summary.
+
+    ``existing`` is passed on the keep-my-config path, where the values come
+    from the file on disk rather than from answers just given — ``st`` holds
+    only the startup choice there, so rendering it would show blanks.
+    """
     startup = ("service — starts now and at reboot" if st.auto_start
                else "service — starts now, not at reboot")
     ui.say("\n  [bold]Summary[/bold]\n")
-    ui.say(f"  LLM        {st.llm_model}  ({st.llm_base_url})")
-    ui.say(f"  Provider   {st.msg_provider}")
-    if st.msg_provider == "telegram":
-        ui.say(f"  Allowed    {st.tg_allowed_ids}")
+
+    if existing is not None:
+        if existing.get("unreadable"):
+            ui.say("  Config     [yellow]could not be parsed — see below[/yellow]")
+        else:
+            ui.say(f"  LLM        {existing['llm_model']}  ({existing['llm_base_url']})")
+            provider = existing["provider"]
+            ui.say(f"  Provider   {provider}")
+            # Tokens arrive from load_existing already masked. Showing the tail
+            # is the point of the line: on the keep-my-config path this summary
+            # is the only place a user can tell "the credentials it kept are the
+            # ones I meant" from "it kept a stale token", which a bare "set"/
+            # "not set" can't answer.
+            if provider == "telegram":
+                _say_secret(ui, "Bot token", existing["telegram_token"])
+                allowed = existing["allowed_ids"]
+                ui.say(f"  Allowed    {allowed if allowed else '[yellow]none — the bot will ignore everyone[/yellow]'}")
+            elif provider == "slack":
+                _say_secret(ui, "Bot token", existing["slack_bot_token"])
+                _say_secret(ui, "App token", existing["slack_app_token"])
+    else:
+        ui.say(f"  LLM        {st.llm_model}  ({st.llm_base_url})")
+        ui.say(f"  Provider   {st.msg_provider}")
+        if st.msg_provider == "telegram":
+            ui.say(f"  Allowed    {st.tg_allowed_ids}")
+
     ui.say(f"  Startup    {startup}")
     ui.say(f"  Config     {data_dir / 'config.yaml'}")
     ui.say(f"  Working    {data_dir}")
+    if existing is not None:
+        ui.say("\n  [dim]LLM and provider are your existing settings, shown for "
+               "reference — setup won't change them.[/dim]")
+        if existing.get("unreadable"):
+            ui.say("  [yellow]config.yaml couldn't be read. Setup will still install "
+                   "the service, but the bot won't start until you fix it "
+                   "(or re-run and choose to overwrite).[/yellow]")
     ui.say("")
 
 

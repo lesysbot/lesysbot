@@ -9,7 +9,7 @@ These packages can also be installed straight from this repo, so instead of copy
 folders you can install them by name:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot/tools/gpu-temp
+lesysbot install lesysbot/lesysbot/tools/gpu-temp
 ```
 
 See [docs/installing-tools.md](../docs/installing-tools.md).
@@ -25,19 +25,17 @@ See [docs/installing-tools.md](../docs/installing-tools.md).
 | `gpu-temp/`    | `gpu_temp`                             | Linux, Windows     | `nvidia-smi` (NVIDIA driver)  |
 | `speedtest/`   | `speedtest`                            | Linux/macOS/Win    | —                             |
 | `web/`         | `fetch_url`                            | Linux/macOS/Win    | `httpx` (pip)                 |
-| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | Linux/macOS/Win | the [monitoring stack](../monitoring/README.md) running |
+| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | Linux/macOS/Win | the [dashboard stack](../dashboard/README.md) running |
 
 A tool whose OS or required binary isn't satisfied still appears in `/help`, but
 calling it returns a one-line explanation instead of failing — so the catalog
 above is a guide, not a hard wall.
 
-OS-specific packages live in the official per-platform companion repos —
-install the one matching your machine:
+OS- and hardware-specific packages live in the official companion repo — one
+install covers every OS, each package carrying its per-OS variants:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), hwmon temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping/tracert, WMI temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, SMC temps
+lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, speedtest, dashboards
 ```
 
 ## Package layout

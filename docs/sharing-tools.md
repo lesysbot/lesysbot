@@ -5,7 +5,7 @@ anyone with one command — there is nothing to register or publish beyond
 pushing the repo:
 
 ```bash
-lesysbot tools install you/lesysbot-gpu-tools
+lesysbot install you/lesysbot-gpu-tools
 ```
 
 ## 1. A single-tool repo
@@ -34,7 +34,7 @@ requires: [nvidia-smi]
 ```
 
 `name` overrides the folder/repo name; `version` shows up in
-`lesysbot tools list/info`. `platforms`/`requires` document the gating your
+`lesysbot list/info`. `platforms`/`requires` document the gating your
 `tool.py` declares (the code is what's enforced).
 
 ## 2. A multi-tool repo
@@ -51,7 +51,7 @@ lesysbot-tools/
     └── tool.py
 ```
 
-`lesysbot tools install you/lesysbot-tools` offers all of them; users can cherry-pick
+`lesysbot install you/lesysbot-tools` offers all of them; users can cherry-pick
 with `--only gpu-temp` or install a single one directly via
 `you/lesysbot-tools/gpu-temp`. Directories named `tests/`, `docs/`, or starting
 with `.`/`_` are ignored. A repo may also nest the package folders under a
@@ -60,11 +60,11 @@ first when the root holds no packages.
 
 ## 3. Versioning & refs
 
-- Tag releases (`git tag v1.0.0`) so users can pin: `lesysbot tools install you/repo@v1.0.0`.
+- Tag releases (`git tag v1.0.0`) so users can pin: `lesysbot install you/repo@v1.0.0`.
 - The installer records the exact commit SHA it extracted in the user's lock
   file, whatever ref they asked for.
 - Bump `version:` in the README frontmatter with each release — it's what
-  `lesysbot tools list` displays.
+  `lesysbot list` displays.
 
 ## 4. Checklist before you share
 
@@ -74,6 +74,6 @@ first when the root holds no packages.
 - [ ] `platforms=[...]`/`requires=[...]` declared where the tool isn't universal.
 - [ ] README frontmatter filled in (name, description, version).
 - [ ] Test locally: copy the package into your own tools dir, or
-      `lesysbot tools install you/repo@your-branch`.
+      `lesysbot install you/repo@your-branch`.
 
 See [Writing Tools](writing-tools.md) for the tool code itself.

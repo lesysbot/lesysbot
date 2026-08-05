@@ -47,7 +47,7 @@ lesysbot/
 │                  paths (~/.lesysbot anchoring), trace.py, sysinfo.py
 ├─ llm/            single AsyncOpenAI client, configurable base_url (all backends)
 ├─ mcp/            registry (discovery/hot-reload/gating), @tool decorator,
-│                  CLITool, platform gating, `lesysbot tools` CLI
+│                  CLITool, platform gating, `lesysbot install` CLI
 ├─ messaging/      base interface + CLI / Telegram / Slack adapters,
 │                  startup notice
 └─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
@@ -69,7 +69,7 @@ docs/              user & contributor guides
 | Change tool-calling loop / history / confirmations | `lesysbot/core/agent.py` |
 | Change tool discovery / gating / hot reload | `lesysbot/mcp/registry.py` |
 | Add a config setting | `lesysbot/core/config.py` + `config/default.yaml` + `docs/configuration.md` |
-| Change the install wizard | `scripts/install.sh` **and** `scripts/install.ps1` — kept in sync |
+| Change the install wizard | `lesysbot/setup/` — one cross-platform implementation |
 
 ## Tests
 
@@ -107,10 +107,7 @@ Conventions (keep new tests the same):
 
 ## Install-script rules
 
-`scripts/install.sh` and `scripts/install.ps1` are the **same wizard twice —
-change both**. PowerShell can't run in CI here; verify it by inspection and
-say so in the PR. `install.sh` runs under `set -euo pipefail`: use
-`i=$((i+1))`, never `((i++))` (exit status 1 on zero result aborts the script).
+`scripts/uninstall.sh` and `scripts/uninstall.ps1` are the **same job twice** — change one, change the other. The install wizard itself is a single cross-platform Python implementation in `lesysbot/setup/`.
 
 ## Docs conventions
 

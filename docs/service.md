@@ -1,7 +1,7 @@
 # Run as a service
 
 LeSysBot runs in the background so two things are always there: the
-[control panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
+[management panel](management-ui.md) at `http://127.0.0.1:8700`, and — if you use
 Telegram or Slack — the bot answering your messages. This page covers keeping it
 alive, starting it at boot, and finding the logs when something's off.
 
@@ -16,7 +16,7 @@ on macOS, Task Scheduler on Windows. It runs from `~/.lesysbot`, restarts itself
 if it crashes, and starts on boot if you asked for that.
 
 It's installed even if you picked **Terminal only**: the service is what keeps
-the control panel online. With that provider there's no chat to serve, so the
+the management panel online. With that provider there's no chat to serve, so the
 panel is all it does — your terminal chat is still something you start yourself
 with `lesysbot --provider cli`.
 
@@ -131,7 +131,7 @@ You need this if you installed manually, or want something the wizard doesn't
 offer. One rule matters more than the rest: **the service must run from the
 directory holding your `config.yaml` and `tools/`** — normally `~/.lesysbot`.
 
-Use the `run` subcommand — that's the service: the control panel plus the bot. A
+Use the `run` subcommand — that's the service: the management panel plus the bot. A
 bare `lesysbot` only prints status and exits, so a unit that calls it would come
 straight back down.
 
@@ -142,7 +142,7 @@ straight back down.
 
 ```ini
 [Unit]
-Description=LeSysBot — local AI assistant with tools (control panel + bot)
+Description=LeSysBot — local AI assistant with tools (management panel + bot)
 After=network.target
 
 [Service]
@@ -248,7 +248,7 @@ Start-Process lesysbot -ArgumentList run -WindowStyle Hidden   # stop: Stop-Proc
 
 ## Only one at a time
 
-Two copies would fight — over the control panel's port, and, with Telegram, over
+Two copies would fight — over the management panel's port, and, with Telegram, over
 the same messages (Telegram rejects both with a `409`). So the service takes a
 lock at startup and a second one refuses to start, naming the process that holds
 it.
