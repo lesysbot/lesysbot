@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,15 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / "dashboard" / "scripts" / "install-macos.sh"
 GEN = SCRIPT.parent / "gen-dashboards.py"
 
-pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+# Excluded on Windows for the same reason as test_start_detect.py: this drives a
+# Homebrew installer that only ever runs on macOS, `bash` *is* on PATH on the
+# Windows runners so the which() guard does not fire, and a Windows path
+# interpolated into a bash string loses its separators to escape processing.
+# Linux CI still exercises the script, which is the point of sourcing it.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32" or shutil.which("bash") is None,
+    reason="drives a macOS-only shell script; needs a POSIX bash",
+)
 
 
 def _caps(arm64: bool = True, nvidia: bool = False) -> str:

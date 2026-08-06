@@ -15,13 +15,24 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "dashboard" / "scripts" / "start.sh"
 
-pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+# Windows is excluded deliberately, not because the harness is awkward there.
+# `start.sh` brings up the *Linux* Docker stack; Windows runs `start.ps1`
+# instead, so sourcing this under Git Bash would exercise a path that never runs
+# on a Windows machine. It would also fail on the paths alone: `bash` is on PATH
+# on the runners, so the which() guard below does not fire, and a Windows path
+# interpolated into a bash string has its separators eaten as escapes
+# (`D:\a\lesysbot\…` sources as `D:alesysbot…`).
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32" or shutil.which("bash") is None,
+    reason="drives a Linux-only shell script; needs a POSIX bash",
+)
 
 
 _counter = iter(range(10_000))
