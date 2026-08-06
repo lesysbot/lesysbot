@@ -10,7 +10,7 @@ Discord. The examples use the terminal because it needs no setup.
 ## Starting a chat
 
 ```bash
-lesysbot --provider cli
+lesysbot chat
 ```
 
 ```
@@ -22,7 +22,7 @@ You:
 
 > **`lesysbot` on its own does something different** — it prints health and
 > metrics (backend, tools, service, [control panel](management-ui.md), Grafana)
-> and exits. To chat, use `lesysbot --provider cli`.
+> and exits. To chat, use `lesysbot chat`.
 
 Already running as a Telegram or Discord service? A terminal chat runs happily
 alongside it, with its own separate conversation.
@@ -125,7 +125,7 @@ Both are just a nicer way in — they run the same tool, without the model, and
 typing the command out by hand keeps working.
 
 > **The menu is built when the bot starts.** Install a tool (or run
-> `lesysbot tools enable`) and it works as a typed command immediately, but it
+> `lesysbot enable`) and it works as a typed command immediately, but it
 > joins the menu on the next restart — the platforms rate-limit command updates,
 > so LeSysBot registers once rather than on every change. Tools that are
 > disabled, or unavailable on this machine, are left out of the menu.
@@ -185,7 +185,7 @@ Tune the limit in [Settings](configuration.md).
 No need to edit anything:
 
 ```bash
-lesysbot --provider cli --model qwen3.5                        # a different local model
+lesysbot chat --model qwen3.5                        # a different local model
 lesysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI instead
 LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot run                   # any setting, via the environment
 ```

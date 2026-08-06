@@ -164,7 +164,7 @@ mcp:
 
 Both are relative to your active config, so a normal install puts them under
 `~/.lesysbot/`. The installer and the bot resolve them the same way, which is
-why `lesysbot tools install` always writes to the directory the bot is actually
+why `lesysbot install` always writes to the directory the bot is actually
 reading.
 
 The download is a plain HTTPS zip fetch — no `git` binary needed and no GitHub

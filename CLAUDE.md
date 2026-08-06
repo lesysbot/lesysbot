@@ -14,10 +14,10 @@ pip install -e ".[dev]"
 # Fix by re-running:  pip install -e .
 
 # Run the bot (CLI mode — no messaging credentials needed)
-lesysbot --provider cli --model qwen3.5:4b
+lesysbot chat --model qwen3.5:4b
 
 # Run with verbose logging
-lesysbot --provider cli -v
+lesysbot chat -v
 
 # Run against an explicit config (otherwise ~/.lesysbot/config.yaml is the installed default)
 lesysbot -c ~/.lesysbot/config.yaml
@@ -33,6 +33,7 @@ lesysbot dashboard render | list | start | stop
 # Interactive setup wizard (config + service). --repo is only for development:
 # a normal install seeds from the content bundled in the wheel.
 lesysbot setup [--repo PATH]
+lesysbot setup --yes [--reconfigure] [--skip-dashboard]   # unattended; what the installer runs
 
 # Build a standalone Windows executable (run on Windows)
 .\scripts\build-exe.ps1
@@ -114,7 +115,7 @@ Command names must be `[a-z0-9_]{1,32}` (the intersection of both platforms' rul
 
 Discord's per-tool commands are a **typed front door onto the text path, not a second dispatcher**: each callback rebuilds the `/name key=value` message via `to_slash_text()` and hands it to the same `handler`, so confirmation gating, tracing and the out-of-band-push user stamp keep working from one place, and `registry.call()`'s coercion turns the values back into the declared types. Because a command's parameters are only known at runtime, `_make_command` **synthesises the callback's `__signature__` and `__annotations__`** — that is what discord.py reads to derive an option per parameter — and applies descriptions with the public `app_commands.describe()` against the built command rather than poking discord.py's private attribute. Unset optional options arrive as `None` and are dropped, so the tool's own default applies. `_invoke` **defers the interaction immediately** (`thinking=True`): a tool can easily outrun Discord's 3-second first-response window, and a missed one shows the user "the application did not respond".
 
-Both registrations are **best-effort and startup-only**. Best-effort because losing an autocomplete menu must not stop a service from starting. Startup-only because both platforms rate-limit command updates, so a tool added by hot reload (or toggled via `lesysbot tools enable`) is callable as text immediately but joins the menu on the next restart — re-syncing on every tools-dir change would burn that budget. Discord syncs in `setup_hook` (once per login, after the application id exists) rather than `on_ready`, which fires again on every reconnect. **The Discord invite needs the `applications.commands` scope**, not just `bot`, or the commands never appear in a guild — that is the most likely reason a correct setup shows an empty picker. Telegram also gets `_strip_bot_mention()`, because groups append the bot's username to a command (`/disk_usage@my_bot`) and the agent would otherwise see an unknown command. Tests: `tests/test_commands.py`, `tests/test_telegram.py`, and the command section of `tests/test_discord.py`.
+Both registrations are **best-effort and startup-only**. Best-effort because losing an autocomplete menu must not stop a service from starting. Startup-only because both platforms rate-limit command updates, so a tool added by hot reload (or toggled via `lesysbot enable`) is callable as text immediately but joins the menu on the next restart — re-syncing on every tools-dir change would burn that budget. Discord syncs in `setup_hook` (once per login, after the application id exists) rather than `on_ready`, which fires again on every reconnect. **The Discord invite needs the `applications.commands` scope**, not just `bot`, or the commands never appear in a guild — that is the most likely reason a correct setup shows an empty picker. Telegram also gets `_strip_bot_mention()`, because groups append the bot's username to a command (`/disk_usage@my_bot`) and the agent would otherwise see an unknown command. Tests: `tests/test_commands.py`, `tests/test_telegram.py`, and the command section of `tests/test_discord.py`.
 
 **Out-of-band pushes (`lesysbot/core/notify.py`):** tools normally only *return* text, so they can't say anything after their reply. `Agent.handle` stamps the requesting user on a `ContextVar` before dispatch (slash and LLM paths) and `__main__._run` wires the active adapter's `send` via `notify.set_sender`, so a tool can call `notify_later(text, delay)` (re-exported from `lesysbot.mcp`) to push a follow-up message to that user. It returns the `asyncio.Task` (cancel it to drop the announcement) or `None` when no sender/user is wired — best-effort by design; send failures are logged, not raised. The `power` package uses it for a "powering off now" heads-up ~10 s before a scheduled shutdown/reboot fires, cancelled again by `cancel_shutdown`. On Discord a bare user id would open a DM, so `DiscordAdapter._reply_target()` prefers the channel that user last spoke in (`_last_channel`, recorded in `on_message`) for both pushes and confirmation prompts — a follow-up belongs in the conversation it continues, not in someone's DMs because they happened to ask in a channel. The startup notice takes the fallback path instead: at boot nobody has spoken, and a `notify` entry may name a channel outright.
 
@@ -188,7 +189,7 @@ Seeding (`setup/apply.py`) installs bundled packages through the same rules and 
 
 A **loopback-only web control panel** for config + tools, **served by the service so it is always online** (`lesysbot run` → `serve_background()`; see the dispatch paragraph). This is the one listener in the project, so it is deliberately fenced: stdlib `http.server.ThreadingHTTPServer` bound to **127.0.0.1 only**, a **DNS-rebinding guard** (`_Handler._host_ok` rejects any non-loopback `Host` header → 403), **no auth** (trust boundary = a shell on the machine, same as editing `config.yaml`), and **zero new dependencies**. `management/page.py` inlines the single-page UI as a Python string so it ships with the package (no package-data wiring; survives a PyInstaller build); it follows the docs-site brand (slate + `brand-*` cyan tokens) and renders its header mark + favicon to SVG from `core/_logo` (the same sprite `core/banner.py` draws in the terminal — `gen_logo.py` now emits both `MARK` (16px) and `MARK_32` into that module) so the web copy can't drift from the generated art. The page carries a 2-state light/dark toggle keyed on a `data-theme` attribute on `<html>` (a pre-paint script reads `localStorage['lesysbot-ui-theme']`, else the `prefers-color-scheme` media query drives it — no framework, no new dependency). API: `GET /api/status` (via `core/status.gather_status`), `/api/tools`, `/api/config`; `POST /api/config` (validates with `Settings(**yaml)` **before** writing), `/api/tools/{toggle,install,remove}`. Toggle calls `registry.set_enabled()` which persists to `mcp.state_file`, so a running bot applies it live via `Agent._watch_tool_state`; config edits need a restart. Registry mutations are serialized under one `threading.Lock`; the LLM health probe runs outside it.
 
-**CLI dispatch** (`__main__.main`): everything that *manages* LeSysBot rather than being it — `install`, `update`, `list`, `info`, `remove`, `enable`, `disable`, `search`, `doctor`, `dashboard`, `setup`, and the `tools` alias — is owned by **`lesysbot/cli/`** and exits before any bot setup. `lesysbot.cli.handles(command)` decides; `dispatch()` imports the verb module lazily, so `lesysbot --provider cli` doesn't pay for the marketplace and a syntax error in a rarely used verb can't stop the bot starting. `CLIContext` (`cli/context.py`) is the one place that turns "the user typed a command" into resolved paths, lock and installer — the panel uses the *same* object, so browser and terminal can't disagree about where things live. Then: `manage` → `_manage()`; `_runs_the_bot(command, args)` (true for `run` or an explicit `--provider`) → `_run()`; **bare `lesysbot`** → `_print_status()` and exit.
+**CLI dispatch** (`__main__.main`): everything that *manages* LeSysBot rather than being it — `install`, `update`, `list`, `info`, `remove`, `enable`, `disable`, `search`, `doctor`, `dashboard`, `setup` — is owned by **`lesysbot/cli/`** and exits before any bot setup. `lesysbot.cli.handles(command)` decides; `dispatch()` imports the verb module lazily, so `lesysbot chat` doesn't pay for the marketplace and a syntax error in a rarely used verb can't stop the bot starting. `CLIContext` (`cli/context.py`) is the one place that turns "the user typed a command" into resolved paths, lock and installer — the panel uses the *same* object, so browser and terminal can't disagree about where things live. Then: `manage` → `_manage()`; `_runs_the_bot(command, args)` (true for `run` or an explicit `--provider`) → `_run()`; **bare `lesysbot`** → `_print_status()` and exit. **`lesysbot chat`** is not a fourth path: `main()` rewrites it to `--provider cli` right after parsing, so every decision downstream — settings, `_runs_the_bot`, interactive logging, the singleton guard — is unchanged and unaware of it.
 
 `core/status.gather_status()` is the shared status snapshot (CLI view + `/api/status`). `detect_panel()` probes `/api/ping` — a body-less, lock-free endpoint that answers `{"service": "lesysbot-webui"}` so a *stranger* on that port reads as offline instead of being advertised as the panel (the server answers its own `/api/status` with `running: True` rather than probing itself). The `daemon` row is now computed for **every** provider (the service exists regardless) via `singleton.is_running()`, which tests the lock on a second open file description: the lock *file* outlives a crash with a stale PID in it, so `holder_pid()` alone would report a dead service as running. It also `detect_grafana()`s the dashboard stack so the status screen links to Grafana: candidates are `grafana_candidates()` — the bundled stack's own `GRAFANA_PORT` (read from `~/.lesysbot/dashboard/.env`) first, then `localhost`/`127.0.0.1` on 3000/3001 — and each is **verified** via `/api/health`. `LESYSBOT_GRAFANA_URL` is honoured but *also* verified, then falls through to probing: a saved URL goes stale the moment the stack moves off 3000 (because something else owns that port), and linking that impostor as "Grafana" is worse than probing. Only if nothing answers is the override returned with `reachable: False`, which both renderers (`_print_status`, `management/page.py`) show as "not answering" rather than a link. LLM health probes go through `status.probe_health()`, which closes the httpx client in-loop (one-shot `asyncio.run` otherwise finalizes it on a closed loop → "Event loop is closed"); `Agent.aclose()` does the same on bot shutdown. Tests: `tests/test_management.py` starts the real server on an ephemeral port (plus `/api/ping`, `detect_panel` vs. a foreign server, `serve_background` refusing a second bind) and `tests/test_singleton.py` covers the stale-lock case. Security posture is documented on the site (`security.md` §4 — the listener is now the always-on localhost panel, not an opt-in one) — keep those in sync.
 
@@ -217,18 +218,61 @@ All backends accept the same config shape — only `base_url`, `model`, and `api
 
 `tests/` holds the pytest suite. Tests construct registries/agents over temp tool dirs and don't need a running LLM, messaging backend, or network. `test_macos_metrics.py`, `test_gen_dashboards.py` and `test_start_detect.py` are the exceptions to the tests-cover-`lesysbot/` rule: they exercise `dashboard/scripts/` by path, because `dashboard/` sits outside the package. `test_macos_metrics` stubs its one OS entry point (`_run`) so the macOS-only parsing is verified on Linux too; `test_gen_dashboards` is pure and pins which panels each host cut includes (plus a staleness check that the committed JSONs still match the generator); `test_start_detect` sources `start.sh` and drives `detect_capabilities_linux` against a fixture `/sys` tree, overriding `is_virtual`/`command` for the two facts that aren't in sysfs. All three run on any OS on purpose — the platform-specific logic is exactly what a developer on another platform would never otherwise execute. `test_config.py` covers the search order and the `~/.lesysbot` home via a monkeypatched `LESYSBOT_HOME` (`test_load_picks_up_user_dir`) plus `config_dir` tracking and `resolve_paths` anchoring. Installer tests share `tests/install_utils.py`: `make_github_zip()` builds GitHub-shaped zipballs (single `repo-ref/` root + commit SHA in the archive comment) and `FakeFetcher` serves them from a dict while recording requested URLs (used to assert the zipball candidate fallback order); hermeticity comes from the same `LESYSBOT_HOME` monkeypatch. `asyncio_mode = "auto"` means async tests need no decorator.
 
-## Setup wizard (`lesysbot/setup/`) and install scripts (`scripts/install.{sh,ps1}`)
+## Setup wizard (`lesysbot/setup/`) and installers (`scripts/install.{sh,ps1}`)
 
-The install scripts are **bootstrap only** and hand off to `lesysbot setup`, one
-cross-platform Python wizard in `lesysbot/setup/`. Details in the
-`.claude/skills/setup-wizard/` project skill (kept out of `lesysbot/` so hatchling
-never bundles it into the wheel). Naming note: `lesysbot/setup/` is the *install wizard*;
-`lesysbot/artifacts/` is the *package installer* — unrelated modules. (They used to be `setup/` and `install/`, which is why this note exists at all; the rename removed most of the confusion.)
+The installers are **self-contained and curl-pipeable** — `curl -fsSL
+https://lesysbot.github.io/install.sh | sh` is the documented way to install
+LeSysBot, and the published copy is synced from `scripts/` by the docs site's
+`scripts/import-docs.js` into `content/static/`. They own everything up to a
+working command: find a Python 3.11+ (or fetch one with uv), build a venv at
+`~/.local/share/lesysbot/venv`, install the package, link `~/.local/bin/lesysbot`,
+edit PATH, install Ollama, pull a model — then hand off to `lesysbot setup --yes`.
+They also `--uninstall`, which is why the installer copies itself into the install
+dir. `scripts/uninstall.{sh,ps1}` remain for pre-installer installs.
+
+**`install.sh` is POSIX `sh`, not bash** — the advertised pipe is `| sh`, and
+`/bin/sh` is dash on Debian/Ubuntu, where `[[ ]]`, arrays and `BASH_SOURCE` are
+parse errors. `set -o pipefail` is probed in a subshell because dash aborts on
+it. `tests/test_shell_portability.py` enforces both (`POSIX_SCRIPTS`), and CI
+adds `shellcheck --shell=sh --severity=warning` — the existing error-only pass
+cannot see a bashism, since they are all SC3xxx *warnings*.
+
+**Unattended setup** rests on one seam: `setup/ui.py:AutoUI`, returned by
+`make_ui(unattended=True)`. Its widgets answer with the offered default and never
+touch stdin, and it keeps `interactive = False` — which `apply.py`'s Grafana
+branches *already* read, so the dashboard is set up automatically with no change
+to them. Answers come from `setup/unattended.py:state_from_env()`
+(`LESYSBOT_SETUP_*`); a missing required value aborts naming the variable rather
+than shipping a remote bot with an empty allow-list. Existing configs are kept
+unless `--reconfigure`, which is what makes re-running the installer the upgrade
+path. The Grafana password is *generated* when none is configured, and falls back
+**previous file → env → generated** in that order: Grafana only honours
+`GF_SECURITY_ADMIN_PASSWORD` on an empty volume, so rotating it on a re-install
+would lock LeSysBot out of its own dashboard.
+
+**`LESYSBOT_SKIP_SERVICE=1`** skips service install/removal. It exists because
+the LaunchAgent, systemd unit and scheduled task live at fixed per-user paths that
+`LESYSBOT_HOME` does **not** relocate — without it, a test or CI run pointed at a
+scratch home replaces the real machine's service. Set it whenever running setup
+or the installer against a throwaway home.
+
+Details in the `.claude/skills/setup-wizard/` project skill (kept out of
+`lesysbot/` so hatchling never bundles it into the wheel). Naming note:
+`lesysbot/setup/` is the *install wizard*; `lesysbot/artifacts/` is the *package
+installer* — unrelated modules. (They used to be `setup/` and `install/`, which is
+why this note exists at all; the rename removed most of the confusion.)
 
 **No sudo, ever** — this holds project-wide, not just for the wizard: **no tool may
 require root either**. Never shell out through `sudo`, never ship a sudoers script,
 prefer the unprivileged source of the same fact, and where none exists say so in the
 reply instead of elevating (`docs/writing-tools.md`).
+
+The **one** documented edge is Ollama's own installer, which needs root on Linux.
+The rule governs LeSysBot's runtime, not a user-initiated bootstrap — but rather
+than trigger a password prompt inside a non-interactive installer, `install.sh`
+runs it only when already root or when `sudo -n true` succeeds, and otherwise
+prints the two lines and carries on. `--with-ollama` overrides. macOS and Windows
+need no elevation for Ollama, so both are automatic there.
 
 ## Documentation structure
 

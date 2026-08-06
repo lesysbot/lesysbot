@@ -11,7 +11,7 @@ lesysbot            # status screen: is the model reachable? is the service up?
 ```
 
 ```bash
-lesysbot --provider cli -v      # same chat, but with the log on screen
+lesysbot chat -v      # same chat, but with the log on screen
 ```
 
 The status screen answers most "why isn't it working" questions in one look.
@@ -99,7 +99,7 @@ fits this machine.
 
 Turn it back on: `lesysbot enable gpu_temp`.
 
-### `lesysbot tools install` fails
+### `lesysbot install` fails
 
 | Message | What to do |
 |---|---|
@@ -114,20 +114,31 @@ Turn it back on: `lesysbot enable gpu_temp`.
 
 ### `lesysbot: command not found`
 
-pip put the command somewhere that isn't on your `PATH`:
+Almost always the shell you're in was started before the command existed. Open a
+new terminal, or:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The installer puts the command in `~/.local/bin` and adds that directory to your
+`~/.profile`, `~/.bashrc` and `~/.zshenv`. If it still isn't found there, either
+the installer ran with `--no-modify-path` (or `LESYSBOT_NO_MODIFY_PATH`) and
+added nothing, or you installed some other way — `pipx` and `pip --user` put it
+in their own directory:
 
 ```bash
 python -m site --user-scripts     # e.g. /home/you/.local/bin
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
 ```
 
-On Windows, re-run the Python installer and tick **Add Python to PATH**.
+On Windows the PATH entry is set for your user account, so only *new* terminals
+see it. If you installed Python by hand, re-run its installer and tick **Add
+Python to PATH**.
 
-### PowerShell refuses to run the install script
+### PowerShell refuses to run the installer
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
+powershell -ExecutionPolicy Bypass -Command "irm https://lesysbot.github.io/install.ps1 | iex"
 ```
 
 
@@ -173,7 +184,7 @@ that holds it. Stop the service first:
 systemctl --user stop lesysbot          # Linux
 ```
 
-A terminal chat (`lesysbot --provider cli`) doesn't poll, so it always runs fine
+A terminal chat (`lesysbot chat`) doesn't poll, so it always runs fine
 alongside the service.
 
 ### Config changes don't take effect
@@ -215,7 +226,7 @@ Full setup for both: [Telegram & Discord](adapters.md).
 
 | Symptom | Fix |
 |---|---|
-| `lesysbot` prints status when you wanted a chat | Use `lesysbot --provider cli`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
+| `lesysbot` prints status when you wanted a chat | Use `lesysbot chat`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
 | The panel says **offline** | The service isn't running — start it (`systemctl --user start lesysbot`, `launchctl start com.lesysbot.lesysbot`, `Start-ScheduledTask -TaskName 'LeSysBot'`). To use it without a service: `lesysbot manage`. |
 | The log says `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
 | The UI port is taken | `lesysbot manage --port 9000`, or change `management.port`. |
@@ -298,7 +309,7 @@ was ever shared.
 <summary><b>Turning up the detail</b></summary>
 
 ```bash
-lesysbot --provider cli -v          # DEBUG on screen for one session
+lesysbot chat -v          # DEBUG on screen for one session
 ```
 
 Or permanently, in `~/.lesysbot/config.yaml`:

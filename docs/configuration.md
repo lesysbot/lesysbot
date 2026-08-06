@@ -129,7 +129,7 @@ llm:
 **On the command line**, for one run:
 
 ```bash
-lesysbot --provider cli --model qwen3.5
+lesysbot chat --model qwen3.5
 lesysbot --base-url http://localhost:8000/v1
 lesysbot -c /etc/lesysbot/config.yaml
 lesysbot run -v                          # verbose
@@ -200,10 +200,11 @@ probes those ports rather than reporting whatever else is on the saved one.
 ```bash
 lesysbot                  # health + metrics, then exit (starts nothing)
 lesysbot run              # the service: control panel + bot
-lesysbot --provider cli   # chat in this terminal
+lesysbot chat   # chat in this terminal
 lesysbot manage           # open the control panel, or serve it if the service is down
 lesysbot setup            # re-run the setup wizard
-lesysbot tools …          # install/list/enable/disable/remove tools
+lesysbot install|list|info|enable|disable|remove|update|search|doctor
+                          # manage tools and dashboards
 ```
 
 ---

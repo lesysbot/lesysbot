@@ -780,7 +780,7 @@ def test_cli_run_fresh_config(tmp_path, monkeypatch):
             ("menu", 1),           # summary: Apply
         ]
     )
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
+    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda **_kw: ui)
     args = argparse.Namespace(command="setup", repo=None)
     assert setup_cli.run(args) == 0
     cfg = yaml.safe_load((tmp_path / "home" / "config.yaml").read_text())
@@ -811,7 +811,7 @@ def test_cli_run_seeds_and_attempts_dashboard(tmp_path, monkeypatch):
     # LLM (custom) → messaging (terminal) → service → summary Apply → Grafana login.
     ui = FakeUI([*custom_llm_answers(), ("menu", 1), ("menu", 1), ("menu", 1),
                  ("text", DEFAULT), ("text", DEFAULT)])
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
+    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda **_kw: ui)
     args = argparse.Namespace(command="setup", repo=str(repo))
     assert setup_cli.run(args) == 0
     # The dashboard stack was seeded into the installed home as a standard part.
@@ -849,7 +849,7 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
             ("confirm", True),     # apply
         ]
     )
-    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda: ui)
+    monkeypatch.setattr("lesysbot.setup.ui.make_ui", lambda **_kw: ui)
     args = argparse.Namespace(command="setup", repo=None)
     assert setup_cli.run(args) == 0
     assert (home / "config.yaml").read_text() == existing
@@ -860,3 +860,235 @@ def test_cli_run_keeps_existing_config(tmp_path, monkeypatch):
     assert "qwen3:8b" in summary and "http://localhost:11434/v1" in summary
     assert "Allowed    [42, 43]" in summary
     assert "kept as-is" in summary
+
+
+# ── Unattended setup (`lesysbot setup --yes`) ─────────────────────────────────
+#
+# The installer runs this with no terminal at all, so the contract under test is
+# narrow and absolute: never read stdin, never leave a half-configured remote
+# bot, never print a password.
+
+def _unattended_args(**overrides):
+    import argparse
+
+    defaults = dict(command="setup", repo=None, yes=True,
+                    reconfigure=False, skip_dashboard=True)
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+def _hermetic(tmp_path, monkeypatch, home="home"):
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / home))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("LESYSBOT_SKIP_SERVICE", "1")
+    for var in list(os.environ):
+        if var.startswith("LESYSBOT_SETUP_"):
+            monkeypatch.delenv(var, raising=False)
+    return tmp_path / home
+
+
+def test_autoui_answers_with_defaults_and_never_reads_stdin(monkeypatch):
+    from lesysbot.setup.ui import AutoUI
+
+    def explode(*_a, **_kw):
+        raise AssertionError("unattended setup must never read stdin")
+
+    monkeypatch.setattr("builtins.input", explode)
+    ui = AutoUI()
+    assert ui.interactive is False
+    assert ui.unattended is True
+    assert ui.menu("pick", ["a", "b", "c"], default=2) == 2
+    assert ui.text("name", "fallback") == "fallback"
+    assert ui.text("secret", "s3cret", secret=True) == "s3cret"
+    assert ui.confirm_yn("really?", default=False) is False
+    assert ui.confirm_yn("really?", default=True) is True
+
+
+def test_make_ui_returns_autoui_only_when_asked(monkeypatch):
+    from lesysbot.setup.ui import AutoUI, PlainUI, make_ui
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    assert isinstance(make_ui(unattended=True), AutoUI)
+    plain = make_ui()
+    assert isinstance(plain, PlainUI) and not isinstance(plain, AutoUI)
+
+
+def test_unattended_writes_the_default_config(tmp_path, monkeypatch):
+    from lesysbot.setup import cli as setup_cli
+    from lesysbot.setup.wizard import DEFAULT_OLLAMA_MODEL
+
+    home = _hermetic(tmp_path, monkeypatch)
+    installed = _no_real_service(monkeypatch)
+
+    assert setup_cli.run(_unattended_args()) == 0
+    cfg = yaml.safe_load((home / "config.yaml").read_text())
+    assert cfg["messaging"]["provider"] == "cli"
+    assert cfg["llm"]["model"] == DEFAULT_OLLAMA_MODEL
+    assert cfg["llm"]["base_url"] == "http://localhost:11434/v1"
+    assert cfg["llm"]["api_key"] == "ollama"
+    # Autostart is the default: the point of the service is surviving a reboot.
+    assert installed == [("cli", True)]
+
+
+def test_unattended_reads_telegram_from_the_environment(tmp_path, monkeypatch):
+    from lesysbot.setup import cli as setup_cli
+
+    home = _hermetic(tmp_path, monkeypatch)
+    _no_real_service(monkeypatch)
+    monkeypatch.setenv("LESYSBOT_SETUP_PROVIDER", "telegram")
+    monkeypatch.setenv("LESYSBOT_SETUP_TELEGRAM_TOKEN", "12345:fakeTokenNotReal")
+    monkeypatch.setenv("LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS", " 42, 99 ")
+
+    assert setup_cli.run(_unattended_args()) == 0
+    cfg = yaml.safe_load((home / "config.yaml").read_text())
+    assert cfg["messaging"]["provider"] == "telegram"
+    assert cfg["messaging"]["telegram"]["allowed_user_ids"] == [42, 99]
+    assert cfg["messaging"]["telegram"]["token"] == "12345:fakeTokenNotReal"
+
+
+@pytest.mark.parametrize(
+    "env, expected_hint",
+    [
+        ({"LESYSBOT_SETUP_PROVIDER": "telegram"},
+         "LESYSBOT_SETUP_TELEGRAM_TOKEN"),
+        ({"LESYSBOT_SETUP_PROVIDER": "telegram",
+          "LESYSBOT_SETUP_TELEGRAM_TOKEN": "t"},
+         "LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS"),
+        ({"LESYSBOT_SETUP_PROVIDER": "telegram",
+          "LESYSBOT_SETUP_TELEGRAM_TOKEN": "t",
+          "LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS": "not-a-number"},
+         "LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS"),
+        ({"LESYSBOT_SETUP_LLM": "openai"}, "LESYSBOT_SETUP_API_KEY"),
+    ],
+)
+def test_unattended_aborts_naming_the_missing_variable(
+    tmp_path, monkeypatch, capsys, env, expected_hint
+):
+    """A half-configured remote bot is worse than a failed install — and the
+    message has to name the variable, because there is nobody to ask."""
+    from lesysbot.setup import cli as setup_cli
+
+    home = _hermetic(tmp_path, monkeypatch)
+    _no_real_service(monkeypatch)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    with pytest.raises(SetupAborted):
+        setup_cli.run(_unattended_args())
+    assert expected_hint in capsys.readouterr().out
+    assert not (home / "config.yaml").exists()
+
+
+def test_unattended_keeps_an_existing_config_unless_reconfigured(tmp_path, monkeypatch):
+    from lesysbot.setup import cli as setup_cli
+
+    home = _hermetic(tmp_path, monkeypatch)
+    home.mkdir(parents=True)
+    existing = 'messaging:\n  provider: discord\nllm:\n  model: "kept-model"\n'
+    (home / "config.yaml").write_text(existing)
+    _no_real_service(monkeypatch)
+
+    # Re-running the installer must not discard the answers given last time.
+    assert setup_cli.run(_unattended_args()) == 0
+    assert (home / "config.yaml").read_text() == existing
+
+    assert setup_cli.run(_unattended_args(reconfigure=True)) == 0
+    cfg = yaml.safe_load((home / "config.yaml").read_text())
+    assert cfg["messaging"]["provider"] == "cli"
+
+
+def test_skip_dashboard_flag_sets_the_env_var(tmp_path, monkeypatch):
+    from lesysbot.setup import cli as setup_cli
+
+    _hermetic(tmp_path, monkeypatch)
+    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
+    _no_real_service(monkeypatch)
+    seen = {}
+    monkeypatch.setattr(apply_mod, "start_dashboard",
+                        lambda ui, d, **_kw: seen.update(
+                            skip=os.environ.get("LESYSBOT_SKIP_DASHBOARD")))
+
+    assert setup_cli.run(_unattended_args(skip_dashboard=True)) == 0
+    assert seen["skip"] == "1"
+
+
+def test_skip_service_env_var_leaves_the_machine_alone(tmp_path, monkeypatch):
+    """LESYSBOT_HOME does not relocate the LaunchAgent/systemd unit, so without
+    this guard a scratch-home test would replace the real machine's service."""
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("LESYSBOT_SKIP_SERVICE", "1")
+    called = []
+    for name in ("setup_service_linux", "setup_service_macos", "setup_service_windows"):
+        monkeypatch.setattr(apply_mod, name,
+                            lambda *a, **k: called.append(name))
+
+    ui = FakeUI([])
+    apply_mod.setup_service(ui, WizardState(), tmp_path)
+    assert called == []
+    assert any("LESYSBOT_SKIP_SERVICE" in m for m in ui.messages)
+
+
+# ── Grafana credentials, unattended ───────────────────────────────────────────
+def test_unattended_generates_a_grafana_password(tmp_path):
+    """admin/admin on every install would be worse than no dashboard at all."""
+    from lesysbot.setup.ui import AutoUI
+
+    _url, user, password = apply_mod.ask_grafana_credentials(AutoUI(), tmp_path)
+    assert user == "admin"
+    assert len(password) >= 20
+    assert password != "admin"
+    assert password.isalnum()  # lands in a docker .env; nothing to quote
+
+
+def test_unattended_reuses_a_previously_saved_password(tmp_path):
+    """Grafana only honours GF_SECURITY_ADMIN_PASSWORD on an empty volume, so
+    rotating it on a re-install would lock LeSysBot out of its own dashboard."""
+    from lesysbot.setup.ui import AutoUI
+
+    _u1, _user, first = apply_mod.ask_grafana_credentials(AutoUI(), tmp_path)
+    apply_mod.write_grafana_env(tmp_path, "http://localhost:3000", "admin", first)
+
+    _u2, _user2, second = apply_mod.ask_grafana_credentials(AutoUI(), tmp_path)
+    assert second == first
+
+
+def test_unattended_grafana_password_is_never_printed(tmp_path, monkeypatch):
+    from lesysbot.setup.ui import AutoUI
+
+    ui = AutoUI()
+    printed = []
+    monkeypatch.setattr(ui, "say", lambda text="", *_a, **_kw: printed.append(str(text)))
+    monkeypatch.setattr(ui, "note", lambda text: printed.append(str(text)))
+    monkeypatch.setattr(ui, "ok", lambda text: printed.append(str(text)))
+
+    mon = tmp_path / "dashboard"
+    mon.mkdir()
+    _url, _user, password = apply_mod.ask_grafana_credentials(ui, tmp_path)
+    apply_mod._persist_grafana(ui, tmp_path, mon, "http://localhost:3000", "admin", password)
+
+    assert password not in "\n".join(printed)
+    assert (tmp_path / "grafana.env").read_text().count(password) == 1
+
+
+def test_generated_passwords_differ():
+    from lesysbot.setup.unattended import generated_password
+
+    assert generated_password() != generated_password()
+
+
+# ── The allow-list parser shared by both modes ────────────────────────────────
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("42", ("42", "[42]")),
+        ("42,99", ("42,99", "[42, 99]")),
+        (" 42 , 99 ", ("42,99", "[42, 99]")),
+        ("", None),
+        ("abc", None),
+        ("42,", None),
+        ("42;99", None),
+    ],
+)
+def test_parse_allowed_ids(raw, expected):
+    assert wizard.parse_allowed_ids(raw) == expected

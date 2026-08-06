@@ -8,7 +8,7 @@ description: Connect LeSysBot to Telegram or Discord (tokens, access control, ru
 The adapter is chosen by `messaging.provider` (`cli | telegram | discord`) or the
 `--provider` flag. Telegram/Discord normally run as a **background service**
 (Telegram polls, Discord holds a gateway websocket); the terminal stays available
-regardless via `lesysbot --provider cli`. Easiest end-to-end path: re-run the
+regardless via `lesysbot chat`. Easiest end-to-end path: re-run the
 install wizard and pick the provider — it writes the config *and*
 installs/replaces the service. The sections below are the manual route.
 
@@ -115,7 +115,7 @@ messaging:
 
 Set `provider: cli` (or re-run the wizard and pick Terminal) and restart the
 service. It keeps running — it still serves the control panel — but stops polling
-Telegram/Discord; chat with `lesysbot --provider cli`. See
+Telegram/Discord; chat with `lesysbot chat`. See
 [manage-service](../manage-service/SKILL.md).
 
 ## Related

@@ -331,7 +331,45 @@ class PlainUI:
         return raw.lower().startswith("y")
 
 
-def make_ui() -> InteractiveUI | PlainUI:
+class AutoUI(PlainUI):
+    """Unattended: every widget answers with the offered default, reading nothing.
+
+    This is the whole of ``lesysbot setup --yes`` — the seam that lets one flow
+    serve both modes. Two properties matter downstream:
+
+    * **stdin is never touched.** ``PlainUI`` would still block on ``input()``
+      when a terminal happens to be attached, which is exactly what an installer
+      piped from ``curl`` must not do.
+    * ``interactive`` stays False, which ``apply.py``'s Grafana branches already
+      read: they take the automatic path and only *downgrade* to an
+      auto-vs-manual menu when a human is watching. So the dashboard is set up
+      as part of an unattended install without those branches knowing this class
+      exists.
+
+    Nothing is echoed. The widgets are a safety net — the flow reports through
+    ``show_summary`` and the ``ok``/``note`` lines — and one of the values that
+    would pass through here is the Grafana password.
+    """
+
+    interactive = False
+    unattended = True
+
+    def _input(self, prompt: str, default: str) -> str:
+        return default
+
+    def menu(self, title: str, options: list[str], default: int = 1) -> int:
+        return default
+
+    def text(self, prompt: str, default: str = "", secret: bool = False) -> str | None:
+        return default
+
+    def confirm_yn(self, prompt: str, default: bool = True) -> bool:
+        return default
+
+
+def make_ui(unattended: bool = False) -> InteractiveUI | PlainUI:
+    if unattended:
+        return AutoUI()
     if sys.stdin.isatty() and sys.stdout.isatty():
         return InteractiveUI()
     return PlainUI()

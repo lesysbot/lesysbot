@@ -20,7 +20,7 @@ config. The terminal always works regardless of what's configured.
 The simplest adapter — no accounts, no tokens.
 
 ```bash
-lesysbot --provider cli
+lesysbot chat
 ```
 
 - LLM responses **stream live and render as Markdown** (color, bold, headings, lists, code), with a `Thinking…` / `Running <tool>…` spinner while the model works.

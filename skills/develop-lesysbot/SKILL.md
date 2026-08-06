@@ -21,7 +21,7 @@ pytest                # whole suite, seconds, no LLM/network needed
 ruff check lesysbot/    # lint
 ```
 
-Live run: `lesysbot --provider cli` (`-v` for DEBUG on screen). Slash commands
+Live run: `lesysbot chat` (`-v` for DEBUG on screen). Slash commands
 and tool testing need **no model**; only LLM chat needs Ollama. A dev checkout
 loads the repo's `tools/` and reads `./config.yaml` if present
 (`cp config/default.yaml config.yaml`).
@@ -59,7 +59,7 @@ lesysbot/
 │                  CLITool, platform gating, `lesysbot install` CLI
 ├─ messaging/      base interface + CLI / Telegram / Discord adapters,
 │                  startup notice
-└─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
+└─ artifacts/      `lesysbot install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
 scripts/           install/uninstall wizards (bash + PowerShell), exe build
@@ -116,7 +116,11 @@ Conventions (keep new tests the same):
 
 ## Install-script rules
 
-`scripts/uninstall.sh` and `scripts/uninstall.ps1` are the **same job twice** — change one, change the other. The install wizard itself is a single cross-platform Python implementation in `lesysbot/setup/`.
+`scripts/install.{sh,ps1}` and `scripts/uninstall.{sh,ps1}` are each the **same job twice** — change one, change the other. The wizard they hand off to is a single cross-platform Python implementation in `lesysbot/setup/`.
+
+`install.sh` is **POSIX sh** (it is piped into `sh`, which is dash on Debian/Ubuntu): no `[[ ]]`, no arrays, no `BASH_SOURCE`, and `set -o pipefail` only inside a subshell guard. `tests/test_shell_portability.py` enforces this; CI also runs `shellcheck --shell=sh --severity=warning scripts/install.sh`.
+
+When testing either script against a scratch dir, set `LESYSBOT_SKIP_SERVICE=1` — `LESYSBOT_HOME`/`--prefix` do **not** relocate the service unit, so without it you replace your own machine's service.
 
 ## Docs conventions
 

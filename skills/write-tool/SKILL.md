@@ -1,6 +1,6 @@
 ---
 name: write-tool
-description: Write a new LeSysBot tool — a self-contained folder package with @tool Python functions or CLITool shell wrappers, confirmation gating, cross-platform declarations, and helpers — and share it on GitHub so anyone can `lesysbot tools install` it. Use when asked to "add a tool", "write a tool", "make lesysbot able to <do X>", "create a /command", or "publish/share my tool".
+description: Write a new LeSysBot tool — a self-contained folder package with @tool Python functions or CLITool shell wrappers, confirmation gating, cross-platform declarations, and helpers — and share it on GitHub so anyone can `lesysbot install` it. Use when asked to "add a tool", "write a tool", "make lesysbot able to <do X>", "create a /command", or "publish/share my tool".
 ---
 
 # Write (and share) a LeSysBot tool
@@ -122,7 +122,7 @@ The decorator args are what's *enforced*; the frontmatter documents them.
 ## Verify
 
 1. `ruff check tools/` — lint.
-2. `lesysbot --provider cli`, then `/help` (listed? gated tools show
+2. `lesysbot chat`, then `/help` (listed? gated tools show
    "⚠ unavailable here") and `/<name> args` — runs without any LLM.
 3. Iterate freely: hot reload applies every save (watch
    `logs/lesysbot.log` for "Tool files changed — reloading...").

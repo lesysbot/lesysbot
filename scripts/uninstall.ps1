@@ -57,7 +57,7 @@ try {
     Warn "Python not found — package not removed"
 }
 
-# ── 2b. Monitoring stack (Grafana/Prometheus containers) ─────────────────────
+# ── 2b. Dashboard stack (Grafana/Prometheus containers) ──────────────────────
 # Setup starts this by default, so uninstall offers to take it down. `start.ps1
 # down` stops the containers without removing the Docker volumes, so stored
 # history survives unless you delete them yourself.
@@ -69,7 +69,7 @@ if ((Test-Path $MonStart) -and (Get-Command docker -ErrorAction SilentlyContinue
     if ($resp -match '^[Yy]') {
         try {
             & powershell -NoProfile -ExecutionPolicy Bypass -File $MonStart down
-            Ok "Monitoring stack stopped"
+            Ok "Dashboard stack stopped"
         } catch {
             Warn "Could not stop the dashboard stack (is Docker running?)"
         }

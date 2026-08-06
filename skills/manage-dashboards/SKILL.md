@@ -63,7 +63,7 @@ Windows.
 user installed LeSysBot with `pip` (no checkout), fetch it first:
 
 ```bash
-git clone https://github.com/lesysbot/lesysbot && cd lesysbot/monitoring
+git clone https://github.com/lesysbot/lesysbot && cd lesysbot/dashboard
 ```
 
 Run every command below from that `dashboard/` folder. It is self-contained —
@@ -90,7 +90,7 @@ containers — but run one or the other, never both: they bind the same ports, a
 **What the start scripts do under the hood** (useful when debugging):
 
 - **macOS (`install-macos.sh`)** — no Docker at all. `brew install`s the three
-  formulae, generates `monitoring/native/` (Prometheus scrape config on plain
+  formulae, generates `dashboard/native/` (Prometheus scrape config on plain
   `localhost`, Grafana provisioning with the datasource URL baked in, and a
   dashboards folder holding only the macOS JSON), points
   `$(brew --prefix)/etc/{prometheus,node_exporter}.args` at it, appends a marked

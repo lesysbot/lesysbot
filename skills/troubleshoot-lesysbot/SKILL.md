@@ -59,7 +59,7 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Config edits don't apply | Wrong file — check the search order (`-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml` → …) and that the service was restarted. Env vars/flags override the file. |
 | Install: `tools dir already has X` | Folder not created by the installer — `--force` to overwrite. |
 | Changed settings, old bot still polling | A leftover service from a previous install — stop/remove it (see [manage-service](../manage-service/SKILL.md)). |
-| "Another LeSysBot instance … is already running (PID N)" | The single-instance guard: that bot is already up, usually as the service. Stop it for a foreground run, or use `lesysbot --provider cli` (no conflict). |
+| "Another LeSysBot instance … is already running (PID N)" | The single-instance guard: that bot is already up, usually as the service. Stop it for a foreground run, or use `lesysbot chat` (no conflict). |
 | Telegram: `409 Conflict` getUpdates spam | Two processes polling the same token — one predates the single-instance guard, or runs on another machine. Keep exactly one; the guard blocks a second copy per machine. |
 
 ## Testing safely in an isolated scratch environment
@@ -74,12 +74,12 @@ cd "$S" && export LESYSBOT_HOME="$S/home"
 # state now lands in $S: tool_state.json, tools.lock.json, logs/
 ```
 
-- `lesysbot tools …` just works from `$S`; `echo n | lesysbot remove X`
+- the `lesysbot` CLI verbs just work from `$S`; `echo n | lesysbot remove X`
   exercises the abort path, `-y` skips confirmation.
 - The CLI adapter exits on stdin EOF — for a background bot hold stdin open:
 
 ```bash
-(tail -f /dev/null | lesysbot --provider cli > "$S/bot.log" 2>&1 &)
+(tail -f /dev/null | lesysbot chat > "$S/bot.log" 2>&1 &)
 echo $! > "$S/bot.pid"
 sleep 5 && grep -i "tools loaded" "$S/bot.log"
 ```

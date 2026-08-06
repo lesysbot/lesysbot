@@ -1,6 +1,6 @@
 ---
 name: manage-tools
-description: Install, list, enable/disable, and remove LeSysBot tools — from GitHub with `lesysbot tools install` or from the terminal — including the trust model, pinning, and updating installed packages. Use when asked to "install a tool", "add the gpu-temp tool", "disable a tool", "remove a tool", "update a tool", or "list my tools".
+description: Install, list, enable/disable, and remove LeSysBot tools — from GitHub with `lesysbot install` or from the terminal — including the trust model, pinning, and updating installed packages. Use when asked to "install a tool", "add the gpu-temp tool", "disable a tool", "remove a tool", "update a tool", or "list my tools".
 ---
 
 # Manage LeSysBot tools
@@ -84,7 +84,7 @@ mcp:
 ```
 
 All anchor next to the active `config.yaml` (→ `~/.lesysbot/…` when installed),
-so `lesysbot tools …` and the bot always resolve the same locations.
+so the CLI and the bot always resolve the same locations.
 
 ## Troubleshooting
 

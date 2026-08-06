@@ -91,7 +91,7 @@ class MCPConfig(BaseModel):
     # the old file is honoured as-is — it is a path, so pointing at it simply
     # works — and `ArtifactLock` migrates a v1 file found beside the new one.
     lock_file: str = "lesysbot.lock.json"
-    # Persisted set of tools disabled via `lesysbot tools disable`. Relative
+    # Persisted set of tools disabled via `lesysbot disable`. Relative
     # paths anchor to the config dir (so ~/.lesysbot/tool_state.json for an
     # installed setup), like tools_dir/logs. The bot watches this file, so a
     # change from the CLI reaches a running bot within a second (set null to
@@ -230,7 +230,7 @@ def resolve_paths(settings: Settings) -> None:
     user edits — e.g. ~/.lesysbot for an installed setup. When no config file was
     found (built-in defaults), `config_dir` is None and `anchor()` falls back to
     the app directory: the CWD for a normal run, or the folder containing the
-    frozen .exe. Shared by the bot startup and the `lesysbot tools` CLI so both
+    frozen .exe. Shared by the bot startup and the artifact CLI so both
     resolve the exact same tools dir.
     """
     from lesysbot.core.paths import anchor

@@ -5,18 +5,34 @@ description: Remove LeSysBot from a machine — stop and remove the background s
 
 # Uninstall LeSysBot
 
-## 1. The uninstall script (preferred)
+## 1. The installer's own uninstall (preferred)
 
-Run from the cloned repository:
+The installer leaves a copy of itself in the install directory, so this needs no
+network and no clone:
 
 ```bash
-bash scripts/uninstall.sh                                        # Linux/macOS
+~/.local/share/lesysbot/install.sh --uninstall            # Linux/macOS
+~/.local/share/lesysbot/install.sh --uninstall --purge    # …and delete ~/.lesysbot
 ```
 
 ```powershell
-.\scripts\uninstall.ps1                                          # Windows
-powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1   # if blocked
+& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall
+& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall -Purge
 ```
+
+It removes only what the installer created: the service, the `lesysbot` command,
+the virtual environment, and the PATH entry it added to your shell startup files.
+**`~/.lesysbot` is kept** unless `--purge`/`-Purge`, so a reinstall finds your
+config, tools and logs as you left them.
+
+Installed some other way? Then `pipx uninstall lesysbot` (or delete the venv you
+made), remove the service by hand — see [manage-service](../manage-service/SKILL.md) —
+and `rm -rf ~/.lesysbot` when done with the data.
+
+<details>
+<summary>The older <code>scripts/uninstall.sh</code>, from a clone</summary>
+
+Still present and still works, for installs that predate the current installer.
 
 It undoes everything the installer set up, in order:
 
@@ -33,13 +49,15 @@ It undoes everything the installer set up, in order:
    setup started) when a seeded `~/.lesysbot/dashboard` and `docker` are
    present. It runs `start.sh down` (no `-v`), so the Docker volumes with stored
    history survive a re-install.
-5. **Asks before deleting `~/.lesysbot`** (config, tools, monitoring, logs;
+5. **Asks before deleting `~/.lesysbot`** (config, tools, dashboard, logs;
    honours `LESYSBOT_HOME`). Default is **No** — keeping it means a later
    re-install finds settings and custom tools exactly as left. Answer `y` only
    for a completely clean machine.
 
 Works for both wizard and manual installs — with no service present, step 1
 skips itself.
+
+</details>
 
 ## 2. Manual removal (no repo clone available)
 

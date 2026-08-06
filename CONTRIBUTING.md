@@ -66,8 +66,8 @@ ruff check lesysbot/  # lint
 commands (and therefore most tool testing) work with no model at all:
 
 ```bash
-lesysbot --provider cli          # chat + /commands
-lesysbot --provider cli -v       # with DEBUG logging on screen
+lesysbot chat          # chat + /commands
+lesysbot chat -v       # with DEBUG logging on screen
 ```
 
 A dev checkout loads tools from the repo's `tools/` and reads `./config.yaml`
@@ -122,7 +122,7 @@ Follow [docs/writing-tools.md](docs/writing-tools.md) for everything that goes
 in `tool.py` — type hints (they become the LLM-facing schema), `confirm=` for
 anything destructive, `platforms=`/`requires=` when it isn't universal.
 
-**Step 2 — Test it live.** Run `lesysbot --provider cli`, then:
+**Step 2 — Test it live.** Run `lesysbot chat`, then:
 
 - check it appears in `/help` with the right signature;
 - call it directly: `/my_tool arg=value` (works without an LLM);
@@ -201,11 +201,23 @@ ruff check lesysbot/
 [CLAUDE.md](CLAUDE.md) for architecture changes, the relevant guide in
 `docs/` for behaviour changes.
 
-**A note on the uninstall scripts:** `scripts/uninstall.sh` and
-`scripts/uninstall.ps1` do the same job twice and must stay in sync — change
-one, change the other. In the bash one, mind `set -euo pipefail` and that
-macOS ships bash 3.2, so `${var,,}` fails at *runtime*; use a case-based
-helper (`is_yes`). `tests/test_shell_portability.py` catches that.
+**A note on the shell scripts:** `install.sh`/`install.ps1` and
+`uninstall.sh`/`uninstall.ps1` are each the same job twice and must stay in sync
+— change one, change the other.
+
+`scripts/install.sh` is **POSIX `sh`**, not bash: the documented install command
+pipes it into `sh`, which is dash on Debian and Ubuntu, so `[[ ]]`, arrays,
+`BASH_SOURCE` and a bare `set -o pipefail` all break there. Every *other* script
+is bash, where the trap is that macOS ships bash 3.2 and `${var,,}` fails at
+*runtime*; use a case-based helper (`is_yes`). `tests/test_shell_portability.py`
+enforces both sets of rules, and CI additionally runs
+`shellcheck --shell=sh --severity=warning scripts/install.sh` — bashisms are
+SC3xxx *warnings*, so the error-only pass misses all of them.
+
+**Testing either installer against a scratch directory:** always set
+`LESYSBOT_SKIP_SERVICE=1`. `LESYSBOT_HOME` and `--prefix` do not relocate the
+LaunchAgent / systemd unit / scheduled task, so without it a test run replaces
+the service on your own machine.
 
 ---
 

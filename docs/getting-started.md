@@ -5,88 +5,151 @@ downloading a model.
 
 ---
 
-## What you need
+## Install it
 
-- **Python 3.11 or newer.** Check with `python --version` (`python3` on
-  Linux/macOS). On Windows, tick **"Add Python to PATH"** in the installer.
-- **A model to talk to.** [Ollama](https://ollama.com) runs one locally and is
-  what we'll use below. If you'd rather use OpenAI or another remote service,
-  skip step 1 — you'll pick that in the wizard.
-
----
-
-## 1. Get a model running
+One command. It works on a machine with nothing on it — no Python, no pipx, no
+git, no clone — and it never asks you anything, so it is safe to run from a
+script.
 
 ```bash
-# Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# macOS
-brew install ollama
-
-# Windows — download the installer from https://ollama.com/download
+curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-Then pull a model. `qwen3.5:4b` is small, runs on almost anything, and is
-reliable at picking the right tool:
+```powershell
+# Windows
+irm https://lesysbot.github.io/install.ps1 | iex
+```
+
+Here is everything it does, in order:
+
+| | |
+|---|---|
+| **Finds a Python** | 3.11 or newer. If there isn't one it fetches a private copy with [uv](https://docs.astral.sh/uv/) — no system packages, no root. |
+| **Builds an isolated environment** | `~/.local/share/lesysbot/venv`, so LeSysBot's dependencies can't collide with anything else you have installed. |
+| **Puts `lesysbot` on your PATH** | A link in `~/.local/bin`, added to your shell startup files if it isn't there already (`--no-modify-path` to skip). |
+| **Gets a model ready** | Installs [Ollama](https://ollama.com) and pulls `qwen3.5:4b` — small, runs on almost anything, reliable at picking the right tool. |
+| **Configures everything** | Runs `lesysbot setup --yes`: writes `~/.lesysbot/config.yaml`, installs the bundled tools and dashboards, brings up the Grafana stack, and starts the background service. |
+
+When it finishes you have a working bot. Skip to [Say hello](#say-hello).
+
+> **Read it first?** Sensible — you should with any `curl | sh`.
+> ```bash
+> curl -fsSL https://lesysbot.github.io/install.sh -o install.sh
+> less install.sh
+> sh install.sh
+> ```
+
+### Options
+
+Pass these after `sh -s --` when piping (`… | sh -s -- --skip-dashboard`), or
+directly when you've downloaded the script. `--help` lists them all.
+
+| Flag | What it does |
+|---|---|
+| `--skip-dashboard` | Don't set up Grafana/Prometheus. The fastest install. |
+| `--skip-ollama` | Leave the model runner alone — you already have one, or you're using OpenAI. |
+| `--no-model` | Install Ollama but don't download a model. |
+| `--model NAME` | Pull a different model (see [Choosing a model](models.md)). |
+| `--provider telegram` | Configure Telegram instead of terminal-only (see below). |
+| `--no-modify-path` | Never touch your shell startup files. |
+| `--prefix DIR` / `--bin-dir DIR` | Put the environment / the command somewhere else. |
+| `--version X.Y.Z` / `--ref REF` | Install a specific release, branch or tag. |
+| `--uninstall` / `--purge` | See [Uninstalling](#uninstalling). |
+
+Every flag also has a `LESYSBOT_*` environment variable, because a bare
+`curl … | sh` can't easily take arguments — `LESYSBOT_SKIP_DASHBOARD=1`,
+`LESYSBOT_MODEL=…`, and so on.
+
+### Where does Ollama need a password?
+
+Nowhere that LeSysBot can avoid, and it never asks for one. On **macOS** and
+**Windows** Ollama installs without elevation, so the installer just does it. On
+**Linux** Ollama's own installer needs root — so unless you're already root (or
+have passwordless `sudo`), the installer **skips it** and prints the two lines
+for you to run:
 
 ```bash
+curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3.5:4b
 ```
 
-Check it's up:
+Everything else is already configured, so that's all that's left. `--with-ollama`
+runs it anyway and accepts the password prompt.
 
-```bash
-curl http://localhost:11434/          # → "Ollama is running"
-```
+<details>
+<summary><b>Installing a different way</b></summary>
 
-> **Bigger machine?** A stronger model makes the bot noticeably better at
-> picking the right tool. [Choosing a model](models.md) matches models to GPU
-> memory.
-
----
-
-## 2. Install LeSysBot
+**Into an environment you manage**, with Python 3.11+ already present:
 
 ```bash
 pipx install git+https://github.com/lesysbot/lesysbot
 lesysbot setup
 ```
 
-That's it — no clone, no build step. The tools, the dashboards and the
-Prometheus/Grafana stack all ship inside the package, so this works offline and
-`lesysbot update` can refresh them later.
+The tools, the dashboards and the Prometheus/Grafana stack all ship inside the
+package, so this works offline and `lesysbot update` can refresh them later.
 
-<details>
-<summary><b>Installing from a git checkout instead</b></summary>
-
-For working *on* LeSysBot, or to run an unreleased version:
+**From a git checkout** — for working *on* LeSysBot, or to run an unreleased
+version. Run from a checkout, the installer installs *that* checkout:
 
 ```bash
 git clone https://github.com/lesysbot/lesysbot
 cd lesysbot
-pip install ".[all]"
-lesysbot setup
+sh scripts/install.sh
 ```
 
-Same wizard, same result — the only difference is where the package came from.
+**By hand**, if you'd rather own every step:
+
+```bash
+python -m venv ~/.local/share/lesysbot/venv
+~/.local/share/lesysbot/venv/bin/pip install "lesysbot[telegram,discord] @ https://github.com/lesysbot/lesysbot/archive/refs/heads/main.zip"
+~/.local/share/lesysbot/venv/bin/lesysbot setup
+```
 
 </details>
 
-A wizard opens and asks a handful of short questions. **Press Enter through all
-of them** for a working local bot you chat with in your terminal. Nothing is
-written to disk until you pick **Apply** at the end, and you can back out of any
-answer with **Esc** or the **←** key.
+<details>
+<summary><b>Unattended and scripted installs</b></summary>
 
-Your settings land in **`~/.lesysbot/config.yaml`**, with your tools in
-`~/.lesysbot/tools/`. That folder is your bot's home from then on — it doesn't
-matter where you cloned the source.
+`lesysbot setup --yes` is what the installer runs. It takes every default
+without prompting and reads overrides from the environment, so a complete
+Telegram install is one command with no terminal involved:
 
-Want to change something later? Run **`lesysbot setup`** again. No reinstall
-needed.
+```bash
+LESYSBOT_SETUP_PROVIDER=telegram \
+LESYSBOT_SETUP_TELEGRAM_TOKEN=123456:ABC… \
+LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS=123456789 \
+  curl -fsSL https://lesysbot.github.io/install.sh | sh
+```
+
+| Variable | Default |
+|---|---|
+| `LESYSBOT_SETUP_LLM` | `ollama` — or `openai`, `vllm`, `custom` |
+| `LESYSBOT_SETUP_BASE_URL` | per backend (`http://localhost:11434/v1` for Ollama) |
+| `LESYSBOT_SETUP_MODEL` | `qwen3.5:4b` |
+| `LESYSBOT_SETUP_API_KEY` | `ollama` — **required** when the backend is `openai` |
+| `LESYSBOT_SETUP_PROVIDER` | `cli` — or `telegram`, `discord` |
+| `LESYSBOT_SETUP_TELEGRAM_TOKEN` | — required for `telegram` |
+| `LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS` | — required for `telegram`, comma-separated |
+| `LESYSBOT_SETUP_DISCORD_TOKEN` / `_DISCORD_ALLOWED_IDS` | the same, for Discord |
+| `LESYSBOT_SETUP_AUTOSTART` | `1` — start at boot |
+| `LESYSBOT_SETUP_GRAFANA_USER` | `admin` |
+| `LESYSBOT_SETUP_GRAFANA_PASSWORD` | **generated**, saved 0600 to `~/.lesysbot/grafana.env` |
+
+A missing required value aborts and names the variable to set, rather than
+leaving a half-configured bot that anyone can message.
+
+Re-running `lesysbot setup --yes` **keeps** your existing `config.yaml` and
+refreshes everything else (tools, dashboards, service) — that's the upgrade
+path. `--reconfigure` replaces the config instead.
+
+</details>
+
+Run **`lesysbot setup`** with no flags anytime to change your answers through
+the interactive wizard. No reinstall needed.
 
 <details>
-<summary><b>Every question the wizard asks, explained</b></summary>
+<summary><b>Every question the interactive wizard asks, explained</b></summary>
 
 Each prompt shows a default in `[brackets]` — press Enter to take it. Menus
 respond to **↑/↓ + Enter**, or just press the option's number. From the second
@@ -129,7 +192,7 @@ All four speak the same protocol, so this only picks a URL and a key.
 3) Discord
 ```
 
-The terminal always works regardless of this choice — `lesysbot --provider cli`
+The terminal always works regardless of this choice — `lesysbot chat`
 opens a chat whatever you pick here. Telegram and Discord are *extra* remote
 channels that run in the background.
 
@@ -259,7 +322,7 @@ For OpenAI, change those three lines to
 
 ```bash
 lesysbot run                      # control panel + bot, using ./config.yaml
-lesysbot --provider cli -v        # force a terminal chat, verbose
+lesysbot chat -v        # force a terminal chat, verbose
 lesysbot -c /path/to/config.yaml  # status for a config somewhere else
 ```
 
@@ -270,10 +333,10 @@ If you want it running in the background, set that up yourself:
 
 ---
 
-## 3. Say hello
+## Say hello
 
 ```bash
-lesysbot --provider cli
+lesysbot chat
 ```
 
 ```
@@ -293,14 +356,15 @@ it works even when Ollama is off.
 
 Type **`/help`** to see every tool it currently has.
 
-> Running as a Telegram/Discord service already? `lesysbot --provider cli` still
-> opens a separate terminal chat alongside it. They don't conflict.
+> Running as a Telegram/Discord service already? `lesysbot chat` still opens a
+> separate terminal chat alongside it. They don't conflict. (`lesysbot chat` is
+> short for `lesysbot chat`, which also still works.)
 
 Day-to-day guide: **[Everyday use](usage.md)**.
 
 ---
 
-## 4. Give it more to do
+## Give it more to do
 
 **Install the ready-made official collection** — one repo, every OS:
 
@@ -348,7 +412,7 @@ Full guide: **[Write a tool](writing-tools.md)**.
 
 ---
 
-## 5. Manage it from a browser
+## Manage it from a browser
 
 The control panel is always on — the background service serves it:
 
@@ -367,30 +431,29 @@ prints health and metrics — backend, tools, service, panel, Grafana — and ex
 
 ## Uninstalling
 
-From the cloned repository:
+The installer leaves a copy of itself behind, so this works with no network and
+no checkout:
 
 ```bash
-bash scripts/uninstall.sh          # Linux / macOS
+~/.local/share/lesysbot/install.sh --uninstall
 ```
 ```powershell
-.\scripts\uninstall.ps1            # Windows (PowerShell)
+& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall
 ```
 
-It works backwards through what the installer did:
+It works backwards through what the installer did: stops and removes the
+background service, stops the Grafana stack (without removing its Docker
+volumes, so your stored history survives a reinstall), deletes the `lesysbot`
+command and its environment, and takes its entry back out of your shell startup
+files.
 
-1. **Stops and removes the background service**, if you had one. On Linux it
-   also offers to undo `loginctl` linger.
-2. **Reports any leftover sudoers rule** from an older version and prints the
-   command to delete it — it won't delete it itself, since that would mean
-   asking for your password. Current LeSysBot needs no root, so this usually
-   prints nothing.
-3. **Uninstalls the `lesysbot` package** via pip.
-4. **Offers to stop the Grafana dashboard** (the Docker containers
-   setup started). It stops them without removing the Docker volumes, so your
-   stored history survives a reinstall.
-5. **Asks before deleting `~/.lesysbot`** — your config, tools, dashboard stack,
-   and logs. The default is **No**, so a later reinstall finds everything as you
-   left it.
+**It keeps `~/.lesysbot`** — your config, tools, dashboards and logs — so a
+later reinstall finds everything as you left it. Add `--purge` (`-Purge` on
+Windows) to delete that too.
+
+Installed some other way? Then remove it that way — `pipx uninstall lesysbot`,
+or delete the virtualenv you made — and `rm -rf ~/.lesysbot` when you're done
+with the data.
 
 ---
 

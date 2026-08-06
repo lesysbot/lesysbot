@@ -52,7 +52,7 @@ dropped straight in `tools/` also still works for quick local tools.)
    tool, handle `ImportError`, and list them in the package's `requirements.txt`.
 
 4. **Write `README.md`** with frontmatter mirroring the code (for humans, the
-   catalog, and the tools CLI — `lesysbot tools list/info` display it)
+   catalog, and the artifact CLI — `lesysbot list/info` display it)
    and a short usage blurb:
 
    ```markdown
@@ -61,7 +61,7 @@ dropped straight in `tools/` also still works for quick local tools.)
    description: Search files by pattern
    platforms: all
    requires: []
-   version: "1.0.0"        # optional; shown/recorded by `lesysbot tools …`
+   version: "1.0.0"        # optional; shown/recorded by `lesysbot list/info`
    ---
    # find-files
    **Runs on:** Linux · macOS · Windows · **Needs:** nothing
@@ -87,9 +87,9 @@ dropped straight in `tools/` also still works for quick local tools.)
 - A new tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in `tools/` (e.g. `system-info/`, `speedtest/`).
 - Add a row to `tools/README.md` (the catalog table).
-- The same folder shape is what `lesysbot tools install owner/repo` downloads,
+- The same folder shape is what `lesysbot install owner/repo` downloads,
   so a package pushed to its own GitHub repo is installable as-is (and the
-  bundled ones install via `lesysbot tools install lesysbot/lesysbot/tools/<name>`)
+  bundled ones install via `lesysbot install lesysbot/lesysbot/tools/<name>`)
   — see [docs/sharing-tools.md](../../../docs/sharing-tools.md).
 
 ## Verify

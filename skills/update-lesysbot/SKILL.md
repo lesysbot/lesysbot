@@ -24,20 +24,23 @@ nothing in `~/.lesysbot` depends on the old checkout.)
 **Re-run the wizard** (simplest; handles the service for you):
 
 ```bash
-pipx install --force git+https://github.com/lesysbot/lesysbot && lesysbot setup
+curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-At *"~/.lesysbot/config.yaml already exists — overwrite?"* answer **`n`** to keep
-current settings. The wizard reinstalls the package and **stops, replaces, and
-restarts** any existing background service, so the new code is live when it
-finishes. An existing `~/.lesysbot/tools` is never clobbered.
+Re-running the installer **is** the upgrade path. It reinstalls the package into
+the same environment (`--force-reinstall`, because the version string doesn't
+move between releases), keeps your existing `config.yaml` without asking, and
+**stops, replaces, and restarts** the background service so the new code is live
+when it finishes. An existing `~/.lesysbot/tools` is never clobbered. Pass
+`--reconfigure` to `lesysbot setup --yes` if you *do* want the config replaced.
 
 `~/.lesysbot/dashboard` **is** brought up to date, because that is how a fix to
 the stack reaches an existing install: shipped files (scripts, dashboards,
 compose, Grafana provisioning) are refreshed when they differ, while `.env`
 (ports, Grafana login) and `prometheus/` (hand-added scrape targets) are seeded
-once and then never touched. Run the installer from a checkout (`--repo`) for
-that; a bare `lesysbot setup` has no source to copy from. Re-run the OS's start
+once and then never touched. The stack ships inside the package, so a plain
+re-run refreshes it — `--repo` is only needed when seeding from a checkout you
+are editing. Re-run the OS's start
 script afterwards (`dashboard/scripts/install-macos.sh` on macOS, `start.sh` on
 Linux) so the dashboard is regenerated with the new code.
 

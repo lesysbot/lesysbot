@@ -53,7 +53,7 @@ lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 ```
 
 > **Looking for a chat?** None of these are a conversation. Use
-> `lesysbot --provider cli` to chat in your terminal.
+> `lesysbot chat` to chat in your terminal.
 
 ---
 

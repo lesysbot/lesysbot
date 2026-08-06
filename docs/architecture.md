@@ -49,7 +49,8 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
 
 1. **Parse the command line.** `build_parser()` handles the flags (`-c`, `-v`,
    `--provider`, `--model`, `--base-url`). If you ran a subcommand
-   (`lesysbot tools …`), it's dispatched to the tools CLI before any bot setup —
+   (`lesysbot install`, `lesysbot list`, …), it's dispatched to the artifact CLI
+   before any bot setup —
    the bot never starts.
 2. **Load settings.** `Settings.load()`
    ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active config
@@ -243,7 +244,7 @@ handle `ImportError` themselves.
 
 ### 5.4 Enable/disable
 
-`lesysbot tools enable/disable` toggles tools off. A disabled tool is hidden
+`lesysbot enable/disable` toggles tools off. A disabled tool is hidden
 from the LLM's schemas and refuses direct `/` calls; the choice is persisted
 to `tool_state.json` (`mcp.state_file`) so it survives restarts and hot reloads.
 The running bot watches that file, so a change from the CLI applies within a
@@ -318,7 +319,7 @@ full reference is in [Configuration](configuration.md).
 
 ## 8. The tool installer
 
-`lesysbot install owner/repo` ([lesysbot/install/](../lesysbot/install/))
+`lesysbot install owner/repo` ([lesysbot/artifacts/](../lesysbot/artifacts/))
 downloads a tool folder package from GitHub **into the same tools directory
 the bot loads** — so a running bot picks it up via hot reload. The pipeline,
 one module per stage:

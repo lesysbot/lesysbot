@@ -1,6 +1,6 @@
 ---
 name: install-lesysbot
-description: Install LeSysBot from scratch on Linux, macOS, or Windows — prerequisites (Python, Ollama), the guided install wizard with every prompt explained, or a fully scripted manual install. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
+description: Install LeSysBot from scratch on Linux, macOS, or Windows — the one-command installer (no prerequisites at all), a fully scripted unattended install driven by LESYSBOT_SETUP_* variables, the interactive wizard with every prompt explained, or a by-hand install from a clone. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
 ---
 
 # Install LeSysBot
@@ -10,39 +10,100 @@ can call, reachable from the terminal, Telegram, or Discord. Installing it means
 install the Python package, write a config, and register the background service
 that serves the control panel (and any Telegram/Discord bot).
 
-## 1. Prerequisites
+**Path A does all of that in one command and is what you should reach for.**
+Paths B–D exist for scripting, for a human who wants to choose, and for working
+on LeSysBot itself.
 
-| Requirement | Version | Notes |
-|---|---|---|
-| Python | 3.11+ | `python --version` (try `python3` on Linux/macOS). On Windows tick "Add Python to PATH". |
-| pip | any | bundled with Python |
-| Ollama *(optional)* | latest | Only for a local LLM. Skip if using OpenAI or another remote backend. |
-
-**Install Ollama and pull a model** (skip for remote backends):
-
-```bash
-# Linux
-curl -fsSL https://ollama.com/install.sh | sh
-# macOS
-brew install ollama
-# Windows: installer from https://ollama.com/download
-
-ollama pull qwen3.5:4b        # small, capable starting point
-curl http://localhost:11434/  # → "Ollama is running"
-```
-
-## 2. Path A — guided wizard (recommended for most people)
-
-No clone needed — the package installs straight from GitHub:
+## 1. Path A — the one-command installer (use this unless told otherwise)
 
 ```bash
 # Linux / macOS
-pipx install git+https://github.com/lesysbot/lesysbot && lesysbot setup
+curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
 ```powershell
 # Windows
-pipx install git+https://github.com/lesysbot/lesysbot; lesysbot setup
+irm https://lesysbot.github.io/install.ps1 | iex
+```
+
+**There are no prerequisites.** The script finds a Python 3.11+ or fetches one
+with uv, builds an isolated venv at `~/.local/share/lesysbot/venv`, links
+`lesysbot` into `~/.local/bin` and puts that on PATH, installs Ollama and pulls
+`qwen3.5:4b`, then runs `lesysbot setup --yes`. It never prompts and never asks
+for a password, so it is safe to run non-interactively.
+
+Verify:
+
+```bash
+lesysbot          # status: LLM backend, service, control panel, Grafana
+lesysbot chat     # terminal chat
+```
+
+**Useful flags** — pass after `sh -s --` when piping, or use the `LESYSBOT_*`
+environment twin of each (a bare `curl … | sh` can't easily take arguments):
+
+| Flag | Env | Use when |
+|---|---|---|
+| `--skip-dashboard` | `LESYSBOT_SKIP_DASHBOARD=1` | Fastest install; skips Grafana/Prometheus (which needs Docker on Linux, Homebrew on macOS). |
+| `--skip-ollama` | `LESYSBOT_SKIP_OLLAMA=1` | A model runner already exists, or the backend is OpenAI. |
+| `--model NAME` | `LESYSBOT_MODEL` | A different model. |
+| `--no-modify-path` | `LESYSBOT_NO_MODIFY_PATH=1` | Never touch shell startup files (CI). |
+| `--prefix DIR` / `--bin-dir DIR` | `LESYSBOT_INSTALL_DIR` / `LESYSBOT_BIN_DIR` | Relocate the venv / the command. |
+| `--version X.Y.Z` / `--ref REF` | `LESYSBOT_VERSION` / `LESYSBOT_REF` | Pin a release, branch or tag. Default: the latest release, falling back to `main`. |
+| `--skip-setup` | `LESYSBOT_SKIP_SETUP=1` | Install the command only; configure later. |
+
+**The one thing it can't always finish:** on **Linux**, Ollama's own installer
+needs root, and LeSysBot never asks for a password. Unless already root or
+passwordless-sudo, the installer skips it and prints the two lines to run. macOS
+and Windows install Ollama without elevation, so there it is fully automatic.
+`--with-ollama` forces the attempt and accepts the prompt.
+
+## 2. Path B — scripted / unattended (no terminal at all)
+
+`lesysbot setup --yes` takes every default and reads overrides from the
+environment. A complete Telegram install in one command:
+
+```bash
+LESYSBOT_SETUP_PROVIDER=telegram \
+LESYSBOT_SETUP_TELEGRAM_TOKEN=123456:ABC… \
+LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS=123456789 \
+  curl -fsSL https://lesysbot.github.io/install.sh | sh
+```
+
+| Variable | Default |
+|---|---|
+| `LESYSBOT_SETUP_LLM` | `ollama` \| `openai` \| `vllm` \| `custom` |
+| `LESYSBOT_SETUP_BASE_URL` | per backend (`http://localhost:11434/v1`) |
+| `LESYSBOT_SETUP_MODEL` | `qwen3.5:4b` |
+| `LESYSBOT_SETUP_API_KEY` | per backend; **required** for `openai` |
+| `LESYSBOT_SETUP_PROVIDER` | `cli` \| `telegram` \| `discord` |
+| `LESYSBOT_SETUP_TELEGRAM_TOKEN` / `_TELEGRAM_ALLOWED_IDS` | — both required for `telegram` |
+| `LESYSBOT_SETUP_DISCORD_TOKEN` / `_DISCORD_ALLOWED_IDS` | — both required for `discord` |
+| `LESYSBOT_SETUP_AUTOSTART` | `1` |
+| `LESYSBOT_SETUP_GRAFANA_USER` / `_GRAFANA_PASSWORD` | `admin` / generated (0600 in `~/.lesysbot/grafana.env`) |
+
+A missing required value **aborts and names the variable** — never guess one and
+never leave a remote bot with an empty allow-list, which would let anyone who
+can message it run tools on the machine.
+
+Two more guards worth knowing when scripting or testing:
+
+- `LESYSBOT_SKIP_SERVICE=1` — don't install/replace the background service.
+  `LESYSBOT_HOME` does *not* relocate the LaunchAgent/systemd unit/scheduled
+  task, so **without this a scratch-home test replaces the real machine's
+  service.**
+- `LESYSBOT_HOME` — move config, tools, logs and dashboards somewhere else.
+
+Re-running the installer or `lesysbot setup --yes` is the **upgrade** path: it
+keeps `config.yaml`, refreshes tools/dashboards, and restarts the service.
+`--reconfigure` replaces the config instead.
+
+## 3. Path C — the interactive wizard
+
+For a human at a keyboard who wants to choose, or to reconfigure later:
+
+```bash
+lesysbot setup
 ```
 
 The install hands off to
@@ -74,7 +135,7 @@ The prompts, in order:
    `3) Discord` (asks bot token + allowed user IDs, same validation;
    the bot needs MESSAGE CONTENT INTENT enabled in the developer portal),
    `4) ← Back` (re-pick the LLM backend).
-   The terminal always works regardless: `lesysbot --provider cli`.
+   The terminal always works regardless: `lesysbot chat`.
 4. **"Service"** — asked for **every** provider (systemd / launchd / Task
    Scheduler), because the service also serves the always-on control panel:
    `1) Start now and automatically after reboot` (default; "at login" on
@@ -123,7 +184,17 @@ fatal:
 
 Set `LESYSBOT_SKIP_DASHBOARD=1` to skip this step on an unattended install.
 
-## 3. Path B — manual install from a clone (scriptable, full control)
+## 4. Path D — by hand from a clone (full control, no service)
+
+Run the installer from a checkout and it installs *that checkout* — the usual
+way to test an unreleased change:
+
+```bash
+git clone https://github.com/lesysbot/lesysbot.git
+cd lesysbot && sh scripts/install.sh
+```
+
+Or do every step yourself:
 
 ```bash
 git clone https://github.com/lesysbot/lesysbot.git
@@ -153,7 +224,7 @@ Run it:
 ```bash
 lesysbot                          # health + metrics for ./config.yaml, then exit
 lesysbot run                      # the service: control panel + bot
-lesysbot --provider cli -v        # force CLI chat + verbose logging
+lesysbot chat -v        # force CLI chat + verbose logging
 lesysbot -c /path/to/config.yaml  # explicit config
 lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
 ```
@@ -161,18 +232,19 @@ lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrid
 No service is set up on this path — see [manage-service](../manage-service/SKILL.md)
 to add one by hand.
 
-## 4. Verify the install
+## 5. Verify the install
 
 ```bash
-lesysbot --provider cli
+lesysbot chat
 ```
 
 Then in the session: `/help` lists the tools; `/disk_usage path=/tmp` runs one
 directly (no LLM needed); a natural-language question ("what's the disk usage
 of /tmp?") exercises the LLM + tool-calling path. `exit` quits.
 
-If `lesysbot: command not found`: pip's scripts dir isn't on PATH —
-`python -m site --user-scripts` shows it (e.g. `~/.local/bin`); add it to PATH.
+If `lesysbot: command not found`: the shell was started before the command
+existed. Open a new terminal, or `export PATH="$HOME/.local/bin:$PATH"`. On the
+by-hand path, `python -m site --user-scripts` shows where pip put it.
 
 ## Related
 

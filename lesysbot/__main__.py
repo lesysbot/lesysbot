@@ -110,7 +110,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
         )
         if sys.stdout.isatty():
             print("  Provider is 'cli' — no remote chat to serve.\n"
-                  "  Chat in this terminal with:  lesysbot --provider cli\n")
+                  "  Chat in this terminal with:  lesysbot chat\n")
         try:
             await _idle()
         finally:
@@ -207,11 +207,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(
         dest="command",
-        metavar="{install,search,list,doctor,dashboard,run,manage,setup}",
+        metavar="{chat,install,search,list,doctor,dashboard,run,manage,setup}",
     )
     # Re-add -c on each leaf (SUPPRESS default) so a root-level -c isn't clobbered
     # and `lesysbot manage -c …` works regardless of flag order — the same pattern
     # every artifact verb uses.
+    chat = subparsers.add_parser(
+        "chat", help="Chat with LeSysBot in this terminal (the long form is --provider cli)"
+    )
+    chat.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
+    chat.add_argument("--model", default=argparse.SUPPRESS, help="Override LLM model name")
+    chat.add_argument("--base-url", default=argparse.SUPPRESS, help="Override LLM base URL")
+    # -v after the subcommand too: `lesysbot chat -v` is what anyone following a
+    # troubleshooting page will type, and argparse would otherwise reject it
+    # because -v is only on the root parser.
+    chat.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS)
     run = subparsers.add_parser(
         "run", help="Run the service: the control panel plus the bot (what the "
                     "background service uses)"
@@ -369,7 +379,8 @@ def _runs_the_bot(command, args) -> bool:
     """Does this invocation start a long-running process?
 
     `run` is the service (bot + control panel); an explicit `--provider` is the
-    foreground bot — most often `lesysbot --provider cli` for a terminal chat.
+    foreground bot. `lesysbot chat` reaches here as `--provider cli` (main()
+    normalizes it before this is called), which is the terminal chat.
     Everything else (bare `lesysbot`) is the read-only status view.
     """
     return command == "run" or bool(getattr(args, "provider", None))
@@ -406,6 +417,18 @@ def main() -> None:
     args = build_parser().parse_args()
 
     command = getattr(args, "command", None)
+
+    # `chat` is `--provider cli` under a name people remember. Setting the flag
+    # rather than adding a branch means every decision below it — settings
+    # loading, _runs_the_bot, the interactive-logging test, the singleton guard —
+    # keeps working without knowing the command exists.
+    if command == "chat":
+        if getattr(args, "provider", None) not in (None, "cli"):
+            build_parser().error(
+                "`lesysbot chat` is the terminal chat — drop --provider, or use "
+                f"`lesysbot --provider {args.provider}` instead."
+            )
+        args.provider = "cli"
 
     # Everything that manages LeSysBot rather than *being* LeSysBot — install,
     # search, doctor, dashboard, setup — is handled by lesysbot.cli and exits
@@ -456,7 +479,7 @@ def main() -> None:
                 f"configuration is already running{who} — most likely the background "
                 "service.\nStop it first (Linux: systemctl --user stop lesysbot; "
                 "macOS: launchctl stop com.lesysbot.lesysbot; Windows: Task Scheduler), "
-                "or use `lesysbot --provider cli` for an interactive session, "
+                "or use `lesysbot chat` for an interactive session, "
                 "which runs fine alongside the service.",
                 file=sys.stderr,
             )

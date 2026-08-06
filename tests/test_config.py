@@ -125,7 +125,7 @@ def test_config_dir_tracks_source(tmp_path: Path) -> None:
 
 def test_resolve_paths_anchors_to_config_dir(tmp_path: Path) -> None:
     # Relative tools/log/state paths anchor next to the loaded config — the
-    # `lesysbot tools` CLI and the bot must resolve the exact same locations.
+    # the `lesysbot` CLI and the bot must resolve the exact same locations.
     cfg = tmp_path / "config.yaml"
     cfg.write_text("llm:\n  model: qwen3.5\n")
     s = Settings.from_yaml(cfg)

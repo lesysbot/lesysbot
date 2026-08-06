@@ -41,31 +41,30 @@ stay with you. No account, no cloud service, nothing to sign up for.
 
 ## Get started
 
-**You need:** Python 3.11+ and a model runner — [Ollama](https://ollama.com) is
-the easy one (you can point it at OpenAI instead, in the wizard).
-
-**1. Get a model running**
+**1. Install it — one command, no questions**
 
 ```bash
-# install Ollama — https://ollama.com/download has Linux, macOS and Windows
-ollama pull qwen3.5:4b
+curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-**2. Install LeSysBot**
+<details>
+<summary><b>Windows</b></summary>
 
-```bash
-pipx install git+https://github.com/lesysbot/lesysbot
-lesysbot setup
+```powershell
+irm https://lesysbot.github.io/install.ps1 | iex
 ```
+</details>
 
-A short wizard asks a few questions. **Press Enter through all of them** and you
-get a working local bot. Nothing is written to disk until you pick **Apply**;
-your settings land in `~/.lesysbot/config.yaml`.
+That gets a Python, installs Ollama and pulls a model, sets everything up and
+starts the background service. It needs no Python, no pipx, no git and no
+password — and it never prompts, so it is safe to run from a script. Your
+settings land in `~/.lesysbot/config.yaml`; change any of them later with
+`lesysbot setup`.
 
-**3. Say hello**
+**2. Say hello**
 
 ```bash
-lesysbot --provider cli
+lesysbot chat
 ```
 
 ```
@@ -76,13 +75,57 @@ You: /help
       …lists every tool it can run
 ```
 
-**4. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
+**3. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
 health in a browser. The background service keeps it online; `lesysbot` on its
 own prints the same health summary in your terminal.
 
 That's it. The full walkthrough — including how to reach it from Telegram or
 Discord — is in **[Getting started](docs/getting-started.md)**, or on the docs
 site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
+
+<details>
+<summary><b>Other ways to install</b></summary>
+
+Read the script before running it, as you should with any `curl | sh`:
+
+```bash
+curl -fsSL https://lesysbot.github.io/install.sh -o install.sh
+less install.sh
+sh install.sh
+```
+
+Useful flags (`sh -s -- --flag` when piping): `--skip-dashboard` skips the
+Grafana stack, `--skip-ollama` leaves the model runner alone, `--no-modify-path`
+doesn't touch your shell startup files, `--prefix`/`--bin-dir` move where things
+land. `--help` lists them all.
+
+Into an environment you manage yourself, with Python 3.11+ already present:
+
+```bash
+pipx install git+https://github.com/lesysbot/lesysbot
+lesysbot setup
+```
+
+From a checkout:
+
+```bash
+git clone https://github.com/lesysbot/lesysbot
+cd lesysbot && sh scripts/install.sh
+```
+
+Scripted or unattended (CI, config management, a Telegram bot in one shot) —
+`lesysbot setup --yes` never prompts and takes its answers from the environment:
+
+```bash
+LESYSBOT_SETUP_PROVIDER=telegram \
+LESYSBOT_SETUP_TELEGRAM_TOKEN=123456:ABC… \
+LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS=123456789 \
+  curl -fsSL https://lesysbot.github.io/install.sh | sh
+```
+
+**Uninstall:** `~/.local/share/lesysbot/install.sh --uninstall` (add `--purge`
+to delete `~/.lesysbot` too).
+</details>
 
 ---
 

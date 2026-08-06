@@ -330,8 +330,24 @@ def ask_grafana_credentials(ui, data_dir: Path) -> tuple[str, str, str]:
     ``default_grafana_url``); a previous run's user/password are offered so
     reconfiguring keeps them. Esc/empty keeps the default (this is an apply-time
     prompt, not a step with back-navigation).
+
+    Unattended (``lesysbot setup --yes``) there is nobody to ask, and shipping
+    every install with admin/admin would be worse than no dashboard at all — so
+    the password is **generated**. The fallback order is deliberate: a previous
+    run's password wins over a freshly generated one, because Grafana only
+    honours ``GF_SECURITY_ADMIN_PASSWORD`` on an empty volume — rotating it on a
+    re-install would leave the saved credentials unable to log in.
     """
     prev = parse_env_file(_grafana_env_path(data_dir))
+    if getattr(ui, "unattended", False):
+        from lesysbot.setup.unattended import ENV_PREFIX, generated_password
+
+        user = (os.environ.get(ENV_PREFIX + "GRAFANA_USER")
+                or prev.get("LESYSBOT_GRAFANA_USER") or "admin")
+        password = (prev.get("LESYSBOT_GRAFANA_PASSWORD")
+                    or os.environ.get(ENV_PREFIX + "GRAFANA_PASSWORD")
+                    or generated_password())
+        return default_grafana_url(data_dir), user, password
     ui.say("\n  Grafana login LeSysBot will use to reach the dashboard "
            "(match it in Grafana):")
     user = ui.text("Grafana username", prev.get("LESYSBOT_GRAFANA_USER") or "admin") or "admin"
@@ -462,6 +478,11 @@ def _persist_grafana(ui, data_dir: Path, mon: Path, url: str, user: str, passwor
     env_path = write_grafana_env(data_dir, url, user, password)
     _apply_creds_to_stack_env(mon, user, password)
     ui.ok(f"Grafana login saved to {env_path} — LeSysBot uses it to reach the dashboard")
+    if getattr(ui, "unattended", False):
+        # Nobody chose this password, so say where to find it. Never print the
+        # value itself: the file is 0600, the terminal and its scrollback aren't.
+        ui.note(f"Username {user}; the password was generated. Read it with:")
+        ui.note(f"  grep LESYSBOT_GRAFANA_PASSWORD {env_path}")
 
 
 def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str, runner) -> bool:
@@ -480,7 +501,7 @@ def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str,
                 f"bundled stack in one step:  {finish_cmd}")
     url, user, password = ask_grafana_credentials(ui, data_dir)
     _persist_grafana(ui, data_dir, mon, url, user, password)
-    ui.note(f"Set that same login ({user} / the password you entered) as Grafana's admin "
+    ui.note(f"Set that same login ({user} / the password in that file) as Grafana's admin "
             "when you first open it, so LeSysBot can connect.")
     return False
 
@@ -899,6 +920,18 @@ def setup_service_windows(ui, st: WizardState, data_dir: Path, runner=subprocess
 
 
 def setup_service(ui, st: WizardState, data_dir: Path, runner=subprocess.run) -> None:
+    """Install and start the background service for this platform.
+
+    ``LESYSBOT_SKIP_SERVICE`` skips it. The service unit is the one thing setup
+    writes that ``LESYSBOT_HOME`` does *not* relocate — the LaunchAgent, systemd
+    unit and scheduled task all live at fixed per-user paths — so a test or CI
+    run pointed at a scratch home would still replace the real machine's
+    service. This is the guard that keeps those runs hermetic.
+    """
+    if os.environ.get("LESYSBOT_SKIP_SERVICE"):
+        ui.warn("Skipping the background service (LESYSBOT_SKIP_SERVICE set).")
+        ui.note("Install it anytime by re-running `lesysbot setup`.")
+        return
     if sys.platform.startswith("linux"):
         setup_service_linux(ui, st, data_dir, runner=runner)
     elif sys.platform == "darwin":
@@ -936,10 +969,10 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
         ui.say("    3. Built-in commands:  [bold]/help[/bold] (list tools)  "
                "[bold]/clear[/bold]  [bold]/history[/bold]\n")
         ui.say("  Prefer the terminal? Start a local chat anytime:")
-        ui.say("    [bold]lesysbot --provider cli[/bold]")
+        ui.say("    [bold]lesysbot chat[/bold]")
     else:
         ui.say("  Start chatting in your terminal:")
-        ui.say("    [bold]lesysbot --provider cli[/bold]\n")
+        ui.say("    [bold]lesysbot chat[/bold]\n")
         ui.say("  Then try:")
         ui.say("    • Ask in plain language    [bold]what's my disk usage on / ?[/bold]")
         ui.say("    • Run a tool directly      [bold]/disk_usage path=/[/bold]")

@@ -123,7 +123,7 @@ Open a terminal in this `dashboard/` folder and run the one command for your OS.
 ### Linux
 
 ```bash
-cd monitoring
+cd dashboard
 ./scripts/start.sh          # detects your NVIDIA GPU automatically
 ```
 
@@ -144,7 +144,7 @@ for you.
 ### macOS
 
 ```bash
-cd monitoring
+cd dashboard
 ./scripts/install-macos.sh   # brew install + configure + start, in one step
 ```
 
@@ -184,7 +184,7 @@ Run one or the other, not both — they bind the same ports.
 ### Windows (PowerShell)
 
 ```powershell
-cd monitoring
+cd dashboard
 .\scripts\start.ps1         # starts windows_exporter, then Prometheus + Grafana
 ```
 
@@ -511,7 +511,7 @@ these without further digging. Then:
 - **Everything macOS-specific is empty** — the collector isn't running.
   `status` reports how long ago it last wrote a sample;
   `launchctl print gui/$UID/com.lesysbot.macos-metrics` shows the launchd job,
-  and its errors land in `monitoring/run/macos-metrics.log`. Run it by hand to
+  and its errors land in `dashboard/run/macos-metrics.log`. Run it by hand to
   see the raw output: `python3 scripts/macos-metrics.py --stdout`.
 - **Whole rows are empty that this Mac can't fill** (Linux hwmon sensors, NVIDIA)
   — you're on the portable dashboard rather than a generated cut. Re-run
@@ -542,7 +542,7 @@ docker compose down -v                                             # macOS/Windo
 ## Files
 
 ```
-monitoring/
+dashboard/
 ├── docker-compose.yml            # macOS / Windows stack (bridge + host.docker.internal)
 ├── docker-compose.linux.yml      # Linux stack (host network, localhost-bound)
 ├── .env.example                  # ports, retention, Grafana login

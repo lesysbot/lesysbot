@@ -78,7 +78,7 @@ async def probe_health(llm_config) -> dict:
 def build_registry(settings: Settings):
     """A ToolRegistry over the resolved tools dir, with the disabled-set loaded.
 
-    This imports the tool code, exactly as the bot and the `lesysbot tools` CLI
+    This imports the tool code, exactly as the bot and the artifact CLI
     do, so tool listings/toggles match what the bot sees.
     """
     from lesysbot.mcp.registry import ToolRegistry
