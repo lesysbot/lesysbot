@@ -8,6 +8,7 @@ monkeypatching like the rest of the suite.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -385,7 +386,14 @@ def test_seed_dashboard_adds_new_files_and_refreshes_shipped_ones(tmp_path):
     assert apply_mod.seed_dashboard(repo, data) is True
     seeded = data / "dashboard" / "scripts" / "install-macos.sh"
     assert seeded.exists()
-    assert seeded.stat().st_mode & 0o111          # …executable, or bash can't run it
+    # …executable, or bash can't run it. NTFS has no POSIX permission bits and
+    # os.chmod on Windows only toggles the read-only flag, so the `chmod(0o755)`
+    # above is a no-op there and copy2 has no bit to carry across — the property
+    # simply does not exist on that platform. Everything else this test pins
+    # (new files delivered, stale ones refreshed, idempotent once current) is
+    # platform-independent and still runs on Windows.
+    if sys.platform != "win32":
+        assert seeded.stat().st_mode & 0o111
     # …and refreshes the stale one it already had.
     assert (data / "dashboard" / "scripts" / "start.sh").read_text() == "new upstream\n"
     assert apply_mod.seed_dashboard(repo, data) is False   # idempotent once current
