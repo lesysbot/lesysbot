@@ -16,8 +16,8 @@ journalctl --user -u lesysbot -f         # Linux service stdout/stderr
 (For a dev checkout with a local `./config.yaml`, logs are in the repo's
 `logs/` instead.) The interactive CLI console only shows WARNING+ — evidence
 of tool loads/reloads is in the **file**, not on screen; `-v` puts DEBUG on
-screen. `lesysbot tools list` shows per-tool availability, and
-`lesysbot tools info NAME` explains why a specific tool can't run here.
+screen. `lesysbot list` shows per-tool availability, and
+`lesysbot info NAME` explains why a specific tool can't run here.
 
 ## The #1 developer trap: stale-install shadowing
 
@@ -42,11 +42,11 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | First reply very slow | Model loading into memory on first use; later replies are faster. |
 | Tool missing from `/help` | File not in the tools dir, name starts with `_`, or an import error — check `lesysbot.log`. Also consider stale-install shadowing (above) and *which* tools dir is active (installed setup = `~/.lesysbot/tools/`, dev checkout = repo `tools/`). |
 | Tool listed but "⚠ unavailable here" | Deliberate gating: wrong OS for its `platforms`, or a `requires` binary not on PATH. Install the binary or run on a supported OS. |
-| `/tool` returns "disabled" | It was disabled — `lesysbot tools enable NAME`. It applies live (the bot watches `tool_state.json`). |
+| `/tool` returns "disabled" | It was disabled — `lesysbot enable NAME`. It applies live (the bot watches `tool_state.json`). |
 | `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, add it (Windows: Python `Scripts\` dir). |
 | Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Discord tokens. |
 | Control panel unreachable (`lesysbot` shows it offline) | The service isn't running — start it (see [manage-service](../manage-service/SKILL.md)); or serve it ad-hoc with `lesysbot manage`. |
-| Log: `Control panel not started — port … already in use` | Something else owns `webui.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |
+| Log: `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |
 | Telegram: `Unauthorized.` | Your ID isn't in `allowed_user_ids` — re-check via @userinfobot. |
 | Telegram: no response at all | Wrong token or the bot isn't running. |
 | Telegram: raw `*markdown*` in replies | Harmless fallback — unformattable Markdown is sent as plain text. |
@@ -59,7 +59,7 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Config edits don't apply | Wrong file — check the search order (`-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml` → …) and that the service was restarted. Env vars/flags override the file. |
 | Install: `tools dir already has X` | Folder not created by the installer — `--force` to overwrite. |
 | Changed settings, old bot still polling | A leftover service from a previous install — stop/remove it (see [manage-service](../manage-service/SKILL.md)). |
-| "Another LeSysBot instance … is already running (PID N)" | The single-instance guard: that bot is already up, usually as the service. Stop it for a foreground run, or use `lesysbot --provider cli` (no conflict). |
+| "Another LeSysBot instance … is already running (PID N)" | The single-instance guard: that bot is already up, usually as the service. Stop it for a foreground run, or use `lesysbot chat` (no conflict). |
 | Telegram: `409 Conflict` getUpdates spam | Two processes polling the same token — one predates the single-instance guard, or runs on another machine. Keep exactly one; the guard blocks a second copy per machine. |
 
 ## Testing safely in an isolated scratch environment
@@ -74,12 +74,12 @@ cd "$S" && export LESYSBOT_HOME="$S/home"
 # state now lands in $S: tool_state.json, tools.lock.json, logs/
 ```
 
-- `lesysbot tools …` just works from `$S`; `echo n | lesysbot tools remove X`
+- the `lesysbot` CLI verbs just work from `$S`; `echo n | lesysbot remove X`
   exercises the abort path, `-y` skips confirmation.
 - The CLI adapter exits on stdin EOF — for a background bot hold stdin open:
 
 ```bash
-(tail -f /dev/null | lesysbot --provider cli > "$S/bot.log" 2>&1 &)
+(tail -f /dev/null | lesysbot chat > "$S/bot.log" 2>&1 &)
 echo $! > "$S/bot.pid"
 sleep 5 && grep -i "tools loaded" "$S/bot.log"
 ```

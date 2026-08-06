@@ -9,7 +9,7 @@ The install wizard registers the service for **every** configuration, not just
 Telegram/Discord: it serves the always-on **control panel**
 (`http://127.0.0.1:8700`) and, when a remote provider is configured, runs the
 bot. With `provider: cli` the service serves the panel and idles — the terminal
-chat stays an on-demand `lesysbot --provider cli` session. The service runs from
+chat stays an on-demand `lesysbot chat` session. The service runs from
 **`~/.lesysbot`** (where `config.yaml` and `tools/` live), restarts on failure,
 and optionally starts on boot.
 
@@ -21,7 +21,7 @@ Check state with `lesysbot` (Service / Control panel rows) or the commands below
 
 Only one instance can run: starting `lesysbot run` manually while the service is
 up refuses with "Another LeSysBot instance … is already running (PID N)" — stop
-the service first for a foreground run. `lesysbot --provider cli` doesn't poll or
+the service first for a foreground run. `lesysbot chat` doesn't poll or
 bind a port and runs fine alongside the service.
 
 ## Managing the installed service

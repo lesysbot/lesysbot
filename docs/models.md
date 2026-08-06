@@ -110,7 +110,7 @@ llm:
 Or one-off on the command line:
 
 ```bash
-lesysbot --provider cli --model qwen3.5
+lesysbot chat --model qwen3.5
 ```
 
 Every backend (Ollama, vLLM, LlamaCpp, OpenAI) uses the same three settings —

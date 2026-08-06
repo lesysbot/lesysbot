@@ -216,7 +216,7 @@ async def pingy() -> str:
 async def test_enable_disable_from_another_process_applies_live(tmp_path, monkeypatch) -> None:
     """A toggle written to the state file by anyone else reaches a running agent.
 
-    `lesysbot tools enable/disable` and a hand edit both mutate this file rather
+    `lesysbot enable/disable` and a hand edit both mutate this file rather
     than this process's registry. Before Agent._watch_tool_state they only took
     effect on restart.
     """

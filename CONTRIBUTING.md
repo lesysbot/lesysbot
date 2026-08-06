@@ -22,7 +22,7 @@ core at all:
 | Improve the docs | Markdown in `docs/` or the root | No | [§7](#7-contributing-documentation) |
 
 > **Tools don't have to live in this repo.** Anyone can share tools from
-> a plain GitHub repo and users install it with `lesysbot tools install you/repo`
+> a plain GitHub repo and users install it with `lesysbot install you/repo`
 > — no PR, no review, no waiting. Contribute a tool *here* when it's broadly
 > useful enough to belong in the bundled catalog.
 
@@ -66,8 +66,8 @@ ruff check lesysbot/  # lint
 commands (and therefore most tool testing) work with no model at all:
 
 ```bash
-lesysbot --provider cli          # chat + /commands
-lesysbot --provider cli -v       # with DEBUG logging on screen
+lesysbot chat          # chat + /commands
+lesysbot chat -v       # with DEBUG logging on screen
 ```
 
 A dev checkout loads tools from the repo's `tools/` and reads `./config.yaml`
@@ -80,12 +80,20 @@ if you create one (`cp config/default.yaml config.yaml`).
 ```
 lesysbot/            the package
 ├─ __main__.py       entry point: flags, logging, adapter wiring
-├─ core/             Agent (the tool-calling loop), config, paths, tracing
+├─ cli/              `lesysbot install|update|search|doctor|dashboard|…`
+├─ core/             Agent (the tool-calling loop), config, paths, grafana, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
 ├─ messaging/        CLI / Telegram / Discord adapters + the base interface
-└─ install/          `lesysbot tools install` — fetch tool packages from GitHub
-tools/             bundled tool packages (the catalog users get seeded with)
+├─ management/       the loopback panel on :8700 (stdlib http.server, no deps)
+├─ artifacts/        fetch tool AND dashboard packages from GitHub; lock; catalog
+├─ prereq/           what a package needs, whether this machine has it, the fix
+└─ dashboards/       render installed dashboard packages for Grafana
+tools/             bundled tool packages
+dashboards/        bundled dashboard packages (System Overview)
+dashboard/         the Prometheus + Grafana stack (compose, scripts, provisioning)
+catalog.json       the marketplace index — metadata pointing at GitHub links
+hatch_build.py     copies the four above into the wheel, minus local state
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
 scripts/           install/uninstall wizards (bash + PowerShell), exe build
@@ -114,7 +122,7 @@ Follow [docs/writing-tools.md](docs/writing-tools.md) for everything that goes
 in `tool.py` — type hints (they become the LLM-facing schema), `confirm=` for
 anything destructive, `platforms=`/`requires=` when it isn't universal.
 
-**Step 2 — Test it live.** Run `lesysbot --provider cli`, then:
+**Step 2 — Test it live.** Run `lesysbot chat`, then:
 
 - check it appears in `/help` with the right signature;
 - call it directly: `/my_tool arg=value` (works without an LLM);
@@ -124,7 +132,7 @@ Hot reload means you can edit → save → retry without restarting.
 
 **Step 3 — Update the catalog.** Add a row to
 [tools/README.md](tools/README.md) so people browsing the repo can find it
-(bundled packages install via `lesysbot tools install lesysbot/lesysbot/tools/<name>`).
+(bundled packages install via `lesysbot install lesysbot/lesysbot/tools/<name>`).
 
 **Step 4 — Lint, then open the PR** ([§8](#8-open-the-pull-request)). Tool
 packages don't require unit tests, but the tool must load cleanly (step 2) and
@@ -193,11 +201,23 @@ ruff check lesysbot/
 [CLAUDE.md](CLAUDE.md) for architecture changes, the relevant guide in
 `docs/` for behaviour changes.
 
-**A note on the install scripts:** `scripts/install.sh` and
-`scripts/install.ps1` are the same wizard twice and must stay in sync — change
-both. The PowerShell one can't run in CI, so verify it by careful inspection
-(and say so in the PR). In `install.sh`, mind `set -euo pipefail`: use
-`i=$((i+1))`, never `((i++))` (which aborts the script when the result is 0).
+**A note on the shell scripts:** `install.sh`/`install.ps1` and
+`uninstall.sh`/`uninstall.ps1` are each the same job twice and must stay in sync
+— change one, change the other.
+
+`scripts/install.sh` is **POSIX `sh`**, not bash: the documented install command
+pipes it into `sh`, which is dash on Debian and Ubuntu, so `[[ ]]`, arrays,
+`BASH_SOURCE` and a bare `set -o pipefail` all break there. Every *other* script
+is bash, where the trap is that macOS ships bash 3.2 and `${var,,}` fails at
+*runtime*; use a case-based helper (`is_yes`). `tests/test_shell_portability.py`
+enforces both sets of rules, and CI additionally runs
+`shellcheck --shell=sh --severity=warning scripts/install.sh` — bashisms are
+SC3xxx *warnings*, so the error-only pass misses all of them.
+
+**Testing either installer against a scratch directory:** always set
+`LESYSBOT_SKIP_SERVICE=1`. `LESYSBOT_HOME` and `--prefix` do not relocate the
+LaunchAgent / systemd unit / scheduled task, so without it a test run replaces
+the service on your own machine.
 
 ---
 

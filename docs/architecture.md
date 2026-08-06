@@ -49,7 +49,8 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
 
 1. **Parse the command line.** `build_parser()` handles the flags (`-c`, `-v`,
    `--provider`, `--model`, `--base-url`). If you ran a subcommand
-   (`lesysbot tools …`), it's dispatched to the tools CLI before any bot setup —
+   (`lesysbot install`, `lesysbot list`, …), it's dispatched to the artifact CLI
+   before any bot setup —
    the bot never starts.
 2. **Load settings.** `Settings.load()`
    ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active config
@@ -243,7 +244,7 @@ handle `ImportError` themselves.
 
 ### 5.4 Enable/disable
 
-`lesysbot tools enable/disable` toggles tools off. A disabled tool is hidden
+`lesysbot enable/disable` toggles tools off. A disabled tool is hidden
 from the LLM's schemas and refuses direct `/` calls; the choice is persisted
 to `tool_state.json` (`mcp.state_file`) so it survives restarts and hot reloads.
 The running bot watches that file, so a change from the CLI applies within a
@@ -318,7 +319,7 @@ full reference is in [Configuration](configuration.md).
 
 ## 8. The tool installer
 
-`lesysbot tools install owner/repo` ([lesysbot/install/](../lesysbot/install/))
+`lesysbot install owner/repo` ([lesysbot/artifacts/](../lesysbot/artifacts/))
 downloads a tool folder package from GitHub **into the same tools directory
 the bot loads** — so a running bot picks it up via hot reload. The pipeline,
 one module per stage:
@@ -352,7 +353,7 @@ Two independent records of what happened
 ## 10. The control panel and CLI dispatch
 
 The one network listener in the project is the control panel in
-[lesysbot/webui/](../lesysbot/webui/) — a stdlib `ThreadingHTTPServer` bound to
+[lesysbot/management/](../lesysbot/management/) — a stdlib `ThreadingHTTPServer` bound to
 `127.0.0.1` only, with a DNS-rebinding guard that rejects any request whose
 `Host` header isn't loopback. It has no authentication because the trust
 boundary is having a shell on the machine — the same access as editing
@@ -372,7 +373,7 @@ It exposes `GET /api/status`, `/api/tools`, `/api/config` and
 `POST /api/config`, `/api/tools/{toggle,install,remove}`. Config writes are
 validated against the settings schema *before* the file is touched. Toggling a
 tool goes through `registry.set_enabled()`, which persists to `mcp.state_file`
-— the same file the `lesysbot tools` CLI writes, and the one a running bot
+— the same file the `lesysbot install` CLI writes, and the one a running bot
 watches, which is why a toggle applies live while other settings need a restart.
 
 **Which thing does `lesysbot` start?** `__main__.main()` decides:
@@ -391,7 +392,7 @@ poll, so it serves the panel and idles.
 The status snapshot behind both the terminal view and `/api/status` lives in
 [lesysbot/core/status.py](../lesysbot/core/status.py). It probes the panel
 (`/api/ping`, which identifies our server rather than trusting whatever holds the
-port) and the [monitoring stack](../monitoring/README.md), and reports the
+port) and the [dashboard stack](../dashboard/README.md), and reports the
 service by testing the single-instance lock — a leftover lock *file* with a stale
 PID must not read as "running".
 
@@ -410,7 +411,7 @@ PID must not read as "running".
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the control panel | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
+| Change the control panel | [lesysbot/management/](../lesysbot/management/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
 
 ---
 

@@ -1,4 +1,4 @@
-"""Tool source mapping + removal (`lesysbot tools remove`)."""
+"""Tool source mapping + removal (`lesysbot remove`)."""
 
 from __future__ import annotations
 

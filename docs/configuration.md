@@ -129,7 +129,7 @@ llm:
 **On the command line**, for one run:
 
 ```bash
-lesysbot --provider cli --model qwen3.5
+lesysbot chat --model qwen3.5
 lesysbot --base-url http://localhost:8000/v1
 lesysbot -c /etc/lesysbot/config.yaml
 lesysbot run -v                          # verbose
@@ -169,7 +169,7 @@ Precedence, strongest first: **command line → environment → config file**.
 
 ### The Grafana connection (`grafana.env`)
 
-The [monitoring dashboard](../monitoring/README.md) isn't part of `config.yaml` —
+The [dashboard](../dashboard/README.md) isn't part of `config.yaml` —
 its connection lives in **`~/.lesysbot/grafana.env`**, which `lesysbot setup`
 writes (asking for the username and password) and the bot loads into its
 environment at startup:
@@ -187,7 +187,7 @@ editing it. (`LESYSBOT_GRAFANA_TOKEN` for a Grafana API token, and
 `LESYSBOT_GRAFANA_URL` alone, are also honoured.)
 
 You rarely need to touch the **URL**: LeSysBot looks for Grafana on the port set in
-`~/.lesysbot/monitoring/.env` (`GRAFANA_PORT`) and then the usual 3000/3001,
+`~/.lesysbot/dashboard/.env` (`GRAFANA_PORT`) and then the usual 3000/3001,
 checking each really answers as Grafana — so moving the stack to 3001 because
 something else owns 3000 needs no edit here. `LESYSBOT_GRAFANA_URL` is used when
 Grafana answers there; if it doesn't (a stale entry, or the stack moved), LeSysBot
@@ -200,10 +200,11 @@ probes those ports rather than reporting whatever else is on the saved one.
 ```bash
 lesysbot                  # health + metrics, then exit (starts nothing)
 lesysbot run              # the service: control panel + bot
-lesysbot --provider cli   # chat in this terminal
+lesysbot chat   # chat in this terminal
 lesysbot manage           # open the control panel, or serve it if the service is down
 lesysbot setup            # re-run the setup wizard
-lesysbot tools …          # install/list/enable/disable/remove tools
+lesysbot install|list|info|enable|disable|remove|update|search|doctor
+                          # manage tools and dashboards
 ```
 
 ---

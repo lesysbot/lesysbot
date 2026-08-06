@@ -4,7 +4,7 @@ Any GitHub repo holding a tool package installs with one command. There's no
 registry to search and nothing to sign up for — the link *is* the package name.
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official
+lesysbot install lesysbot/lesysbot-packages-official
 ```
 
 LeSysBot downloads the repo, shows you what it found — package names, versions,
@@ -13,28 +13,30 @@ running bot picks the new tools up straight away, no restart.
 
 ---
 
-## The official collections
+## The official collection
 
-Install the one matching your machine:
+One repo covers every OS — each package carries its per-OS variants, so there
+is nothing to match to your machine:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, CPU/GPU temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, CPU temp
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, thermal zones
+lesysbot install lesysbot/lesysbot-packages-official
+# network (ping, DNS, traceroute), temperature, battery, speedtest,
+# plus the network-traffic and gpu-detail dashboards
 ```
 
-macOS users: the Linux collection's `network` package works on macOS too, so
-it's worth having both.
+Packages that can't run on this machine's OS are skipped and named with the
+reason (`battery` outside macOS, say); `--all` installs them anyway, and
+`--only NAME` picks out one package.
 
 ---
 
 ## Installing anything else
 
 ```bash
-lesysbot tools install owner/repo                  # everything in the repo
-lesysbot tools install owner/repo/tools/gpu-temp   # just one package from it
-lesysbot tools install owner/repo@v1.2             # pin to a tag, branch, or commit
-lesysbot tools install https://github.com/owner/repo
+lesysbot install owner/repo                  # everything in the repo
+lesysbot install owner/repo/tools/gpu-temp   # just one package from it
+lesysbot install owner/repo@v1.2             # pin to a tag, branch, or commit
+lesysbot install https://github.com/owner/repo
 ```
 
 Useful flags:
@@ -70,11 +72,11 @@ command rather than running it — you decide.
 ## Managing what you've installed
 
 ```bash
-lesysbot tools list             # everything, with status and where it came from
-lesysbot tools info gpu_temp    # parameters, requirements, provenance
-lesysbot tools disable gpu_temp # keep it, but switch it off
-lesysbot tools enable gpu_temp  # back on
-lesysbot tools remove gpu_temp  # delete it (asks first)
+lesysbot list             # everything, with status and where it came from
+lesysbot info gpu_temp    # parameters, requirements, provenance
+lesysbot disable gpu_temp # keep it, but switch it off
+lesysbot enable gpu_temp  # back on
+lesysbot remove gpu_temp  # delete it (asks first)
 ```
 
 `list` and `info` show `acme/repo@commit` for installed packages and `local` for
@@ -94,7 +96,7 @@ You can do all of this from the [control panel](management-ui.md) too.
 Set a token and it's sent as a bearer credential:
 
 ```bash
-GITHUB_TOKEN=ghp_… lesysbot tools install you/private-tools
+GITHUB_TOKEN=ghp_… lesysbot install you/private-tools
 ```
 
 `GH_TOKEN` works too.
@@ -162,7 +164,7 @@ mcp:
 
 Both are relative to your active config, so a normal install puts them under
 `~/.lesysbot/`. The installer and the bot resolve them the same way, which is
-why `lesysbot tools install` always writes to the directory the bot is actually
+why `lesysbot install` always writes to the directory the bot is actually
 reading.
 
 The download is a plain HTTPS zip fetch — no `git` binary needed and no GitHub

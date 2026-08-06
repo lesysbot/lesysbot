@@ -74,7 +74,7 @@ class Agent:
 
     async def setup(self) -> None:
         # Wire the persisted enable/disable state before loading tools so disabled
-        # tools are applied from the first request (`lesysbot tools` mutates this set).
+        # tools are applied from the first request (`lesysbot enable/disable` mutates it).
         self._registry.set_state_path(self._settings.mcp.state_file)
         self._registry.load_state()
         self._registry.load_directory(self._settings.mcp.tools_dir)
@@ -88,7 +88,7 @@ class Agent:
         """Re-read the enable/disable state when another process rewrites it.
 
         The disabled set lives in this process's registry, but two other things
-        write the file it's persisted to: ``lesysbot tools enable/disable`` and
+        write the file it's persisted to: ``lesysbot enable/disable`` and
         any editor. Without this watch those changes only took effect on the next
         restart, which is a confusing thing to explain to someone who just ran an
         enable/disable command.

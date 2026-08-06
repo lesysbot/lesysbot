@@ -14,11 +14,11 @@ plugin itself in [`claude-plugin/lesysbot-tool-dev/`](../claude-plugin/lesysbot-
 Improve the skill here, push, and every installed copy can pull the update —
 one source of truth, no per-repo drift.
 
-## 1. Official tool repos — zero setup
+## 1. The official packages repo — zero setup
 
-The official tool-collection repos (e.g.
-[lesysbot-linux-tools-official](https://github.com/lesysbot/lesysbot-linux-tools-official))
-commit a `.claude/settings.json` that references this marketplace. Clone one,
+The official package-collection repo
+([lesysbot-packages-official](https://github.com/lesysbot/lesysbot-packages-official))
+commits a `.claude/settings.json` that references this marketplace. Clone one,
 open Claude Code inside it, and trust the folder when asked — Claude Code then
 prompts you to install the `lesysbot` marketplace and enables `lesysbot-tool-dev`
 automatically. After that, just ask: *"add a tool that checks whether a

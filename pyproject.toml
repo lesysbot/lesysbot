@@ -2,6 +2,24 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# Content that ships *with* LeSysBot rather than being fetched: the default
+# tools, the default dashboards, the Prometheus/Grafana stack, and the
+# marketplace catalog. Without this, `pip install lesysbot` produces a bot with
+# no tools and no dashboards, and `lesysbot setup` only works from a git
+# checkout (`--repo`).
+#
+# These are force-included rather than moved under `lesysbot/` because they are
+# also the files people edit, link to from the docs, and copy out as examples —
+# moving them would churn every doc link and the docs site's import map.
+# `paths.bundled_dir()` resolves either layout, so a wheel and a checkout behave
+# identically.
+# The staging is done by hatch_build.py rather than a plain `force-include`,
+# because force-include copies a directory literally and hatchling's `exclude`
+# patterns do not apply to it — which would ship the packager's git-ignored
+# `dashboard/.env`, and with it their Grafana admin password. See that file.
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
 [project]
 name = "lesysbot"
 version = "0.1.0"

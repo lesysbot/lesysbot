@@ -57,23 +57,24 @@ try {
     Warn "Python not found — package not removed"
 }
 
-# ── 2b. Monitoring stack (Grafana/Prometheus containers) ─────────────────────
+# ── 2b. Dashboard stack (Grafana/Prometheus containers) ──────────────────────
 # Setup starts this by default, so uninstall offers to take it down. `start.ps1
 # down` stops the containers without removing the Docker volumes, so stored
 # history survives unless you delete them yourself.
 $DataDir = if ($env:LESYSBOT_HOME) { $env:LESYSBOT_HOME } else { Join-Path $HOME ".lesysbot" }
-$MonStart = Join-Path $DataDir "monitoring\scripts\start.ps1"
+$StackDir = Join-Path $DataDir "dashboard"
+$MonStart = Join-Path $StackDir "scripts\start.ps1"
 if ((Test-Path $MonStart) -and (Get-Command docker -ErrorAction SilentlyContinue)) {
-    $resp = Read-Host "  Stop the Grafana monitoring dashboard (docker containers)? [y/N]"
+    $resp = Read-Host "  Stop the Grafana dashboard stack (docker containers)? [y/N]"
     if ($resp -match '^[Yy]') {
         try {
             & powershell -NoProfile -ExecutionPolicy Bypass -File $MonStart down
-            Ok "Monitoring stack stopped"
+            Ok "Dashboard stack stopped"
         } catch {
-            Warn "Could not stop the monitoring stack (is Docker running?)"
+            Warn "Could not stop the dashboard stack (is Docker running?)"
         }
     } else {
-        Info "Left the monitoring stack running"
+        Info "Left the dashboard stack running"
     }
 }
 

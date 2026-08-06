@@ -18,7 +18,7 @@ if it crashes, and starts on boot if you asked for that.
 It's installed even if you picked **Terminal only**: the service is what keeps
 the control panel online. With that provider there's no chat to serve, so the
 panel is all it does — your terminal chat is still something you start yourself
-with `lesysbot --provider cli`.
+with `lesysbot chat`.
 
 To see whether it's up, run `lesysbot` — that prints health and metrics and
 exits, without starting anything.
@@ -256,7 +256,7 @@ it.
 
 Stop the service first if you want a foreground run. The lock is released
 automatically when the process ends, crashes included, so nothing gets stuck. A
-terminal chat (`lesysbot --provider cli`) doesn't poll, so it always runs fine
+terminal chat (`lesysbot chat`) doesn't poll, so it always runs fine
 alongside the service.
 
 ---

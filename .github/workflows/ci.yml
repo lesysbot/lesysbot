@@ -28,7 +28,9 @@ jobs:
       - name: CLI smoke test
         run: |
           lesysbot --help
-          lesysbot tools list
+          lesysbot chat --help
+          lesysbot setup --help
+          lesysbot list
 
   base-install:
     name: Base install (no extras)
@@ -52,7 +54,9 @@ jobs:
       - name: CLI smoke test
         run: |
           lesysbot --help
-          lesysbot tools list
+          lesysbot chat --help
+          lesysbot setup --help
+          lesysbot list
 
   powershell-lint:
     name: PowerShell script analysis
@@ -72,6 +76,68 @@ jobs:
       - uses: actions/checkout@v4
       - name: shellcheck
         run: shellcheck --severity=error scripts/*.sh
+      # install.sh is POSIX sh (it is piped to `| sh`, which is dash on
+      # Debian/Ubuntu). Bashisms are reported as SC3xxx *warnings*, so the
+      # error-only pass above cannot see a single one of them.
+      - name: shellcheck (POSIX mode)
+        run: shellcheck --shell=sh --severity=warning scripts/install.sh
+
+  installer:
+    name: Installer end-to-end (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      # No Ollama daemon and no multi-gigabyte model pull on a CI runner.
+      LESYSBOT_SKIP_OLLAMA: "1"
+      LESYSBOT_SKIP_DASHBOARD: "1"
+      # The service and the shell rc files are the two things LESYSBOT_HOME and
+      # --prefix do not relocate, so they are the two the runner must not gain.
+      LESYSBOT_SKIP_SERVICE: "1"
+      LESYSBOT_NO_MODIFY_PATH: "1"
+      LESYSBOT_HOME: ${{ github.workspace }}/ci-home
+    steps:
+      - uses: actions/checkout@v4
+      # Run from the checkout with no --ref, so the job tests *this* commit's
+      # installer against *this* commit's package rather than whatever is on the
+      # default branch. `< /dev/null` is the assertion that it never reads stdin.
+      - name: Install
+        run: |
+          sh scripts/install.sh \
+            --prefix "$RUNNER_TEMP/lesysbot-app" --bin-dir "$RUNNER_TEMP/bin" < /dev/null
+      - name: It installed a working command
+        run: |
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          lesysbot --help
+          lesysbot chat --help
+          test -f "$LESYSBOT_HOME/config.yaml"
+          grep -q 'provider: cli' "$LESYSBOT_HOME/config.yaml"
+          test -d "$LESYSBOT_HOME/tools"
+      - name: Re-running it is an idempotent upgrade
+        run: |
+          sh scripts/install.sh \
+            --prefix "$RUNNER_TEMP/lesysbot-app" --bin-dir "$RUNNER_TEMP/bin" < /dev/null
+          "$RUNNER_TEMP/bin/lesysbot" --help
+      - name: A scripted Telegram install needs no terminal
+        env:
+          LESYSBOT_HOME: ${{ github.workspace }}/ci-home-tg
+          LESYSBOT_SETUP_PROVIDER: telegram
+          LESYSBOT_SETUP_TELEGRAM_TOKEN: "123456:fakeTokenForCiNotARealBotAtAll1"
+          LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS: "42"
+        run: |
+          sh scripts/install.sh \
+            --prefix "$RUNNER_TEMP/tg-app" --bin-dir "$RUNNER_TEMP/tg-bin" < /dev/null
+          grep -q 'provider: telegram' "$LESYSBOT_HOME/config.yaml"
+          grep -q 'allowed_user_ids: \[42\]' "$LESYSBOT_HOME/config.yaml"
+      - name: Uninstall removes what it made and keeps the data
+        run: |
+          sh "$RUNNER_TEMP/lesysbot-app/install.sh" --uninstall \
+            --prefix "$RUNNER_TEMP/lesysbot-app" --bin-dir "$RUNNER_TEMP/bin"
+          test ! -e "$RUNNER_TEMP/bin/lesysbot"
+          test ! -d "$RUNNER_TEMP/lesysbot-app/venv"
+          test -f "$LESYSBOT_HOME/config.yaml"
 
   # The single check `main`'s branch ruleset requires. Requiring the matrix jobs
   # by name instead would wedge every PR on "Expected — waiting for status" the
@@ -81,7 +147,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()   # must still run — and fail — when a dependency failed
-    needs: [test, base-install, powershell-lint, shell-lint]
+    needs: [test, base-install, powershell-lint, shell-lint, installer]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed

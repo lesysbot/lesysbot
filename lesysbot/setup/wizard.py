@@ -171,6 +171,19 @@ def step_llm(ui, st: WizardState) -> None:
         return
 
 
+def parse_allowed_ids(raw: str) -> tuple[str, str] | None:
+    """Normalize a comma-separated allow-list; ``None`` when it isn't one.
+
+    Returns ``(raw, yaml_list)``. Shared by the interactive prompt and the
+    unattended ``LESYSBOT_SETUP_*_ALLOWED_IDS`` path so an id accepted one way
+    is accepted the other.
+    """
+    raw = re.sub(r"\s", "", raw or "")
+    if not re.fullmatch(r"[0-9]+(,[0-9]+)*", raw):
+        return None
+    return raw, "[" + ", ".join(raw.split(",")) + "]"
+
+
 def ask_allowed_ids(ui, platform: str, previous: str) -> tuple[str, str] | None:
     """Loop until the user gives a valid numeric allow-list.
 
@@ -182,9 +195,9 @@ def ask_allowed_ids(ui, platform: str, previous: str) -> tuple[str, str] | None:
         raw = ui.text(f"Allowed {platform} user IDs, comma-separated", previous)
         if raw is None:
             return None
-        raw = re.sub(r"\s", "", raw)
-        if re.fullmatch(r"[0-9]+(,[0-9]+)*", raw):
-            return raw, "[" + ", ".join(raw.split(",")) + "]"
+        parsed = parse_allowed_ids(raw)
+        if parsed is not None:
+            return parsed
         if ui.eof:
             # Piped input that has run dry can never satisfy this loop.
             ui.say(f"  [red]✗[/red]  Input ended before a {platform} user ID was given "
@@ -197,7 +210,7 @@ def ask_allowed_ids(ui, platform: str, previous: str) -> tuple[str, str] | None:
 def step_messaging(ui, st: WizardState) -> bool:
     """Returns True to continue, False to go back to the LLM step."""
     while True:
-        ui.say("\n  You can always chat in this terminal with [bold]lesysbot --provider cli[/bold].")
+        ui.say("\n  You can always chat in this terminal with [bold]lesysbot chat[/bold].")
         ui.say("  Add Telegram or Discord to also message LeSysBot remotely.\n")
         choice = ui.menu(
             "Step 2 — How to reach LeSysBot",
@@ -305,6 +318,9 @@ def show_summary(ui, st: WizardState, data_dir: Path, config_kept: bool = False)
     ui.say(f"  Config     {data_dir / 'config.yaml'}"
            + ("  (kept as-is)" if config_kept else ""))
     ui.say(f"  Working    {data_dir}")
+    if config_kept:
+        ui.say("\n  [dim]LLM and provider are your existing settings, shown for "
+               "reference — setup won't change them.[/dim]")
     ui.say("")
 
 

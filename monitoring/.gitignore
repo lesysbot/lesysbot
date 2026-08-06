@@ -1,5 +1,0 @@
-# Downloaded exporter binaries and their runtime state (not source).
-bin/
-run/
-# Local overrides.
-.env

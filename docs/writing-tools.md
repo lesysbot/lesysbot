@@ -178,9 +178,9 @@ requires: [nvidia-smi]
 ```
 
 The decorator arguments are what LeSysBot actually enforces; the frontmatter
-mirrors them for humans and shows up in `lesysbot tools list`.
+mirrors them for humans and shows up in `lesysbot list`.
 
-This is the same shape `lesysbot tools install owner/repo` downloads — push the
+This is the same shape `lesysbot install owner/repo` downloads — push the
 folder to a repo and anyone can install it. See
 [Share your tools](sharing-tools.md).
 

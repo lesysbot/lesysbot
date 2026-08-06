@@ -1,0 +1,77 @@
+# LeSysBot — system-overview stack for macOS & Windows (Docker Desktop).
+#
+# Prometheus + Grafana run on a bridge network and reach the host's exporters
+# through `host.docker.internal` (Docker Desktop provides it). Both published
+# ports are bound to 127.0.0.1 only.
+#
+#   1. Start the host exporters natively:
+#         macOS    ->  ./scripts/run-exporters.sh
+#         Windows  ->  .\scripts\run-exporters.ps1
+#   2. docker compose up -d
+#   3. open http://localhost:3000   (admin / admin)
+#
+#   ...or just run ./scripts/start.sh (macOS) / .\scripts\start.ps1 (Windows).
+#
+# On LINUX use docker-compose.linux.yml instead — it runs everything on the host
+# network so it captures real host NICs (Ethernet/Wifi) and dodges the ufw block
+# that stops containers reaching a host port. See the README.
+# Deliberately still `lesysbot-monitoring` after the monitoring → dashboard
+# rename: this is the Compose *project* name, and it is how `docker compose
+# down` finds containers it started. Renaming it would strand every already
+# running stack as untracked containers holding the ports.
+name: lesysbot-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: lesysbot-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROM_PORT:-9090}:9090"
+    extra_hosts:
+      # No-op on Docker Desktop (already provided); harmless elsewhere.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: lesysbot-grafana
+    restart: unless-stopped
+    environment:
+      PROM_URL: http://prometheus:9090          # consumed by the datasource file
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # A *directory* of rendered dashboards, not one file. Grafana's file
+      # provider loads every JSON it finds there, which is what lets more than
+      # one dashboard exist — the single-file `DASH_JSON` mount this replaces
+      # made "install a second dashboard" structurally impossible.
+      #
+      # It is populated by `lesysbot dashboard render`, which writes only the
+      # dashboards this host can actually fill, and by the start scripts falling
+      # back to gen-dashboards.py when LeSysBot isn't installed. Bind-mounted
+      # read-only: Grafana UI edits are still accepted and still reverted on the
+      # next provision, so the durable way to change a dashboard is to edit its
+      # package and re-render.
+      - ./grafana/dashboards/generated:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
