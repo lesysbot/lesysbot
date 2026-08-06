@@ -141,7 +141,10 @@ fetch() {
 # pass --repo to setup from a clone; a piped run must never pass it.
 script_dir() {
     case "$0" in */*) ;; *) return 1 ;; esac
-    d=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || return 1
+    # CDPATH='' (not the bare `CDPATH=` shellcheck flags as SC1007) keeps `cd`
+    # from resolving the argument against a user's CDPATH and printing the
+    # directory it landed in, which would corrupt the captured path.
+    d=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || return 1
     [ -f "$d/install.sh" ] || return 1
     printf '%s\n' "$d"
 }
