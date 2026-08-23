@@ -16,7 +16,7 @@
       "id": "official",
       "name": "Official Packages",
       "kind": "tool",
-      "description": "The official collection — network, temperature, battery, speedtest tools and dashboards for every OS",
+      "description": "The official collection — network, temperature, battery and speedtest tools for every OS",
       "source": "lesysbot/lesysbot-packages-official",
       "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
       "platforms": ["linux", "macos", "windows"],
@@ -35,14 +35,69 @@
       "official": true
     },
     {
-      "id": "gpu-detail",
-      "name": "GPU Detail dashboard",
+      "id": "cpu-detail",
+      "name": "CPU Detail dashboard",
       "kind": "dashboard",
-      "description": "NVIDIA GPU utilization, memory, temperature and power draw",
-      "source": "lesysbot/lesysbot-packages-official/dashboards/gpu-detail",
+      "description": "Utilization by mode and core, load, saturation and frequency",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/cpu-detail",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["cpu", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "memory-detail",
+      "name": "Memory Detail dashboard",
+      "kind": "dashboard",
+      "description": "Memory composition, swap or commit charge, and pressure",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/memory-detail",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["memory", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "storage",
+      "name": "Storage dashboard",
+      "kind": "dashboard",
+      "description": "Filesystem capacity, inodes, disk throughput, IOPS and latency",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/storage",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["disk", "storage", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "thermals",
+      "name": "Thermals dashboard",
+      "kind": "dashboard",
+      "description": "CPU, disk, GPU and ambient temperatures, with the reason for any that are missing",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/thermals",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["linux", "macos", "windows"],
+      "tags": ["temperature", "sensors", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "gpu-nvidia",
+      "name": "GPU — NVIDIA dashboard",
+      "kind": "dashboard",
+      "description": "NVIDIA utilization, memory, thermals, power, fan and exporter health",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/gpu-nvidia",
       "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
       "platforms": ["linux", "windows"],
       "tags": ["gpu", "nvidia", "grafana", "official"],
+      "official": true
+    },
+    {
+      "id": "gpu-apple",
+      "name": "GPU — Apple dashboard",
+      "kind": "dashboard",
+      "description": "Apple GPU utilization per engine, shared memory and die temperature",
+      "source": "lesysbot/lesysbot-packages-official/dashboards/gpu-apple",
+      "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
+      "platforms": ["macos"],
+      "tags": ["gpu", "apple", "grafana", "official"],
       "official": true
     }
   ]

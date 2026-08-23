@@ -52,6 +52,9 @@ def _gather(ctx: CLIContext, only: str | None):
     reports = []
     if not only:
         reports.append(check_host())
+        invariant = _dashboard_invariant(ctx)
+        if invariant is not None:
+            reports.append(invariant)
     for pkg in _installed_packages(ctx):
         if only and pkg.name != only:
             continue
@@ -59,6 +62,31 @@ def _gather(ctx: CLIContext, only: str | None):
         if report is not None:
             reports.append(report)
     return reports
+
+
+def _dashboard_invariant(ctx: CLIContext):
+    """Report a second installed dashboard; ``None`` when the rule holds.
+
+    An install has exactly one dashboard, and the installer enforces it — but a
+    home that predates the rule, or a folder copied in by hand, can still carry
+    two. Grafana then shows a page nobody chose beside the real one, which is
+    hard to diagnose from the Grafana end. Reported only when violated: a green
+    row on every run would be noise, and ``lesysbot dashboard current`` already
+    answers "what have I got".
+    """
+    from lesysbot.artifacts.kinds import ArtifactKind
+    from lesysbot.prereq.report import Report, Requirement, Result
+
+    names = [pkg.name for pkg in _installed_packages(ctx)
+             if pkg.kind is ArtifactKind.DASHBOARD]
+    if len(names) < 2:
+        return None
+    return Report(name="dashboard", results=[Result(
+        requirement=Requirement("dashboard", "exactly one installed"),
+        satisfied=False,
+        detail=f"{len(names)} installed: {', '.join(names)}",
+        fix="lesysbot dashboard reset  (or remove the ones you don't want)",
+    )])
 
 
 def _installed_packages(ctx: CLIContext):

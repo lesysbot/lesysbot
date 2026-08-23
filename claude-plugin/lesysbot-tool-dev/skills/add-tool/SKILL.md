@@ -119,13 +119,13 @@ the installer, so a collection repo can keep those alongside packages.
 
   ```bash
   # collection repo: packages live under tools/ → point at that folder
-  LESYSBOT_MCP__TOOLS_DIR="$PWD/tools" lesysbot --provider cli
+  LESYSBOT_MCP__TOOLS_DIR="$PWD/tools" lesysbot chat
   # standalone package repo: the parent dir is the tools dir
-  LESYSBOT_MCP__TOOLS_DIR="$(dirname "$PWD")" lesysbot --provider cli
+  LESYSBOT_MCP__TOOLS_DIR="$(dirname "$PWD")" lesysbot chat
   ```
 
   (PowerShell: `$env:LESYSBOT_MCP__TOOLS_DIR = "$PWD\tools"` — or the repo
-  root for a standalone package's parent — then `lesysbot --provider cli`.)
+  root for a standalone package's parent — then `lesysbot chat`.)
   Alternatively copy the package folder into `~/.lesysbot/tools/`.
 - In the CLI, check `/help` (tool listed; gated tools show a "⚠ unavailable
   here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up

@@ -83,8 +83,8 @@ messaging:
 ### 2.4 Run it
 
 ```bash
-lesysbot --provider telegram
-# (or just `lesysbot` if config.yaml already has provider: telegram)
+lesysbot run
+# (or `lesysbot --provider telegram` to override what config.yaml says)
 ```
 
 Now open your bot in Telegram (search its username), press **Start**, and chat:
@@ -213,8 +213,8 @@ messaging:
 ### 3.7 Run it and message the bot
 
 ```bash
-lesysbot --provider discord
-# (or just `lesysbot` if config.yaml already has provider: discord)
+lesysbot run
+# (or `lesysbot --provider discord` to override what config.yaml says)
 ```
 
 The bot appears online in your server's member list. **DM it**, or **@-mention it**

@@ -33,7 +33,7 @@ lesysbot remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes skips)
   second, no restart.
 - **remove** — permanent: deletes the whole folder package or loose `.py`,
   **including any sibling tools defined in the same package** (listed before
-  the confirm). Installed packages also get their `tools.lock.json` entry
+  the confirm). Installed packages also get their `lesysbot.lock.json` entry
   cleaned. Hot-reload drops it from a running bot immediately. Prefer
   *disable* if the tool might be wanted back.
 - `list`/`info` show provenance: `owner/repo@commit7` for installed packages,
@@ -41,9 +41,12 @@ lesysbot remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes skips)
 
 ## Installing from GitHub
 
-Installs are **by GitHub link only** — no registry or catalog:
+Installs resolve **a GitHub link** — or a catalog id from `lesysbot search`,
+which is itself just a github.com link on a curated list. A bare word that is
+neither is a usage error, never a guess:
 
 ```bash
+lesysbot search [QUERY]                      # browse the marketplace catalog
 lesysbot install owner/repo                  # whole repo (HEAD)
 lesysbot install owner/repo@v1.2             # pin branch / tag / 40-hex SHA
 lesysbot install owner/repo/tools/gpu-temp   # one package in a bigger repo
@@ -58,9 +61,11 @@ writing. A running bot with hot-reload activates new packages immediately.
 - **Trust model:** installed tools are arbitrary Python running as your user,
   no sandbox. Install only from trusted repos (read `tool.py` — they're
   small); prefer pinning `@tag`/`@sha`. The exact commit is recorded in
-  `tools.lock.json` either way. `--yes` skips the prompt — scripts only.
-- **Pip deps:** a package's `requirements.txt` is **printed**, not run;
-  `--install-deps` opts in to running it.
+  `lesysbot.lock.json` either way. `--yes` skips the prompt — scripts only.
+- **Pip deps:** a package's `requirements.txt` is installed **by default**, into
+  LeSysBot's own environment (anywhere else and the tool fails on ImportError
+  with everything apparently in place). `--no-deps` skips it; where pip can't run
+  the exact command is printed instead.
 - **Private repos:** set `GITHUB_TOKEN` (or `GH_TOKEN`).
 - **Collisions:** the installer refuses to overwrite a folder it didn't
   create (hand-written tools are safe); `--force` overrides.
@@ -78,7 +83,7 @@ repo root (`tests/`, `docs/`, dot-/`_`-prefixed dirs skipped).
 ```yaml
 mcp:
   tools_dir: "./tools"          # where packages install & load from
-  lock_file: tools.lock.json    # install provenance (repo, pinned commit)
+  lock_file: lesysbot.lock.json    # install provenance (repo, pinned commit)
   hot_reload: true
   state_file: tool_state.json   # persisted disabled set
 ```
@@ -93,7 +98,7 @@ so the CLI and the bot always resolve the same locations.
 | `Not found: owner/repo@ref` | Check the spec; private repo → set `GITHUB_TOKEN`. |
 | `tools dir already has X` | Folder not installed by LeSysBot — `--force` to overwrite. |
 | Installed but not in `/help` | Restart the bot if `hot_reload` is off; check `~/.lesysbot/logs/lesysbot.log` for import errors. |
-| Tool needs a pip package | Re-run with `--install-deps` or run the printed `pip install -r` line. |
+| Tool needs a pip package | Deps install by default; if it was installed with `--no-deps`, or pip couldn't run, re-run the install or the printed `pip install -r` line. |
 | Tool shows "⚠ unavailable here" | Platform/binary gating — it's registered but this machine can't run it (wrong OS or a `requires` binary missing from PATH). |
 
 ## Related

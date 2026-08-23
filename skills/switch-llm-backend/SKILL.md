@@ -47,10 +47,10 @@ Apply: `systemctl --user restart lesysbot` (Linux) /
 ## Switch for one session (no config edit)
 
 ```bash
-lesysbot --model qwen3.5
-lesysbot --base-url http://localhost:8000/v1 --model meta-llama/Llama-3.2-8B-Instruct
+lesysbot chat --model qwen3.5
+lesysbot chat --base-url http://localhost:8000/v1 --model meta-llama/Llama-3.2-8B-Instruct
 LESYSBOT_LLM__BASE_URL=https://api.openai.com/v1 LESYSBOT_LLM__MODEL=gpt-4o \
-  LESYSBOT_LLM__API_KEY=sk-... lesysbot
+  LESYSBOT_LLM__API_KEY=sk-... lesysbot chat
 ```
 
 Precedence: CLI flags → `LESYSBOT_*` env vars → config file.

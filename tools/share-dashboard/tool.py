@@ -15,7 +15,7 @@ configured by environment variables, all optional:
   LESYSBOT_GRAFANA_PASSWORD  basic-auth password        (default admin)
   LESYSBOT_GRAFANA_TOKEN     Bearer token (wins over user/password if set)
   LESYSBOT_GRAFANA_DS_UID    Prometheus datasource uid  (default "prometheus")
-  LESYSBOT_DASHBOARD_UID     dashboard to share         (default: first tagged "lesysbot")
+  LESYSBOT_DASHBOARD_UID     dashboard to share         (default "lesysbot")
   LESYSBOT_RAINTANK_URL      snapshot server            (default https://snapshots.raintank.io)
 """
 from __future__ import annotations
@@ -49,6 +49,15 @@ class _StackDown(Exception):
     """Grafana (the dashboard stack) is unreachable."""
 
 
+class _NotFound(_StackDown):
+    """Grafana answered, but hasn't got what was asked for.
+
+    A subclass so every existing ``except _StackDown`` keeps catching it — the
+    distinction only matters where the advice differs ("render it" rather than
+    "start the stack").
+    """
+
+
 # --------------------------------------------------------------------------- config
 # Where Grafana usually lives. The tool probes these and uses the first that
 # actually answers as Grafana — so it "just works" whether the stack is on the
@@ -56,6 +65,13 @@ class _StackDown(Exception):
 # any configuration.
 _PORTS = ["3000", "3001"]
 _HOSTS = ["localhost", "127.0.0.1"]
+
+# The uid LeSysBot renders its one dashboard at. Mirrors
+# `lesysbot.dashboards.render.DASHBOARD_UID`, deliberately duplicated rather
+# than imported: a tool package imports `lesysbot.mcp` and nothing else, so it
+# keeps working when lifted out of this repo. It is a fixed string on both
+# sides, so there is nothing here that can drift out of step.
+DASHBOARD_UID = "lesysbot"
 
 
 def _home() -> Path:
@@ -115,7 +131,7 @@ def _cfg():
         "password": os.environ.get("LESYSBOT_GRAFANA_PASSWORD", "admin"),
         "token": os.environ.get("LESYSBOT_GRAFANA_TOKEN", ""),
         "ds": os.environ.get("LESYSBOT_GRAFANA_DS_UID", "prometheus"),
-        "uid": os.environ.get("LESYSBOT_DASHBOARD_UID", ""),
+        "uid": os.environ.get("LESYSBOT_DASHBOARD_UID", "") or DASHBOARD_UID,
         "raintank": os.environ.get("LESYSBOT_RAINTANK_URL", "https://snapshots.raintank.io").rstrip("/"),
     }
 
@@ -156,8 +172,30 @@ def _delete(url, headers=None, timeout=20):
 def _grafana(cfg, path):
     try:
         return _get(cfg["grafana"] + path, headers=_auth(cfg))
+    except urllib.error.HTTPError as e:
+        # A 404 is an *answer* — Grafana is up and hasn't got that thing — so it
+        # needs different advice from a stack that isn't running. `_NotFound`
+        # subclasses `_StackDown` so callers that only care about "couldn't ask"
+        # keep working unchanged.
+        if e.code == 404:
+            raise _NotFound(str(e)) from e
+        raise _StackDown(str(e)) from e
     except urllib.error.URLError as e:
         raise _StackDown(str(e)) from e
+
+
+def _dashboard_model(cfg):
+    """The LeSysBot dashboard's model, or ``None`` when Grafana hasn't got it.
+
+    Read straight from the fixed uid rather than searched for. An install has
+    exactly one dashboard at one uid, so "which one did you mean" cannot arise —
+    this used to take the first row of a tag search, which meant that on a
+    machine with several dashboards you got an arbitrary one and no way to tell.
+    """
+    try:
+        return _grafana(cfg, f'/api/dashboards/uid/{cfg["uid"]}')["dashboard"]
+    except _NotFound:
+        return None
 
 
 def _grafana_snapshots(cfg):
@@ -417,11 +455,11 @@ async def share_dashboard(expiration: str = "1h") -> str:
     secs = EXPIRATIONS[exp]
     cfg["grafana"] = _resolve_grafana(cfg)   # find Grafana wherever it's running
     try:
-        uid = cfg["uid"] or _pick_uid(cfg)
-        if not uid:
-            return ("No LeSysBot dashboard found in Grafana. Is the dashboard stack "
-                    "running? Start it with ./scripts/start.sh (see dashboard/README.md).")
-        model = _grafana(cfg, f"/api/dashboards/uid/{uid}")["dashboard"]
+        model = _dashboard_model(cfg)
+        if model is None:
+            return ("Grafana hasn't got the LeSysBot dashboard yet. Run "
+                    "`lesysbot dashboard render` — and `lesysbot dashboard start` "
+                    "first if the stack isn't up.")
         title = model.get("title", "System Overview")
         _bake(cfg, model)
         name = f"{title} — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
@@ -544,9 +582,6 @@ async def _confirm_available(cfg, key, attempts=6) -> bool:
     return False
 
 
-def _pick_uid(cfg):
-    rows = _grafana(cfg, "/api/search?tag=lesysbot&type=dash-db")
-    return rows[0]["uid"] if rows else ""
 
 
 def _state_insert(rec):

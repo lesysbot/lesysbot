@@ -22,8 +22,6 @@ def _fake_grafana(_cfg, path):
         return [{"key": "KEY123", "name": "System Overview — snap", "external": True,
                  "externalUrl": "https://snapshots.raintank.io/dashboard/snapshot/KEY123",
                  "expires": "2099-01-01T00:00:00Z"}]
-    if "/api/search" in path:
-        return [{"uid": "lesysbot-node"}]
     if "/api/dashboards/uid/" in path:
         return {"dashboard": {"title": "System Overview", "panels": [
             {"type": "row", "title": "section"},

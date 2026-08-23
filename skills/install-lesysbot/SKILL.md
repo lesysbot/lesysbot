@@ -162,25 +162,15 @@ command, and installs + starts the background service running from
 and replaces an existing service. `LESYSBOT_HOME` overrides the `~/.lesysbot`
 location.
 
-It also seeds **`~/.lesysbot/dashboard/`** (the Grafana/Prometheus dashboard) and
-sets it up — a standard part of LeSysBot. It first **asks for the Grafana username
-and password** LeSysBot should use (defaults `admin`/`admin`), saving them to
-**`~/.lesysbot/grafana.env`** (loaded into the bot's environment at startup, so
-`share_dashboard`/status authenticate automatically). Then, OS-specific and never
-fatal:
-- **Linux** — if Docker is running, it **asks** whether to auto-start the bundled
-  stack now or set it up manually; if Docker isn't ready it prints the exact
-  no-`sudo` steps to get it going (or run Grafana natively).
-- **macOS** — it does **not** require Docker Desktop. It **asks** whether to
-  install now, then runs `dashboard/scripts/install-macos.sh`: `brew install`
-  of `grafana`/`prometheus`/`node_exporter`, provisioning written, admin password
-  set, all three started under `brew services`. Without Homebrew it says so
-  (`https://brew.sh`) and falls back to the manual instructions.
-- **Windows** — it does **not** require Docker Desktop; it warns and
-  instructs a native Grafana install from `https://grafana.com/grafana/download`
-  and how to connect it (auto-detected on `localhost:3000`, else
-  `LESYSBOT_GRAFANA_URL`), mentioning the one-command Docker stack only as a
-  shortcut when Docker is already running.
+It also seeds **`~/.lesysbot/dashboard/`** (the Grafana/Prometheus stack — a
+standard part of LeSysBot, not an add-on) and sets it up. It **asks for the
+Grafana username and password** LeSysBot should use (defaults `admin`/`admin`),
+saving them to **`~/.lesysbot/grafana.env`** (loaded into the bot's environment at
+startup, so `share_dashboard`/status authenticate automatically), then asks
+whether to start the stack now. That step is OS-specific and **never fatal** —
+neither macOS nor Windows requires Docker Desktop, and a machine that can't run
+it yet gets the exact no-`sudo` steps printed instead. Details and the by-hand
+commands: [manage-dashboards](../manage-dashboards/SKILL.md).
 
 Set `LESYSBOT_SKIP_DASHBOARD=1` to skip this step on an unattended install.
 
@@ -226,7 +216,7 @@ lesysbot                          # health + metrics for ./config.yaml, then exi
 lesysbot run                      # the service: control panel + bot
 lesysbot chat -v        # force CLI chat + verbose logging
 lesysbot -c /path/to/config.yaml  # explicit config
-lesysbot --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
+lesysbot chat --model qwen3.5 --base-url http://localhost:11434/v1   # ad-hoc overrides
 ```
 
 No service is set up on this path — see [manage-service](../manage-service/SKILL.md)
@@ -252,4 +242,5 @@ by-hand path, `python -m site --user-scripts` shows where pip put it.
   edit `~/.lesysbot/config.yaml`, restart the service.
 - Telegram/Discord details: [setup-messaging](../setup-messaging/SKILL.md).
 - Pick a model for the hardware: [switch-llm-backend](../switch-llm-backend/SKILL.md).
+- Run/verify the Grafana stack: [manage-dashboards](../manage-dashboards/SKILL.md).
 - Remove everything: [uninstall-lesysbot](../uninstall-lesysbot/SKILL.md).

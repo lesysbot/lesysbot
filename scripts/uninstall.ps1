@@ -43,18 +43,56 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Warn "No scheduled task '$TaskName' found — skipping"
 }
 
-# ── 2. Uninstall Python package ───────────────────────────────────────────────
-Info "Removing lesysbot package ..."
+# ── 2. Remove the program ─────────────────────────────────────────────────────
+# The counterpart to the same section in uninstall.sh, and it exists for the
+# same reason: install.ps1 builds a venv at $Prefix\venv and writes a
+# lesysbot.cmd shim into $BinDir, and this only ever ran `pip uninstall` against
+# the *system* python — where a pre-installer `pip install` used to land. On a
+# one-command install that matches nothing, so the uninstall reported success
+# and left a working `lesysbot` on PATH.
+$Prefix = $(if ($env:LESYSBOT_INSTALL_DIR) { $env:LESYSBOT_INSTALL_DIR }
+            else { Join-Path $env:USERPROFILE '.local\share\lesysbot' })
+$BinDir = $(if ($env:LESYSBOT_BIN_DIR) { $env:LESYSBOT_BIN_DIR }
+            else { Join-Path $env:USERPROFILE '.local\bin' })
+$Venv   = Join-Path $Prefix 'venv'
+
+# Drop the shim only when it really points into the venv being removed — a
+# lesysbot.cmd from somewhere else is not ours to delete. The shim is a .cmd
+# wrapper, not a symlink, so this reads it rather than resolving a link.
+$Shim = Join-Path $BinDir 'lesysbot.cmd'
+if (Test-Path $Shim) {
+    $target = Join-Path $Venv 'Scripts\lesysbot.exe'
+    if ((Get-Content -Raw $Shim) -like "*$target*") {
+        Remove-Item -Force $Shim
+        Ok "Removed $Shim"
+    } else {
+        Warn "$Shim does not point at $Venv — left alone"
+    }
+}
+
+if (Test-Path $Venv) {
+    Remove-Item -Recurse -Force $Venv
+    Ok "Removed the venv at $Venv"
+}
+
+# install.ps1 leaves a copy of itself here so an update needs no re-download.
+$SelfCopy = Join-Path $Prefix 'install.ps1'
+if (Test-Path $SelfCopy) { Remove-Item -Force $SelfCopy }
+if ((Test-Path $Prefix) -and -not (Get-ChildItem -Force $Prefix)) {
+    Remove-Item -Recurse -Force $Prefix
+    Ok "Removed $Prefix"
+}
+
+# Legacy fallback: installs that predate install.ps1 went into the user's python.
 try {
-    $check = & python -m pip show lesysbot 2>&1
+    $null = & python -m pip show lesysbot 2>&1
     if ($LASTEXITCODE -eq 0) {
+        Info "Removing an older pip-installed lesysbot ..."
         & python -m pip uninstall lesysbot -y --quiet
         Ok "Package uninstalled"
-    } else {
-        Warn "Package not found in pip — skipping"
     }
 } catch {
-    Warn "Python not found — package not removed"
+    # No python on PATH — nothing of the legacy kind to remove.
 }
 
 # ── 2b. Dashboard stack (Grafana/Prometheus containers) ──────────────────────

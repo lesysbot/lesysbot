@@ -18,7 +18,7 @@ tools/<tool-name>/        # kebab-case folder = the package
   README.md               # frontmatter (name, description, platforms, requires) + human docs
   tool.py                 # @tool / CLITool definitions (any non-_ .py is scanned)
   _helpers.py             # OPTIONAL shared helpers (underscore = never scanned as tools)
-  requirements.txt        # OPTIONAL pip deps (printed on install, not auto-run)
+  requirements.txt        # OPTIONAL pip deps (installed on install; --no-deps opts out)
 ```
 
 Only `README.md` + `tool.py` are required; one package may expose several

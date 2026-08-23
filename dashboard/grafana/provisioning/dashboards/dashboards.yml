@@ -1,6 +1,6 @@
 # Auto-loads every dashboard JSON under /var/lib/grafana/dashboards (mounted
-# read-only from ./grafana/dashboards) so the stack comes up with graphs already
-# in place — no manual import.
+# read-only from ./grafana/dashboards/generated) so the stack comes up with
+# graphs already in place — no manual import.
 apiVersion: 1
 
 providers:

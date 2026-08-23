@@ -156,6 +156,7 @@ _TEMPLATE = r"""<!doctype html>
   .toast.bad{border-left-color:var(--bad)} .toast.ok{border-left-color:var(--ok)}
   .hide{display:none}
   .note{background:var(--chip);border:1px solid var(--line);border-radius:.6rem;padding:8px 12px;font-size:13px;margin:10px 0;color:var(--muted)}
+  .note.warn{border-color:var(--warn);color:var(--fg)}
   .err{color:var(--bad);white-space:pre-wrap;font-family:var(--font-mono);font-size:12px;margin-top:8px}
 </style>
 </head>
@@ -208,12 +209,15 @@ _TEMPLATE = r"""<!doctype html>
 
   <section id="dashboards" class="hide">
     <div class="row" style="margin-bottom:14px">
-      <span class="muted">Installed dashboards. Rendering writes the JSON Grafana provisions.</span>
+      <span class="muted">Your dashboard. Rendering writes the JSON Grafana provisions.</span>
       <span class="grow"></span>
       <button class="btn primary" onclick="renderDashboards()">Render</button>
+      <button class="btn small" onclick="resetDashboard()">Reset to default</button>
       <button class="btn small" onclick="loadDashboards()">↻ Refresh</button>
     </div>
+    <div class="note">LeSysBot has <b>one</b> dashboard. Installing another from the Marketplace <b>replaces</b> this one; Reset brings the default back. There is no one-size-fits-all dashboard, so the default is deliberately basic — CPU, memory, disk and network — and richer ones are built for particular hardware.</div>
     <div class="note">A dashboard whose metrics aren't being scraped is <b>not</b> provisioned — an empty panel is indistinguishable from a broken one, so it's withheld and explained instead.</div>
+    <div id="dashWarn" class="hide"></div>
     <table id="dashTable"><tbody></tbody></table>
   </section>
 
@@ -233,6 +237,7 @@ _TEMPLATE = r"""<!doctype html>
       <button class="btn primary" onclick="saveConfig()">Save</button>
     </div>
     <div class="note">Edits are validated against the schema before saving. Restart the bot to apply — <b>tool enable/disable applies live</b>.</div>
+    <div class="note hide" id="cfgMasked">Tokens and API keys are hidden — only their last four characters are shown. Leave a <span class="mono">****</span> value as it is to keep the saved one; type a new value to replace it.</div>
     <textarea id="cfgText" spellcheck="false"></textarea>
     <div class="err" id="cfgErr"></div>
   </section>
@@ -298,10 +303,12 @@ async function loadStatus(){
     ['Service', dm? `<span class="dot ${dm.running?'ok':'off'}"></span>${dm.running?'running':'stopped'}` : '<span class="dot off"></span>unknown',
        dm&&dm.pid? 'PID '+dm.pid+' · serves this panel' : 'serves this panel' ],
     ['Grafana',
-       (gf&&gf.reachable)? `<a href="${esc(gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
+       // dashboard_url is set only when one is actually provisioned, so the
+       // link never lands on a 404; Grafana's home is the fallback.
+       (gf&&gf.reachable)? `<a href="${esc(gf.dashboard_url||gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
          : '<span class="dot off"></span>not running',
-       (gf&&gf.reachable)? esc(gf.url)+(gf.version?(' · v'+gf.version):'')
-         : (gf? 'not answering at '+esc(gf.url) : 'start dashboard/scripts/start.sh')],
+       (gf&&gf.reachable)? esc(gf.dashboard_url||gf.url)+(gf.version?(' · v'+gf.version):'')
+         : (gf? 'not answering at '+esc(gf.url) : 'run `lesysbot dashboard start`')],
   ];
   $('#statusCards').innerHTML=cards.map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]||''}</div></div>`).join('');
   const meta=[['Base URL',st.base_url],['Config file',st.config_path||'(built-in defaults)'],
@@ -403,13 +410,27 @@ async function loadDashboards(){
       <td>${x.ok?'<span class="dot ok"></span>ready':'<span class="dot off"></span><span class="muted">'+esc(x.reason)+'</span>'}</td>
       <td>${x.provisioned?'yes':'<span class="muted">no</span>'}</td>
       <td><button class="btn small danger" onclick="removeTool('${esc(x.name)}')">Remove</button></td>
-    </tr>`).join(''):'<tr><td colspan="4" class="muted">No dashboards installed.</td></tr>');
+    </tr>`).join(''):'<tr><td colspan="4" class="muted">No dashboard installed — Reset to default installs one.</td></tr>');
+  // More than one means the singleton rule is broken (a home from before it, or
+  // a folder copied in by hand). Grafana would show a page nobody chose.
+  $('#dashWarn').innerHTML = rows.length>1
+    ? 'LeSysBot uses <b>one</b> dashboard but '+rows.length+' are installed. Reset to default, or remove the ones you don\'t want.'
+    : '';
+  $('#dashWarn').className = rows.length>1 ? 'note warn' : 'hide';
 }
 async function renderDashboards(){
   try{ const r=await api('POST','/api/dashboards/render',{});
-    const done=(r.results||[]).filter(x=>x.written).length;
-    toast(done+'/'+(r.results||[]).length+' provisioned','ok'); loadDashboards(); }
+    const res=(r.results||[])[0];
+    if(!res) toast('No dashboard installed','bad');
+    else if(res.written) toast('Provisioned '+res.name,'ok');
+    else toast('Withheld: '+res.reason,'bad');
+    loadDashboards(); }
   catch(e){ toast('Render failed: '+e.message,'bad'); }
+}
+async function resetDashboard(){
+  if(!confirm('Replace the installed dashboard with the default that ships with LeSysBot?')) return;
+  try{ await api('POST','/api/dashboards/reset',{}); toast('Default dashboard restored','ok'); loadDashboards(); }
+  catch(e){ toast('Reset failed: '+e.message,'bad'); }
 }
 
 // DOCTOR
@@ -431,12 +452,14 @@ async function loadDoctor(){
 
 // CONFIG
 async function loadConfig(){
-  try{ const d=await api('GET','/api/config'); $('#cfgText').value=d.yaml; $('#cfgPath').textContent=d.path+(d.exists?'':'  (will be created)'); $('#cfgErr').textContent=''; }
+  try{ const d=await api('GET','/api/config'); $('#cfgText').value=d.yaml; $('#cfgPath').textContent=d.path+(d.exists?'':'  (will be created)'); $('#cfgMasked').classList.toggle('hide', !d.masked); $('#cfgErr').textContent=''; }
   catch(e){ toast('Config load failed: '+e.message,'bad'); }
 }
 async function saveConfig(){
   $('#cfgErr').textContent='';
-  try{ const r=await api('POST','/api/config',{yaml:$('#cfgText').value}); toast(r.note||'Saved','ok'); }
+  // Reload after saving: a token typed in full is still sitting in the box,
+  // and reloading brings it back masked like everything else.
+  try{ const r=await api('POST','/api/config',{yaml:$('#cfgText').value}); toast(r.note||'Saved','ok'); loadConfig(); }
   catch(e){ $('#cfgErr').textContent=e.message; toast('Save rejected','bad'); }
 }
 

@@ -137,3 +137,62 @@ def test_absurd_smctemp_reading_rejected(mm, monkeypatch):
     text = mm.build()
     assert "macos_cpu_temperature_celsius" not in text
     assert 'macos_metrics_source_up{source="die_temp"} 0.0' in text
+
+
+# ── binary resolution under the launchd PATH ─────────────────────────────────
+# launchd hands the agent PATH=/usr/bin:/bin:/usr/sbin:/sbin, which excludes
+# Homebrew. Every test above stubs `_run`, so none of them could see that a
+# `brew install`ed helper was never actually reachable from the service.
+
+
+def test_homebrew_helper_found_when_not_on_path(mm, monkeypatch, tmp_path):
+    """The bug this guards: `brew install macmon` succeeds, the tool works in a
+    shell, and the dashboard still shows no die temperature forever."""
+    brew_bin = tmp_path / "bin"
+    brew_bin.mkdir()
+    helper = brew_bin / "macmon"
+    helper.write_text("#!/bin/sh\n")
+    helper.chmod(0o755)
+
+    monkeypatch.setattr(mm.shutil, "which", lambda name: None)   # bare PATH miss
+    monkeypatch.setattr(mm, "_EXTRA_BIN_DIRS", (str(brew_bin),))
+    assert mm._resolve("macmon") == str(helper)
+
+
+def test_missing_helper_resolves_to_none(mm, monkeypatch, tmp_path):
+    monkeypatch.setattr(mm.shutil, "which", lambda name: None)
+    monkeypatch.setattr(mm, "_EXTRA_BIN_DIRS", (str(tmp_path),))
+    assert mm._resolve("macmon") is None
+    assert mm._run(["macmon", "pipe"]) == ""      # never raises, just no data
+
+
+def test_path_wins_over_homebrew_fallback(mm, monkeypatch):
+    monkeypatch.setattr(mm.shutil, "which", lambda name: f"/usr/local/sbin/{name}")
+    assert mm._resolve("ioreg") == "/usr/local/sbin/ioreg"
+
+
+def test_each_die_filled_from_whichever_helper_knows_it(mm, monkeypatch):
+    """The M1 case: macmon's GPU figure comes from IOReport channels that read 0
+    there, while smctemp reads the SMC sensor fine. Selecting a *tool* rather
+    than a *reading* let smctemp's partial answer suppress macmon's good CPU
+    one, leaving a tile as empty as if no helper were installed."""
+    def fake_run(cmd):
+        if cmd[0] == "smctemp":
+            return "0.0\n" if cmd[1] == "-c" else "61.2\n"   # CPU unreadable
+        if cmd[0] == "macmon":
+            return '{"temp": {"cpu_temp_avg": 57.4, "gpu_temp_avg": 0.0}}'
+        return ""
+    monkeypatch.setattr(mm, "_run", fake_run)
+    text = mm.build()
+    assert "macos_gpu_temperature_celsius 61.2" in text        # from smctemp
+    assert "macos_cpu_temperature_celsius 57.4" in text        # from macmon
+    assert 'macos_metrics_source_up{source="die_temp"} 1.0' in text
+
+
+def test_help_text_names_the_source_each_reading_came_from(mm, monkeypatch):
+    monkeypatch.setattr(mm, "_run", lambda cmd: (
+        "61.2\n" if cmd[0] == "smctemp" and cmd[1] == "-g"
+        else '{"temp": {"cpu_temp_avg": 57.4}}' if cmd[0] == "macmon" else ""))
+    text = mm.build()
+    assert "# HELP macos_gpu_temperature_celsius GPU die temperature (smctemp)." in text
+    assert "# HELP macos_cpu_temperature_celsius CPU die temperature (macmon)." in text

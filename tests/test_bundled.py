@@ -67,11 +67,13 @@ def test_machine_local_state_is_excluded(path):
 
 
 def test_generated_dashboards_are_excluded():
-    """Per-host cuts describe one machine's sensors; they are never portable."""
+    """Rendered dashboards describe one machine's sensors; never portable."""
     from hatch_build import _keep
 
     root = REPO / "dashboard"
-    assert not _keep(root / "grafana" / "dashboards" / "generated-linux.json", root)
+    generated = root / "grafana" / "dashboards" / "generated"
+    assert not _keep(generated / "lesysbot.json", root)
+    assert not _keep(generated / "nested" / "anything.json", root)
     assert _keep(root / "grafana" / "dashboards" / "system-overview-windows.json", root)
 
 

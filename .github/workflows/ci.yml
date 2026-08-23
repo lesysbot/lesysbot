@@ -32,6 +32,25 @@ jobs:
           lesysbot setup --help
           lesysbot list
 
+  # Its own job, not a matrix step: this hits the GitHub API once per catalog
+  # entry, and running it nine times would rate-limit itself. It is the only
+  # check that can catch a *renamed* package — every offline assertion is about
+  # shape, and a rename preserves shape while breaking the link.
+  catalog:
+    name: Catalog links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Every catalog source resolves on GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pytest -m network -q
+
   base-install:
     name: Base install (no extras)
     runs-on: ubuntu-latest
@@ -147,7 +166,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()   # must still run — and fail — when a dependency failed
-    needs: [test, base-install, powershell-lint, shell-lint, installer]
+    needs: [test, catalog, base-install, powershell-lint, shell-lint, installer]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed

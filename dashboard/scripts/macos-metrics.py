@@ -21,7 +21,7 @@ root — and this project never asks for sudo (see docs/writing-tools.md). If yo
 install a helper that exposes them unprivileged, this script picks it up:
 
     brew install narugit/tap/smctemp     # CPU + GPU die temperature
-    brew install vladkens/tap/macmon     # CPU + GPU die temperature, power
+    brew install macmon                  # CPU + GPU die temperature, power
 
 Output goes to a `.prom` file that node_exporter's textfile collector serves.
 Written atomically (tmp + rename) because node_exporter may read it mid-write.
@@ -31,8 +31,10 @@ Written atomically (tmp + rename) because node_exporter may read it mid-write.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -41,11 +43,36 @@ from pathlib import Path
 TIMEOUT = 10          # ioreg is normally instant; never hang the launchd job
 FILENAME = "macos.prom"
 
+# launchd runs this job with PATH=/usr/bin:/bin:/usr/sbin:/sbin — Homebrew's
+# prefix is not on it. The LaunchAgent pins python3's absolute path for exactly
+# that reason, and the optional die-temp helpers need the same treatment: found
+# by hand in a login shell, invisible to the agent that actually writes the
+# file, so `brew install macmon` appears to do nothing.
+_EXTRA_BIN_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")
+
+
+def _resolve(name: str) -> str | None:
+    """Absolute path to a binary, or None. PATH first, then Homebrew prefixes."""
+    if os.path.sep in name:
+        return name
+    found = shutil.which(name)
+    if found:
+        return found
+    for directory in _EXTRA_BIN_DIRS:
+        candidate = os.path.join(directory, name)
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
 
 def _run(cmd: list[str]) -> str:
     """Best-effort command output; '' when the tool is missing or fails."""
+    binary = _resolve(cmd[0])
+    if binary is None:
+        return ""
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        out = subprocess.run([binary, *cmd[1:]], capture_output=True, text=True,
+                             timeout=TIMEOUT)
     except (OSError, subprocess.SubprocessError):
         return ""
     return out.stdout if out.returncode == 0 else ""
@@ -179,29 +206,17 @@ def _find_temps(node: object, path: str = "") -> dict[str, float]:
     return out
 
 
-def collect_die_temps(m: Metrics) -> bool:
-    """smctemp if present, else macmon. Both read the SMC/IOReport without root.
-
-    Neither is installed by us: both live in personal Homebrew taps rather than
-    homebrew-core, and a tap can fail on a perfectly ordinary machine (an older
-    Xcode is enough to block one). So this is strictly opportunistic — when
-    neither is present the CPU/GPU temperature tiles stay empty, which is the
-    documented macOS baseline, not a fault.
-    """
-    found = False
+def _smctemp_temps() -> dict[str, float]:
+    out: dict[str, float] = {}
     for flag, name in (("-c", "cpu"), ("-g", "gpu")):
         value = _first_number(_run(["smctemp", flag]))
         if value is not None and _plausible(value):
-            m.add(f"macos_{name}_temperature_celsius", value,
-                  f"{name.upper()} die temperature (smctemp).")
-            found = True
-    if found:
-        return True
+            out[name] = value
+    return out
 
+
+def _macmon_temps() -> dict[str, float]:
     raw = _run(["macmon", "pipe", "-s", "1"])
-    if not raw:
-        return False
-    import json
     for line in raw.splitlines():          # one JSON object per sample
         line = line.strip()
         if not line:
@@ -210,13 +225,40 @@ def collect_die_temps(m: Metrics) -> bool:
             sample = json.loads(line)
         except ValueError:
             continue
-        for which, value in _find_temps(sample).items():
-            m.add(f"macos_{which}_temperature_celsius", value,
-                  f"{which.upper()} die temperature (macmon).")
-            found = True
+        found = _find_temps(sample)
         if found:
+            return found
+    return {}
+
+
+def collect_die_temps(m: Metrics) -> bool:
+    """CPU/GPU die temperature, filled **per reading** from whichever helper has
+    it — smctemp preferred, macmon for whatever it leaves missing.
+
+    Per reading, not per tool, because a helper can know one die and not the
+    other: macmon derives its GPU figure from IOReport's `GPU Stats ::
+    Temperature` channels, which report 0 on an M1 even while the SMC's own
+    `GPU MTR Temp Sensor*` track the load correctly. Falling back only when a
+    tool returns *nothing* would let a half-answer suppress the other tool's
+    good one, and the empty tile looks identical to no helper installed.
+
+    Neither is installed by us: `smctemp` lives in a personal tap and compiles
+    from source, and either can fail on a perfectly ordinary machine (an older
+    Xcode is enough to block one); `macmon` reached homebrew-core but is still
+    arm64-only. So this is strictly opportunistic — when neither is present the
+    CPU/GPU temperature tiles stay empty, which is the documented macOS
+    baseline, not a fault.
+    """
+    temps: dict[str, tuple[float, str]] = {}
+    for source, reader in (("smctemp", _smctemp_temps), ("macmon", _macmon_temps)):
+        if len(temps) == 2:                # both dies known; don't spawn the rest
             break
-    return found
+        for which, value in reader().items():
+            temps.setdefault(which, (value, source))
+    for which, (value, source) in sorted(temps.items()):
+        m.add(f"macos_{which}_temperature_celsius", value,
+              f"{which.upper()} die temperature ({source}).")
+    return bool(temps)
 
 
 def build() -> str:

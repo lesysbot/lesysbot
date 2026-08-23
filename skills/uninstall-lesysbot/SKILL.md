@@ -21,43 +21,45 @@ network and no clone:
 ```
 
 It removes only what the installer created: the service, the `lesysbot` command,
-the virtual environment, and the PATH entry it added to your shell startup files.
-**`~/.lesysbot` is kept** unless `--purge`/`-Purge`, so a reinstall finds your
-config, tools and logs as you left them.
+the virtual environment, the PATH entry it added to your shell startup files, and
+it stops the Grafana dashboard stack (brew services and/or Docker containers,
+without deleting the stored history). **`~/.lesysbot` is kept** unless
+`--purge`/`-Purge`, so a reinstall finds your config, tools and logs as you left
+them.
+
+<details>
+<summary><code>scripts/uninstall.sh</code>, for a pip/clone install</summary>
+
+The installer's `--uninstall` only knows about the venv it created, so an install
+done by hand (`pip install -e .` from a checkout) needs the repo's own script:
+
+```bash
+sh scripts/uninstall.sh          # Linux/macOS
+.\scripts\uninstall.ps1          # Windows
+```
+
+It walks the same ground interactively: stops and removes the background service
+(and offers to disable `loginctl` linger on Linux), removes the program — the
+venv and the `lesysbot` command if a one-command install is present, falling back
+to `pip uninstall` for one done by hand — offers to stop the dashboard stack, and
+**asks before deleting `~/.lesysbot`** (default **No** — keeping it means a later
+re-install finds settings and custom tools exactly as left; honours
+`LESYSBOT_HOME`). With no service present, that step skips itself.
+
+A `lesysbot` on PATH that points somewhere else (pipx, a distro package, a second
+`--prefix` install) is reported and left alone rather than deleted. Every prompt
+defaults to **No**, so running this with no terminal attached — a script, a CI
+step — removes the program and keeps your data instead of stopping half-way.
+
+Skip the service teardown with `LESYSBOT_SKIP_SERVICE=1`; it lives at a fixed
+per-user path that `LESYSBOT_INSTALL_DIR`/`LESYSBOT_BIN_DIR` do not move, so a
+sandboxed run needs that guard to leave the real machine's service alone.
+
+</details>
 
 Installed some other way? Then `pipx uninstall lesysbot` (or delete the venv you
 made), remove the service by hand — see [manage-service](../manage-service/SKILL.md) —
 and `rm -rf ~/.lesysbot` when done with the data.
-
-<details>
-<summary>The older <code>scripts/uninstall.sh</code>, from a clone</summary>
-
-Still present and still works, for installs that predate the current installer.
-
-It undoes everything the installer set up, in order:
-
-1. **Stops and removes the background service** (systemd / launchd / Task
-   Scheduler) — every install has one, since it serves the control panel. On
-   Linux it also offers to disable `loginctl` linger if the installer enabled it.
-2. **Reports leftover sudoers rules** from older versions
-   (`/etc/sudoers.d/lesysbot-rtcwake`, `…-shutdown-wake`) and prints the `rm`
-   command — it does *not* delete them, which would make uninstall prompt for a
-   password. Nothing LeSysBot ships needs root any more, so on a current
-   install this step prints nothing.
-3. **Uninstalls the `lesysbot` Python package** via pip.
-4. **Offers to stop the Grafana dashboard** (the Docker containers
-   setup started) when a seeded `~/.lesysbot/dashboard` and `docker` are
-   present. It runs `start.sh down` (no `-v`), so the Docker volumes with stored
-   history survive a re-install.
-5. **Asks before deleting `~/.lesysbot`** (config, tools, dashboard, logs;
-   honours `LESYSBOT_HOME`). Default is **No** — keeping it means a later
-   re-install finds settings and custom tools exactly as left. Answer `y` only
-   for a completely clean machine.
-
-Works for both wizard and manual installs — with no service present, step 1
-skips itself.
-
-</details>
 
 ## 2. Manual removal (no repo clone available)
 

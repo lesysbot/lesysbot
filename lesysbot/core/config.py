@@ -85,11 +85,6 @@ class MCPConfig(BaseModel):
     # Lock file recording where installed packages came from (`lesysbot
     # install`): kind, repo, pinned commit, version. Relative paths anchor to
     # the config dir (so ~/.lesysbot/lesysbot.lock.json when installed).
-    #
-    # The default changed from `tools.lock.json` when dashboards became
-    # installable and the lock stopped being about tools. A config still naming
-    # the old file is honoured as-is — it is a path, so pointing at it simply
-    # works — and `ArtifactLock` migrates a v1 file found beside the new one.
     lock_file: str = "lesysbot.lock.json"
     # Persisted set of tools disabled via `lesysbot disable`. Relative
     # paths anchor to the config dir (so ~/.lesysbot/tool_state.json for an

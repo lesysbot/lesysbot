@@ -9,30 +9,20 @@ An update never requires touching `~/.lesysbot/config.yaml` or `~/.lesysbot/tool
 — settings and custom tools are decoupled from the source checkout and survive
 every path below.
 
-## 1. Update the code
+## 1. Re-run the installer (this is the upgrade path)
 
 ```bash
-cd /path/to/lesysbot        # the original git clone
-git pull
+curl -fsSL https://lesysbot.github.io/install.sh | sh      # Linux/macOS
+irm https://lesysbot.github.io/install.ps1 | iex           # Windows
 ```
 
-(If the clone is gone, `git clone https://github.com/lesysbot/lesysbot.git` fresh —
-nothing in `~/.lesysbot` depends on the old checkout.)
-
-## 2. Reinstall — pick one
-
-**Re-run the wizard** (simplest; handles the service for you):
-
-```bash
-curl -fsSL https://lesysbot.github.io/install.sh | sh
-```
-
-Re-running the installer **is** the upgrade path. It reinstalls the package into
-the same environment (`--force-reinstall`, because the version string doesn't
-move between releases), keeps your existing `config.yaml` without asking, and
-**stops, replaces, and restarts** the background service so the new code is live
-when it finishes. An existing `~/.lesysbot/tools` is never clobbered. Pass
-`--reconfigure` to `lesysbot setup --yes` if you *do* want the config replaced.
+It reinstalls the package into the same environment (`--force-reinstall`, because
+the version string doesn't move between releases), keeps your existing
+`config.yaml` without asking, and **stops, replaces, and restarts** the background
+service so the new code is live when it finishes. An existing `~/.lesysbot/tools`
+is never clobbered. Pass `--reconfigure` to `lesysbot setup --yes` if you *do*
+want the config replaced. No clone is involved, and nothing in `~/.lesysbot`
+depends on one.
 
 `~/.lesysbot/dashboard` **is** brought up to date, because that is how a fix to
 the stack reaches an existing install: shipped files (scripts, dashboards,
@@ -44,7 +34,10 @@ are editing. Re-run the OS's start
 script afterwards (`dashboard/scripts/install-macos.sh` on macOS, `start.sh` on
 Linux) so the dashboard is regenerated with the new code.
 
-**Or just reinstall the package** and restart the service yourself:
+## 2. Or update a checkout by hand
+
+For a development clone (`git pull` first), reinstall the package and restart the
+service yourself:
 
 ```bash
 pip install ".[all]"              # same extras the install scripts use
@@ -80,7 +73,7 @@ python -c "import lesysbot; print(lesysbot.__file__)"
 ## 4. Update installed tool packages
 
 Tool packages installed from GitHub are updated by re-installing — a package
-already owned by the lock file (`tools.lock.json`) is replaced in place:
+already owned by the lock file (`lesysbot.lock.json`) is replaced in place:
 
 ```bash
 lesysbot list                        # origin column shows repo@commit

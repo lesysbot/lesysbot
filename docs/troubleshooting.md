@@ -106,7 +106,7 @@ Turn it back on: `lesysbot enable gpu_temp`.
 | `Not found: owner/repo@ref` | Check the spelling and the branch/tag. For a private repo, set `GITHUB_TOKEN`. |
 | `tools dir already has X` | That folder wasn't installed by LeSysBot, so it won't be overwritten. Use `--force` if you're sure. |
 | Installed, but not in `/help` | Restart if hot reload is off; otherwise check the log for an import error. |
-| Tool complains about a missing Python package | Re-run with `--install-deps`, or run the `pip install -r` line it printed. |
+| Tool complains about a missing Python package | Deps install by default — re-run the install without `--no-deps`, or run the `pip install -r` line it printed. |
 
 ---
 
@@ -265,7 +265,7 @@ whenever you first installed.
 
 | Empty panel | Meaning |
 |---|---|
-| **CPU / GPU Die Temperature** (macOS) | Expected without a helper. Apple publishes die temperature only through a private framework or root-only `powermetrics`, and LeSysBot never uses `sudo`. The installer offers to install one; you can also do it later with `brew install vladkens/tap/macmon` (Apple Silicon) or `brew install narugit/tap/smctemp` (either). It fills in within 15 s, nothing to reconfigure. |
+| **CPU / GPU Die Temperature** (macOS) | Expected without a helper. Apple publishes die temperature only through a private framework or root-only `powermetrics`, and LeSysBot never uses `sudo`. The installer offers to install one; you can also do it later with `brew install macmon` (Apple Silicon) or `brew install narugit/tap/smctemp` (either). It fills in within 15 s, nothing to reconfigure. |
 | **All macOS-specific panels** | The collector stopped. The **Collector Age** tile shows how stale the data is; `./scripts/install-macos.sh status` reports the same, and errors land in `dashboard/run/macos-metrics.log`. |
 | **No Temperatures row at all** (Linux) | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
 | **No Temperatures row** (Windows) | `windows_exporter` served no ACPI thermal zones — normal on desktops. Windows has no per-component CPU or disk sensor of its own; **LibreHardwareMonitor** is the usual answer. |

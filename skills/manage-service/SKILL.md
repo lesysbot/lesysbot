@@ -81,7 +81,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/.lesysbot
-ExecStart=/home/you/.local/bin/lesysbot
+ExecStart=/home/you/.local/bin/lesysbot run
 Restart=on-failure
 RestartSec=5
 
@@ -92,20 +92,21 @@ WantedBy=default.target
 Then `systemctl --user daemon-reload && systemctl --user enable --now lesysbot`.
 
 **macOS** — `~/Library/LaunchAgents/com.lesysbot.lesysbot.plist` with
-`ProgramArguments` = `which lesysbot`, `WorkingDirectory` = `/Users/you/.lesysbot`,
+`ProgramArguments` = [`which lesysbot`, `run`], `WorkingDirectory` = `/Users/you/.lesysbot`,
 `RunAtLoad` + `KeepAlive` true, and `StandardOutPath`/`StandardErrorPath` under
 `~/Library/Logs/lesysbot/`. Then
 `mkdir -p ~/Library/Logs/lesysbot && launchctl load -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist`.
 
 **Windows** — register a scheduled task whose action runs `(Get-Command
-lesysbot).Source` with `-WorkingDirectory "$HOME\.lesysbot"`, an `-AtLogon`
-trigger, restart-on-failure settings, then `Start-ScheduledTask -TaskName LeSysBot`.
+lesysbot).Source` with `-Argument run` and `-WorkingDirectory "$HOME\.lesysbot"`,
+an `-AtLogon` trigger, restart-on-failure settings, then
+`Start-ScheduledTask -TaskName LeSysBot`.
 
 **Throwaway background run (no service):**
 
 ```bash
-nohup lesysbot > logs/lesysbot-stdout.log 2>&1 &     # stop: pkill -f lesysbot
-tmux new-session -d -s lesysbot "lesysbot"           # or screen -S lesysbot -d -m lesysbot
+nohup lesysbot run > logs/lesysbot-stdout.log 2>&1 &   # stop: pkill -f "lesysbot run"
+tmux new-session -d -s lesysbot "lesysbot run"         # or screen -S lesysbot -d -m lesysbot run
 ```
 
 ## Logs

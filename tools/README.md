@@ -35,7 +35,7 @@ OS- and hardware-specific packages live in the official companion repo — one
 install covers every OS, each package carrying its per-OS variants:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, speedtest, dashboards
+lesysbot install official   # network, temperature, battery, speedtest, dashboards
 ```
 
 ## Package layout

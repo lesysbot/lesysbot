@@ -32,9 +32,11 @@ stay with you. No account, no cloud service, nothing to sign up for.
 - **Teach it new tricks.** A tool is a folder with a small Python file in it.
   Drop it in and it works — no restart, no registration, no plugin API to learn.
 - **Watch the machine over time.** Installing LeSysBot also sets up a
-  [Grafana dashboard](dashboard/README.md) of CPU, memory, disk, network and
-  GPU (running at http://localhost:3000) — and the bot can share a snapshot of
-  it as a link.
+  [Grafana dashboard](docs/dashboards.md) of CPU, memory, disk and network
+  (at http://localhost:3000/d/lesysbot) — and the bot can share a snapshot of it
+  as a link. There is no one-size-fits-all dashboard, so that default is
+  deliberately basic: swap it for one built for your hardware with
+  `lesysbot install owner/repo`, the same command tools use.
 - **It asks first.** Anything drastic (reboot, power off) waits for your yes.
 
 ---
@@ -61,7 +63,17 @@ password — and it never prompts, so it is safe to run from a script. Your
 settings land in `~/.lesysbot/config.yaml`; change any of them later with
 `lesysbot setup`.
 
-**2. Say hello**
+**2. Check it worked**
+
+```bash
+lesysbot
+```
+
+Run on its own it prints a health screen and exits — model, tools, service,
+control panel, Grafana, and where your config lives. It's the one command worth
+remembering, and the first thing to run when something looks wrong.
+
+**3. Say hello**
 
 ```bash
 lesysbot chat
@@ -75,13 +87,17 @@ You: /help
       …lists every tool it can run
 ```
 
-**3. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
-health in a browser. The background service keeps it online; `lesysbot` on its
-own prints the same health summary in your terminal.
+**4. Open the control panel** at **http://127.0.0.1:8700** — settings, tools and
+health in a browser. The background service keeps it online.
 
-That's it. The full walkthrough — including how to reach it from Telegram or
-Discord — is in **[Getting started](docs/getting-started.md)**, or on the docs
-site at **<https://lesysbot.github.io/latest/guides/getting-started/>**.
+That's it. The full walkthrough — what the installer did, how to read that
+health screen, and how to reach the bot from Telegram or Discord — is in
+**[Getting started](docs/getting-started.md)**, or on the docs site at
+**<https://lesysbot.github.io/latest/guides/getting-started/>**.
+
+Something not right? [Troubleshooting](docs/troubleshooting.md) is organised by
+symptom, starting with the two most common: `lesysbot: command not found` (open
+a new terminal) and `LLM backend down` (Ollama isn't running yet).
 
 <details>
 <summary><b>Other ways to install</b></summary>
@@ -137,10 +153,11 @@ to delete `~/.lesysbot` too).
 | Message it from my phone | [Telegram & Discord](docs/adapters.md) |
 | Give it a new ability | [Write a tool](docs/writing-tools.md) |
 | Install tools other people wrote | [Install tools](docs/installing-tools.md) |
-| Add more graphs | [Install dashboards](docs/installing-dashboards.md) |
+| Add more graphs | [Your dashboard](docs/dashboards.md) |
+| Build a dashboard and share it | [Write a dashboard](docs/writing-dashboards.md) |
 | Manage it from a browser | [Control panel](docs/management-ui.md) |
 | Keep it running in the background | [Run as a service](docs/service.md) |
-| Graph my machine's health | [Dashboards](dashboard/README.md) |
+| Graph my machine's health | [Your dashboard](docs/dashboards.md) |
 | Fix something that's broken | [Troubleshooting](docs/troubleshooting.md) |
 
 Full index: **[docs/README.md](docs/README.md)**.
@@ -167,10 +184,15 @@ The ready-made official collection — one install, every OS:
 
 ```bash
 lesysbot search                      # browse everything available
-lesysbot install official            # network, temperature, battery, speedtest + dashboards
+lesysbot install official            # network, temperature, battery, speedtest
 
-# …or straight from any GitHub link, for tools and dashboards alike
-lesysbot install owner/repo
+# `official` is a nickname for a GitHub repo — which is all an install ever is
+lesysbot install lesysbot/lesysbot-packages-official
+lesysbot install owner/repo          # anyone's, tools and dashboards alike
+
+# A dashboard install *replaces* the one you have — LeSysBot keeps exactly one
+lesysbot dashboard current           # what you've got
+lesysbot dashboard reset             # back to the default
 ```
 
 ---

@@ -37,18 +37,21 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _caps(arm64: bool = True, nvidia: bool = False) -> str:
+def _caps(arm64: bool = True, nvidia: bool = False, gpu_die: bool = False) -> str:
     """Source the script and run its cap builder with the two host facts forced.
 
-    Architecture and nvidia-smi are the only inputs, and both come from the
-    machine — so they're overridden after sourcing, the same shape as
-    test_start_detect.py overriding `is_virtual` / `command -v`.
+    Architecture, nvidia-smi and the GPU-die-temperature probe are the only
+    inputs, and all come from the machine — so they're overridden after
+    sourcing, the same shape as test_start_detect.py overriding `is_virtual` /
+    `command -v`. The die-temp probe is stubbed rather than run because it
+    shells out to the collector, which needs a Mac.
     """
     script = f"""
       set -euo pipefail
       source {SCRIPT}
       MAC_ARCH={'arm64' if arm64 else 'x86_64'}
       has_nvidia() {{ return {0 if nvidia else 1}; }}
+      has_gpu_die_temp() {{ return {0 if gpu_die else 1}; }}
       printf 'CAPS=%s\\n' "$(dashboard_caps)"
     """
     out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
@@ -99,3 +102,25 @@ def test_generator_stderr_is_not_swallowed():
     assert "--macos" not in text, "stale generator flags are back"
     # The one invocation captures stderr for the warning instead of discarding it.
     assert '2>&1 >/dev/null' in text
+
+
+def test_gpu_die_temp_is_probed_not_inferred():
+    """An M1 installs macmon happily, fills the CPU tile, and still reports 0 for
+    the GPU — so neither the chip nor "a helper is installed" predicts this. The
+    cap is claimed only when the collector was seen emitting the reading."""
+    assert _caps(arm64=True, gpu_die=True) == "gpu_die_temp"
+    assert "gpu_die_temp" not in _caps(arm64=True, gpu_die=False)
+    assert _caps(arm64=False, nvidia=True, gpu_die=True) == "intel,nvidia,gpu_die_temp"
+
+
+def test_gpu_die_probe_is_false_without_a_python():
+    """No python3 means the collector can't be asked, and an unprobed capability
+    must never be claimed — the dashboard would carry a permanently empty tile."""
+    script = f"""
+      set -euo pipefail
+      source {SCRIPT}
+      PYTHON=""
+      has_gpu_die_temp && echo CLAIMED || echo 'NOT CLAIMED'
+    """
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
+    assert "NOT CLAIMED" in out.stdout

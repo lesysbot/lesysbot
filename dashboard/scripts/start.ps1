@@ -94,13 +94,15 @@ An NVIDIA GPU is present but nvidia-smi is not on PATH, so its metrics cannot
 }
 
 # Fill grafana\dashboards\generated — the directory the compose mounts. Three
-# routes, best first: lesysbot renders every installed dashboard package;
+# routes, best first: lesysbot writes the installed dashboard package;
 # gen-dashboards.py generates one for this host; the committed portable JSON is
-# copied in when there is no python3 at all. The directory is created either
-# way, because Docker creates a missing bind-mount source as root-owned.
+# copied in when there is no python3 at all. All three write the same filename
+# at the same uid, so a machine has one dashboard at /d/lesysbot however it got
+# there. The directory is created either way, because Docker creates a missing
+# bind-mount source as root-owned.
 $generated = Join-Path $Root 'grafana\dashboards\generated'
 New-Item -ItemType Directory -Force -Path $generated | Out-Null
-$out = Join-Path $generated 'system-overview.json'
+$out = Join-Path $generated 'lesysbot.json'
 $portable = Join-Path $Root 'grafana\dashboards\system-overview-windows.json'
 $gen = Join-Path $Here 'gen-dashboards.py'
 

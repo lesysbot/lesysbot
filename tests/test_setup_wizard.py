@@ -1100,3 +1100,73 @@ def test_generated_passwords_differ():
 )
 def test_parse_allowed_ids(raw, expected):
     assert wizard.parse_allowed_ids(raw) == expected
+
+
+# -- the dashboard slot --------------------------------------------------------
+
+def _bundled_dashboards(root: Path, *names: str) -> Path:
+    for name in names:
+        pkg = root / "dashboards" / name
+        pkg.mkdir(parents=True)
+        (pkg / "README.md").write_text(f"---\nname: {name}\nkind: dashboard\n---\n")
+        (pkg / "dashboard.json").write_text('{"title": "%s"}' % name)
+    return root
+
+
+def _installed(data: Path) -> list[str]:
+    directory = data / "dashboard" / "installed"
+    return sorted(p.name for p in directory.iterdir()) if directory.is_dir() else []
+
+
+def test_seed_dashboards_installs_only_the_default(tmp_path):
+    """The wheel may carry several; an install has room for one."""
+    repo = _bundled_dashboards(tmp_path / "repo", "system-overview", "gpu-nvidia")
+    data = tmp_path / "home"
+    data.mkdir()
+
+    assert apply_mod.seed_dashboards(repo, data) is True
+    assert _installed(data) == ["system-overview"]
+
+
+def test_re_running_setup_keeps_the_dashboard_you_chose(tmp_path):
+    """The bug this shape exists to prevent.
+
+    Seeding tools is a *refresh*, so a fix reaches existing installs. Seeding the
+    dashboard cannot be, because the slot holds exactly one: refreshing would put
+    the default back over the user's dashboard every time they touched the
+    wizard, silently undoing an install they had made on purpose.
+    """
+    repo = _bundled_dashboards(tmp_path / "repo", "system-overview")
+    data = tmp_path / "home"
+    data.mkdir()
+    apply_mod.seed_dashboards(repo, data)
+
+    # The user replaces it with their own.
+    import shutil
+    installed = data / "dashboard" / "installed"
+    shutil.rmtree(installed / "system-overview")
+    (installed / "mine").mkdir()
+    (installed / "mine" / "dashboard.json").write_text('{"title": "mine"}')
+
+    assert apply_mod.seed_dashboards(repo, data) is False
+    assert _installed(data) == ["mine"]
+
+
+def test_reset_dashboard_restores_the_default(tmp_path):
+    """The escape hatch: a fork that renders badly leaves no graphs otherwise."""
+    from lesysbot.artifacts.kinds import ArtifactKind
+    from lesysbot.artifacts.lockfile import ArtifactLock
+
+    repo = _bundled_dashboards(tmp_path / "repo", "system-overview")
+    data = tmp_path / "home"
+    data.mkdir()
+    installed = data / "dashboard" / "installed"
+    installed.mkdir(parents=True)
+    (installed / "broken").mkdir()
+    (installed / "broken" / "dashboard.json").write_text("{}")
+    lock = ArtifactLock(data / "lesysbot.lock.json")
+    lock.put(ArtifactKind.DASHBOARD, "broken", {"name": "broken", "kind": "dashboard"})
+
+    assert apply_mod.reset_dashboard(repo, data) is True
+    assert _installed(data) == ["system-overview"]
+    assert list(lock.of_kind(ArtifactKind.DASHBOARD)) == ["system-overview"]

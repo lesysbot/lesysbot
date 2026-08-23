@@ -40,9 +40,8 @@ def entry_key(kind: ArtifactKind | str, name: str) -> str:
 class JsonState:
     """A ``{"version": N, "<root_key>": {...}}`` JSON file.
 
-    Generic and version-agnostic: *version* is whatever the caller stamps.
-    ``ArtifactLock`` passes ``LOCK_VERSION``; the default stays 1 so this class
-    keeps behaving as it always did for anything else that uses it.
+    Generic and version-agnostic: *version* is whatever the caller stamps
+    (``ArtifactLock`` passes ``LOCK_VERSION``).
     """
 
     def __init__(self, path: Path, root_key: str, version: int = 1) -> None:
@@ -78,7 +77,7 @@ class JsonState:
 
 
 class ArtifactLock:
-    """The artifact lock, with one-time migration from the v1 tools lock."""
+    """The artifact lock: what is installed, and where it came from."""
 
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -101,6 +100,24 @@ class ArtifactLock:
             for key, entry in self.load().items()
             if entry.get("kind", DEFAULT_KIND.value) == want
         }
+
+    def current_dashboard(self) -> dict[str, Any] | None:
+        """The one installed dashboard, or ``None`` when none is installed.
+
+        A LeSysBot install has **exactly one** dashboard: installing a dashboard
+        replaces the current one, so there is a single Grafana page at a fixed
+        uid rather than a set the user has to choose between.
+
+        More than one entry is an invariant violation rather than a state to
+        support — ``lesysbot doctor`` reports it — but this returns the newest
+        instead of raising, because the caller is usually trying to *tell the
+        user what they have*, and failing there would hide the very problem they
+        need to see. Ties break by name so the answer is stable across calls.
+        """
+        entries = list(self.of_kind(ArtifactKind.DASHBOARD).values())
+        if not entries:
+            return None
+        return max(entries, key=lambda e: (e.get("updated_at") or "", e.get("name") or ""))
 
     # -- writing --------------------------------------------------------------
 

@@ -41,6 +41,14 @@ import sys
 from pathlib import Path
 
 DS = {"type": "prometheus", "uid": "prometheus"}
+
+# Every cut carries the same dashboard uid, on purpose. A machine has one
+# LeSysBot dashboard, so `/d/lesysbot` must be its address whichever route wrote
+# the file — this generator standing alone, or `lesysbot dashboard render`
+# (which stamps the same value; see lesysbot/dashboards/render.py). Distinct
+# per-OS uids used to mean switching cuts left two near-identical dashboards
+# side by side, and no single URL the docs could quote.
+DASHBOARD_UID = "lesysbot"
 OUT = Path(__file__).resolve().parent.parent / "grafana" / "dashboards"
 
 # NVIDIA metric names as exported by nvidia_gpu_exporter (utkuozdemir).
@@ -64,9 +72,38 @@ MAC_DIE_HELP = (
     "Apple publishes die temperature only through IOReport (a private framework) "
     "or root-only powermetrics, and LeSysBot never asks for sudo — so this needs "
     "a small helper. Install one and it fills in within 15s:\n\n"
-    "    brew install vladkens/tap/macmon      (Apple Silicon)\n"
+    "    brew install macmon                   (Apple Silicon)\n"
     "    brew install narugit/tap/smctemp      (Apple Silicon or Intel)\n\n"
     "Empty without one is expected, not a fault."
+)
+
+# Why the GPU die tile is a *probed capability* and not just a panel with an
+# explanation. On Apple Silicon a helper often cannot fill it even when the CPU
+# tile works, and there is no action the reader could take — so an empty tile
+# here is not "install a helper", it is "this Mac cannot answer". Measured on an
+# M1/macOS 26: macmon derives its GPU figure from IOReport's `GPU Stats ::
+# Temperature` channels, which read 0 there; smctemp 0.7.0 `-g` returns 0.0 even
+# under full GPU load with its own suggested `-i25 -n180 -f` retry flags. The
+# SMC's `GPU MTR Temp Sensor*` do track load (~70 C at 100% GPU) but snap to
+# exactly 30.00 the moment the GPU power-gates — a placeholder, not a cooling
+# curve, so publishing it would draw a flat fake line for the ~99% of the time
+# the GPU is idle. install-macos.sh therefore asks the collector whether the
+# reading actually appears, and the tile is omitted when it does not.
+MAC_GPU_DIE_HELP = (
+    "Hottest GPU die sensor, via smctemp or macmon.\n\n"
+    "This tile is only generated on a Mac where the collector was seen "
+    "producing the reading, so unlike the CPU tile it should not sit empty. If "
+    "it does, the helper was removed or the collector stopped — check Collector "
+    "Age."
+)
+
+# Shown in place of the tile's absence, on the row's timeseries, so the omission
+# reads as a deliberate finding rather than a panel someone forgot.
+MAC_NO_GPU_DIE_NOTE = (
+    "\n\nThere is no GPU die series on this Mac: no sudo-less helper could "
+    "produce one here (on M1, macmon reports 0 and smctemp cannot read the "
+    "sensor), so the panel is omitted rather than left permanently empty. "
+    "Re-run the installer after installing a helper to pick it up."
 )
 
 
@@ -422,7 +459,7 @@ def temps_section_linux(g: Layout, caps: set[str]) -> None:
                   "Wifi radio (iwlwifi). What appears depends entirely on the firmware.")
 
 
-def temps_section_macos(g: Layout, intel: bool) -> None:
+def temps_section_macos(g: Layout, intel: bool, gpu_die_temp: bool = False) -> None:
     """Temperatures on a Mac — only the readings a Mac can actually produce.
 
     The portable dashboard's temperature row is mostly Linux hwmon panels that
@@ -435,14 +472,17 @@ def temps_section_macos(g: Layout, intel: bool) -> None:
     failure, so those panels are omitted rather than left blank).
     """
     g.row("Temperatures — macOS")
+    # Three tiles when this Mac has no readable GPU die sensor, four when it
+    # does — either way they fill the 24-column row exactly.
+    tile_w = 6 if gpu_die_temp else 8
     g.stat("CPU Die Temperature", [(MAC_CPU_TEMP, "cpu")], "celsius",
-           w=6, thresholds=TEMP,
+           w=tile_w, thresholds=TEMP,
            desc="Hottest CPU die sensor. " + MAC_DIE_HELP)
-    g.stat("GPU Die Temperature", [(MAC_GPU_TEMP, "gpu")], "celsius",
-           w=6, thresholds=TEMP,
-           desc="GPU die sensor. " + MAC_DIE_HELP)
+    if gpu_die_temp:
+        g.stat("GPU Die Temperature", [(MAC_GPU_TEMP, "gpu")], "celsius",
+               w=tile_w, thresholds=TEMP, desc=MAC_GPU_DIE_HELP)
     g.stat("Battery Temperature", [(MAC_BATT_TEMP, "battery")], "celsius",
-           w=6, thresholds=TEMP,
+           w=tile_w, thresholds=TEMP,
            desc="AppleSmartBattery, so laptops only — a desktop Mac leaves this "
                 "empty. Tracks chassis heat rather than the die, so it moves "
                 "slowly: good for 'is this machine cooking?', not for catching a "
@@ -450,7 +490,7 @@ def temps_section_macos(g: Layout, intel: bool) -> None:
     # Answers "why is this row empty?" without a trip to the logs: a .prom file
     # keeps being served after its writer dies, so the panels would otherwise
     # show a plausible frozen value instead of nothing.
-    g.stat("Collector Age", [(f"time() - {MAC_LAST_RUN}", "age")], "s", w=6,
+    g.stat("Collector Age", [(f"time() - {MAC_LAST_RUN}", "age")], "s", w=tile_w,
            thresholds=[{"color": "green", "value": None},
                        {"color": "yellow", "value": 60},
                        {"color": "red", "value": 300}],
@@ -458,11 +498,14 @@ def temps_section_macos(g: Layout, intel: bool) -> None:
                 "runs every 15s under launchd, so anything above a minute means "
                 "the collector stopped and the GPU/temperature panels are stale:\n\n"
                 "    launchctl print gui/$UID/com.lesysbot.macos-metrics")
-    g.ts("Temperatures", [(MAC_BATT_TEMP, "battery"), (MAC_CPU_TEMP, "CPU die"),
-                          (MAC_GPU_TEMP, "GPU die")], "celsius",
+    series = [(MAC_BATT_TEMP, "battery"), (MAC_CPU_TEMP, "CPU die")]
+    if gpu_die_temp:
+        series.append((MAC_GPU_TEMP, "GPU die"))
+    g.ts("Temperatures", series, "celsius",
          w=24 if not intel else 12, minv=0, fill=0,
          desc="Battery is always available; the die temperatures appear once "
-              "smctemp or macmon is installed.")
+              "smctemp or macmon is installed."
+              + ("" if gpu_die_temp else MAC_NO_GPU_DIE_NOTE))
     if intel:
         # node_exporter's darwin thermal collector exposes throttling ratios, not
         # temperatures — useful, and this is the only dashboard that can show it.
@@ -613,7 +656,7 @@ def build_node() -> dict:
     temps_section_node(g)
     gpu_section(g)
     gpu_section_apple(g)
-    return dashboard("System Overview — Linux / macOS", "lesysbot-node", g)
+    return dashboard("System Overview — Linux / macOS", DASHBOARD_UID, g)
 
 
 # ==================================================== Linux (host-specific cut)
@@ -669,11 +712,12 @@ def build_linux(caps: set[str]) -> dict:
     temps_section_linux(g, caps)
     if "nvidia" in caps:
         gpu_section(g, detected=True)
-    return dashboard("System Overview — Linux", "lesysbot-node", g)
+    return dashboard("System Overview — Linux", DASHBOARD_UID, g)
 
 
 # ==================================================== macOS (host-specific cut)
-def build_macos(intel: bool = False, nvidia: bool = False) -> dict:
+def build_macos(intel: bool = False, nvidia: bool = False,
+                gpu_die_temp: bool = False) -> dict:
     """A dashboard for one Mac, generated by scripts/install-macos.sh at install.
 
     The portable Linux/macOS dashboard has to carry every panel for every host,
@@ -686,6 +730,9 @@ def build_macos(intel: bool = False, nvidia: bool = False) -> dict:
         (no NVIDIA driver has existed for macOS since Mojave, so on nearly every
         Mac this row is pure noise)
       * Intel-only thermal-throttling panels appear only on Intel
+      * the GPU die temperature tile appears only where the collector was
+        actually seen producing that reading — see MAC_GPU_DIE_HELP for why a
+        Mac can fill the CPU tile and never the GPU one
 
     Anything still empty is a live fault worth investigating, which is the point.
     """
@@ -735,16 +782,13 @@ def build_macos(intel: bool = False, nvidia: bool = False) -> dict:
     disk_section(g)
     network_section(g)
 
-    temps_section_macos(g, intel=intel)
+    temps_section_macos(g, intel=intel, gpu_die_temp=gpu_die_temp)
     gpu_section_apple(g, title="GPU — Apple / integrated")
     if nvidia:
         gpu_section(g, detected=True)
 
     which = "Intel" if intel else "Apple Silicon"
-    # Same uid as the portable dashboard on purpose: re-running the installer, or
-    # switching between the tailored and the portable cut, then *replaces* the
-    # dashboard instead of leaving two near-identical ones side by side.
-    return dashboard(f"System Overview — macOS ({which})", "lesysbot-node", g)
+    return dashboard(f"System Overview — macOS ({which})", DASHBOARD_UID, g)
 
 
 # =================================================================== Windows
@@ -822,14 +866,14 @@ def build_windows(caps: set[str] | None = None) -> dict:
     if caps is None or "nvidia" in caps:
         gpu_section(g, detected=caps is not None)
     title = "System Overview — Windows"
-    return dashboard(title, "lesysbot-windows", g)
+    return dashboard(title, DASHBOARD_UID, g)
 
 
 # Capabilities each --host accepts. Keeping this explicit means a typo in a start
 # script is a usage error rather than a silently-missing dashboard row.
 CAPABILITIES = {
     "linux": {"nvidia", "amd_gpu", "cpu_temp", "disk_temp", "thermal_zone"},
-    "macos": {"intel", "nvidia"},
+    "macos": {"intel", "nvidia", "gpu_die_temp"},
     "windows": {"nvidia", "thermalzone"},
 }
 
@@ -838,7 +882,8 @@ def build_for(host: str, caps: set[str]) -> dict:
     if host == "linux":
         return build_linux(caps)
     if host == "macos":
-        return build_macos(intel="intel" in caps, nvidia="nvidia" in caps)
+        return build_macos(intel="intel" in caps, nvidia="nvidia" in caps,
+                           gpu_die_temp="gpu_die_temp" in caps)
     return build_windows(caps)
 
 

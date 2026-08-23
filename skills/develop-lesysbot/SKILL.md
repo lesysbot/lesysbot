@@ -56,13 +56,20 @@ lesysbot/
 │                  paths (~/.lesysbot anchoring), trace.py, sysinfo.py
 ├─ llm/            single AsyncOpenAI client, configurable base_url (all backends)
 ├─ mcp/            registry (discovery/hot-reload/gating), @tool decorator,
-│                  CLITool, platform gating, `lesysbot install` CLI
+│                  CLITool, platform gating
 ├─ messaging/      base interface + CLI / Telegram / Discord adapters,
-│                  startup notice
-└─ artifacts/      `lesysbot install` engine (zipball fetch, lockfile)
+│                  startup notice, native slash commands
+├─ artifacts/      package installer engine (zipball fetch, manifest, lockfile,
+│                  catalog) — the thing `lesysbot install` drives
+├─ cli/            the management verbs (install/list/remove/doctor/dashboard…)
+├─ prereq/         what a package needs, whether this host has it, and the fix
+├─ dashboards/     render the one installed dashboard package for Grafana
+├─ setup/          the install wizard (`lesysbot setup`), all OSes
+└─ management/     the loopback-only control panel (stdlib http.server)
 tools/             bundled tool packages (the seeded catalog)
+dashboard/         the Prometheus + Grafana stack (outside the wheel)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
-scripts/           install/uninstall wizards (bash + PowerShell), exe build
+scripts/           curl-pipeable installers (sh + PowerShell), exe build, gen_logo
 config/            default.yaml — the documented default config
 packaging/         PyInstaller spec for the Windows .exe
 docs/              user & contributor guides

@@ -123,15 +123,55 @@ def seed_tools(repo_dir: Path | None, data_dir: Path) -> bool:
     return _seed_packages(src, data_dir / "tools", data_dir, ArtifactKind.TOOL)
 
 
-def seed_dashboards(repo_dir: Path | None, data_dir: Path) -> bool:
-    """Install/refresh the bundled dashboard packages, same rules as tools."""
+def seed_dashboards(repo_dir: Path | None, data_dir: Path, *,
+                    force: bool = False) -> bool:
+    """Install the default dashboard — into an **empty slot** only.
+
+    Deliberately not "refresh the bundled packages" the way :func:`seed_tools`
+    is. An install has room for exactly one dashboard, so re-running
+    ``lesysbot setup`` must not put the default back over one the user chose;
+    that would undo their install every time they touched the wizard, silently.
+    ``lesysbot dashboard reset`` passes ``force`` for the explicit way back.
+    """
     from lesysbot.core.paths import installed_dashboards_dir
+    from lesysbot.dashboards import DEFAULT_DASHBOARD
 
     src = _bundled_source(repo_dir, "dashboards")
-    if src is None:
+    if src is None or not (src / DEFAULT_DASHBOARD).is_dir():
         return False
-    return _seed_packages(src, installed_dashboards_dir(data_dir), data_dir,
-                          ArtifactKind.DASHBOARD)
+    dst = installed_dashboards_dir(data_dir)
+    if not force and _installed_dashboards(dst):
+        return False
+    return _seed_packages(src, dst, data_dir, ArtifactKind.DASHBOARD,
+                          only=DEFAULT_DASHBOARD)
+
+
+def reset_dashboard(repo_dir: Path | None, data_dir: Path) -> bool:
+    """Drop whatever dashboard is installed and restore the bundled default.
+
+    The escape hatch behind ``lesysbot dashboard reset``: a fork that renders
+    badly, or an install that turned out to be for someone else's hardware,
+    otherwise leaves a machine with no graphs and no obvious way back.
+    """
+    from lesysbot.artifacts.lockfile import ArtifactLock
+    from lesysbot.core.paths import force_rmtree, installed_dashboards_dir
+
+    dst = installed_dashboards_dir(data_dir)
+    existing = _installed_dashboards(dst)
+    for name in existing:
+        force_rmtree(dst / name)
+    if existing:
+        ArtifactLock(data_dir / LOCK_NAME).drop(existing, ArtifactKind.DASHBOARD)
+    return seed_dashboards(repo_dir, data_dir, force=True)
+
+
+def _installed_dashboards(dst: Path) -> list[str]:
+    """Dashboard package folder names under *dst*."""
+    if not dst.is_dir():
+        return []
+    return sorted(p.name for p in dst.iterdir()
+                  if p.is_dir() and not p.name.startswith((".", "_"))
+                  and p.name != "__pycache__")
 
 
 def seed_catalog(repo_dir: Path | None, data_dir: Path) -> bool:
@@ -153,12 +193,16 @@ def seed_catalog(repo_dir: Path | None, data_dir: Path) -> bool:
     return False
 
 
-def _seed_packages(src: Path, dst: Path, data_dir: Path, kind) -> bool:
+def _seed_packages(src: Path, dst: Path, data_dir: Path, kind,
+                   *, only: str | None = None) -> bool:
     """Copy each package folder under *src* into *dst*, recording the lock entry.
 
     Refreshes a shipped file whose contents differ and leaves the user's alone —
     the same split ``seed_dashboard`` applies to the stack, but per package,
     driven by each manifest's ``preserve:`` rather than one global list.
+
+    *only* seeds a single named package. Dashboards use it: the wheel may carry
+    more than one, but an install has room for exactly one.
     """
     from lesysbot.artifacts.lockfile import ArtifactLock
     from lesysbot.artifacts.manifest import _package_from
@@ -169,6 +213,8 @@ def _seed_packages(src: Path, dst: Path, data_dir: Path, kind) -> bool:
 
     for folder in sorted(p for p in src.iterdir() if p.is_dir()):
         if folder.name.startswith((".", "_")) or folder.name == "__pycache__":
+            continue
+        if only is not None and folder.name != only:
             continue
         pkg = _package_from(folder, folder.name)
         if _copy_package(folder, dst / pkg.name, pkg.preserve):

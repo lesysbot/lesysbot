@@ -50,6 +50,18 @@ class CLIContext:
         return Path(self.settings.mcp.tools_dir)
 
     @property
+    def data_dir(self) -> Path:
+        """The root the installed layout hangs off — stack, lock, packages.
+
+        Mirrors the rule ``core.paths`` applies to a ``base`` of ``None``, so a
+        caller that has a ``CLIContext`` and one that has only ``paths`` can't
+        disagree about where ``~/.lesysbot`` is.
+        """
+        from lesysbot.core.paths import user_dir
+
+        return Path(self.settings.config_dir) if self.settings.config_dir else user_dir()
+
+    @property
     def dashboards_dir(self) -> Path:
         """Where dashboard packages install.
 

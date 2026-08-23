@@ -134,6 +134,42 @@ def test_the_official_collection_is_findable_by_id():
     assert entry.source == "lesysbot/lesysbot-packages-official"
 
 
+@pytest.mark.network
+def test_every_bundled_entry_actually_resolves():
+    """The one check that catches a renamed or deleted package.
+
+    Every other assertion here is about *shape* — that a source parses, that
+    ids are unique — and shape is exactly what a rename preserves. A catalog
+    row pointing at `dashboards/gpu-detail` after the folder became
+    `gpu-nvidia` parses perfectly and 404s on install, which is how that
+    shipped once already. Only GitHub can answer this, so it is marked
+    `network` and deselected by default; CI runs it.
+    """
+    import os
+    import urllib.error
+    import urllib.request
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    broken = []
+    for entry in load_catalog(bundled_path()).entries:
+        src = parse_source(entry.source)
+        path = f"/contents/{src.subdir}" if src.subdir else ""
+        url = f"https://api.github.com/repos/{src.owner}/{src.repo}{path}"
+        request = urllib.request.Request(url, method="HEAD")
+        request.add_header("Accept", "application/vnd.github+json")
+        if token:
+            request.add_header("Authorization", f"Bearer {token}")
+        try:
+            urllib.request.urlopen(request, timeout=15)
+        except urllib.error.HTTPError as e:
+            if e.code in (403, 429):
+                pytest.skip("GitHub rate-limited this check; set GITHUB_TOKEN")
+            broken.append(f"{entry.id} → {entry.source} ({e.code})")
+        except OSError as e:                  # offline, DNS, TLS
+            pytest.skip(f"no network ({e})")
+    assert not broken, "catalog entries that don't resolve: " + ", ".join(broken)
+
+
 def test_dashboards_are_searchable_by_kind():
     """`lesysbot search --kind dashboard` returning nothing reads as
     "dashboards aren't a thing you install" — so the bundled catalog must

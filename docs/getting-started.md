@@ -30,7 +30,7 @@ Here is everything it does, in order:
 | **Gets a model ready** | Installs [Ollama](https://ollama.com) and pulls `qwen3.5:4b` — small, runs on almost anything, reliable at picking the right tool. |
 | **Configures everything** | Runs `lesysbot setup --yes`: writes `~/.lesysbot/config.yaml`, installs the bundled tools and dashboards, brings up the Grafana stack, and starts the background service. |
 
-When it finishes you have a working bot. Skip to [Say hello](#say-hello).
+When it finishes you have a working bot. Skip to [Check it worked](#check-it-worked).
 
 > **Read it first?** Sensible — you should with any `curl | sh`.
 > ```bash
@@ -223,7 +223,7 @@ writing anything.
 **The Grafana dashboard — set up during install**
 After it writes the config, setup also seeds the
 [dashboard stack](../dashboard/README.md) into `~/.lesysbot/dashboard` and
-gets you to a Grafana dashboard at **http://localhost:3000**. It first asks **how**
+gets you to a Grafana dashboard at **http://localhost:3000/d/lesysbot**. It first asks **how**
 you want it set up (see per-OS below), then the **Grafana username and password**
 LeSysBot should use to reach it (defaults `admin` / `admin`; the password is
 hidden as you type). Those are saved to `~/.lesysbot/grafana.env`, which LeSysBot
@@ -333,6 +333,41 @@ If you want it running in the background, set that up yourself:
 
 ---
 
+## Check it worked
+
+Run `lesysbot` on its own. It prints a health screen and exits — it starts
+nothing, so it's safe to run any time, and it's the one command worth
+remembering:
+
+```console
+$ lesysbot
+
+LeSysBot v0.1.0
+  LLM backend  reachable · 248 ms
+  Backend URL  http://localhost:11434/v1
+     Provider  cli · model qwen3.5:4b
+        Tools  13/13 enabled
+      Service  running (PID 1767)
+Control panel  online · http://127.0.0.1:8700
+      Grafana  http://localhost:3000/d/lesysbot · v11.5.1
+       Config  /home/you/.lesysbot/config.yaml
+```
+
+Green across the board means you're done. If a row disagrees:
+
+| Row | If it isn't happy | What to do |
+|---|---|---|
+| **LLM backend** | `down · …` | Ollama isn't running or the model isn't pulled. `ollama serve`, then `ollama pull qwen3.5:4b`. On Linux the installer may have left Ollama to you — see [above](#where-does-ollama-need-a-password). |
+| **Tools** | `0/0 enabled` | Setup didn't finish seeding. Re-run `lesysbot setup --yes`. |
+| **Service** | `stopped` | The background service isn't up. The row prints the exact start command for your OS; more in [Run as a service](service.md). |
+| **Control panel** | `offline` | It comes up with the service — fix that row first. |
+| **Grafana** | `not running` | Optional, and nothing else depends on it. `lesysbot dashboard start`. |
+| — | `lesysbot: command not found` | Your shell hasn't picked up the new PATH entry yet. Open a new terminal, or run `. ~/.profile`. Details in [Troubleshooting](troubleshooting.md#lesysbot-command-not-found). |
+
+Anything else: [Troubleshooting](troubleshooting.md) is organised by symptom.
+
+---
+
 ## Say hello
 
 ```bash
@@ -358,7 +393,7 @@ Type **`/help`** to see every tool it currently has.
 
 > Running as a Telegram/Discord service already? `lesysbot chat` still opens a
 > separate terminal chat alongside it. They don't conflict. (`lesysbot chat` is
-> short for `lesysbot chat`, which also still works.)
+> short for `lesysbot --provider cli`, which also still works.)
 
 Day-to-day guide: **[Everyday use](usage.md)**.
 
@@ -369,11 +404,21 @@ Day-to-day guide: **[Everyday use](usage.md)**.
 **Install the ready-made official collection** — one repo, every OS:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, dashboards
+lesysbot search             # see what's on offer first
+lesysbot install official   # network, temperature, battery, speedtest, dashboards
 ```
 
-A running bot picks them up immediately. More in
-[Install tools](installing-tools.md).
+A running bot picks them up immediately — no restart.
+
+`official` is a shortcut for the GitHub repo it lives in, and that's all an
+install ever is:
+
+```bash
+lesysbot install lesysbot/lesysbot-packages-official   # the same thing, spelled out
+lesysbot install someone/their-tools                   # anyone's repo, same command
+```
+
+More in [Install tools](installing-tools.md).
 
 **Or write one.** Create `~/.lesysbot/tools/hello/tool.py`:
 

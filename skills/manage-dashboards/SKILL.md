@@ -59,8 +59,10 @@ Install if absent:
 [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) on
 Windows.
 
-**Get the files.** The stack lives in the repo's `dashboard/` folder. If the
-user installed LeSysBot with `pip` (no checkout), fetch it first:
+**Get the files.** `lesysbot setup` already seeded the stack into
+**`~/.lesysbot/dashboard`** — that is where an installed machine runs it from,
+and re-running `lesysbot setup` refreshes it. Only if LeSysBot isn't installed
+at all does the folder have to come from a checkout:
 
 ```bash
 git clone https://github.com/lesysbot/lesysbot && cd lesysbot/dashboard
@@ -71,7 +73,7 @@ copying just that folder is enough.
 
 ## Start it (one command per OS)
 
-Run from the repo's `dashboard/` folder.
+Run from `~/.lesysbot/dashboard` (or the checkout's `dashboard/`).
 
 | OS | Start | Stop |
 |---|---|---|
@@ -115,24 +117,39 @@ containers — but run one or the other, never both: they bind the same ports, a
 
 ## What you get
 
-**One dashboard**, matching the OS you started — only that one is provisioned
-(the compose file mounts a single dashboard JSON), so a Linux box never shows an
-empty "System Overview — Windows":
+**A LeSysBot install has exactly ONE dashboard.** Installing a dashboard
+*replaces* the current one; it never adds a second. Grafana provisions
+**`grafana/dashboards/generated/lesysbot.json`** — one file, at the fixed uid
+`lesysbot`, so the address <http://localhost:3000/d/lesysbot> is a constant
+whichever dashboard is installed. Any other JSON in that directory is swept away
+on the next render.
 
-| Started on… | Dashboard | Exporter |
-|---|---|---|
-| Linux | **System Overview — Linux** | `node_exporter` |
-| macOS (`install-macos.sh` or Docker) | **System Overview — macOS (Apple Silicon \| Intel)** | `node_exporter` (+ `macos-metrics.py` natively) |
-| Windows | **System Overview — Windows** | `windows_exporter` |
+| Command | What it does |
+|---|---|
+| `lesysbot dashboard current` | which dashboard, where from, state |
+| `lesysbot dashboard render` | rewrite `lesysbot.json` |
+| `lesysbot dashboard reset` | restore the bundled default |
+| `lesysbot install owner/repo` | **replace** the dashboard |
 
-It covers: **CPU** (busy %, per-mode, load, cores) · **Memory** (used/cached,
-swap/commit) · **Disk** (used % per mount, read/write) · **Network** per
-interface (the interface name distinguishes Ethernet from Wifi) ·
-**Temperatures** · **GPU** (NVIDIA: util, memory, temp, power).
+The default is **System Overview**, seeded by `lesysbot setup` into an *empty
+slot only* — re-running setup never puts it back over a dashboard the user
+chose. It is deliberately basic: **CPU · Memory · Disk · Network**, which is what
+a stock `node_exporter`/`windows_exporter` always fills. Temperatures and GPU are
+**not** in the default — they depend on hardware the machine may not have, and a
+blank panel is indistinguishable from a broken one. Users who want them install a
+dashboard built for their hardware, or fork one.
 
-**Every start script generates its dashboard rather than copying one**, because a
-panel querying a metric the host can't produce looks identical to a broken panel.
-Each probes first, then calls `gen-dashboards.py --host H --have CAPS --out F`:
+A repo offering several dashboards **defers** them: its tools install, the
+dashboards are listed, and the user picks with `--only NAME`. Never guess one for
+them. A dashboards-only repo with several has nothing unambiguous to install, so
+that case raises instead.
+
+**Dashboards are rendered for the host, never copied**, because a panel querying
+a metric the host can't produce looks identical to a broken one. Best route
+first: `lesysbot dashboard render`. Without LeSysBot on PATH each start script
+probes the hardware itself, then calls
+`gen-dashboards.py --host H --have CAPS --out F` — that standalone path keeps its
+temperature and GPU sections, because only the *default package* is slimmed:
 
 | OS | Probe | Capabilities it can pass |
 |---|---|---|
@@ -149,11 +166,10 @@ Key invariants when changing this:
   firmware property, not an OS one, so no static rule is correct.
 - Unknown capabilities are a **usage error** in `gen-dashboards.py`, so a typo in
   a start script fails loudly instead of dropping a row.
-- Generated files are `grafana/dashboards/generated-*.json` (git-ignored),
-  selected through `DASH_JSON` in both compose files. The committed portable
-  JSONs are the fallback when the host has no `python3` — each script warns when
-  it falls back. **A user reporting whole empty rows is usually on that
-  fallback.**
+- Rendered files land in `grafana/dashboards/generated/` (git-ignored), which is
+  what Grafana provisions. The committed portable JSONs one level up are the
+  fallback when the host has no `python3` — each script warns when it falls back.
+  **A user reporting whole empty rows is usually on that fallback.**
 
 ### Temperature sensor coverage (per OS)
 
@@ -280,8 +296,28 @@ up to ~1h after deletion, and a snapshot published from Grafana's own browser bu
 (not through the bot) has no delete key the tool can use, so it only clears at its
 expiry. Full details: `tools/share-dashboard/README.md`.
 
+## Writing a custom dashboard
+
+To add a *new* page of graphs rather than run the stack: a dashboard package is
+a folder holding `README.md` (frontmatter: `name`, `description`, `version`,
+`prerequisites`) plus either `dashboard.json` — literally what Grafana's Export
+button produces, no Python — or `dashboard.py` exposing
+`build(host, caps, ctx) -> dict` when the panels must differ per OS or per GPU.
+
+```bash
+cp -r my-dashboard ~/.lesysbot/dashboard/installed/   # test it locally
+lesysbot dashboard render                             # --force skips the prerequisite gate
+lesysbot dashboard current                            # a withheld dashboard names its reason
+```
+
+Publishing is `git push` to a public GitHub repo; anyone then runs
+`lesysbot install owner/repo`. `lesysbot install` takes **GitHub sources only**
+— a local path is a spec error, which is why testing goes through the copy
+above. Full guide: `docs/writing-dashboards.md`.
+
 ## Related
 
 - Operate the bot itself as a background service: **[manage-service](../manage-service/SKILL.md)**.
 - General "it's broken" flow for the bot (not this stack): **[troubleshoot-lesysbot](../troubleshoot-lesysbot/SKILL.md)**.
 - Full human guide: `dashboard/README.md` in the repo.
+- Writing and sharing dashboard packages: `docs/writing-dashboards.md`.

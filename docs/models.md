@@ -13,7 +13,7 @@ quick start uses. Move up a tier when you notice it picking the wrong tool.
 
 ---
 
-## 1. Quick pick by GPU VRAM
+## Which one fits my machine?
 
 VRAM numbers are approximate at Q4_K_M quantization; add ~1–2 GB overhead for
 KV cache and OS.
@@ -50,7 +50,7 @@ your budget with the tables above (16 GB RAM → the 8–12 GB tier). Pull the
 
 ---
 
-## 2. Tips
+## Getting more out of the one you picked
 
 - **Tool calling quality**: Qwen3.5 and Gemma4 have the most reliable tool
   calling in 2026 — they rarely hallucinate function names or drop required
@@ -67,7 +67,7 @@ your budget with the tables above (16 GB RAM → the 8–12 GB tier). Pull the
 
 ---
 
-## 3. Managing models with Ollama
+## Managing models with Ollama
 
 The commands you'll actually need:
 
@@ -95,10 +95,18 @@ address, storage location, keep-alive tuning — see the
 
 ---
 
-## 4. Pointing LeSysBot at the model
+## Switching LeSysBot to it
 
-After pulling a model, set it in `config.yaml` (`~/.lesysbot/config.yaml` for an
-installed setup):
+Pulled a new model? Pick whichever of these suits you — they all end up in the
+same place:
+
+```bash
+lesysbot chat --model qwen3.5   # just this session, nothing saved — try before you commit
+lesysbot setup                  # the wizard: lists your pulled models, pick one, done
+```
+
+To make it permanent by hand, edit `~/.lesysbot/config.yaml` — in your editor,
+or in the browser from the [control panel](management-ui.md)'s Config tab:
 
 ```yaml
 llm:
@@ -107,11 +115,9 @@ llm:
   api_key: "ollama"
 ```
 
-Or one-off on the command line:
-
-```bash
-lesysbot chat --model qwen3.5
-```
+A hand-edited config takes effect when the background service restarts
+([Run as a service](service.md)). Whichever route you take, `lesysbot` on its
+own confirms which model is live.
 
 Every backend (Ollama, vLLM, LlamaCpp, OpenAI) uses the same three settings —
 the full matrix is in [Settings](configuration.md#switching-model-backend).

@@ -156,7 +156,31 @@ def _install(ctx: CLIContext, args: argparse.Namespace) -> int:
         yes=args.yes,
         install_deps=not args.no_deps,
     )
+    _render_new_dashboards(ctx, result)
     return 0 if result or not result.skipped else 1
+
+
+def _render_new_dashboards(ctx: CLIContext, result) -> None:
+    """Provision dashboards this install just added, and say what happened.
+
+    A dashboard you chose should be in Grafana when the command ends, not after
+    a second one. Withholding is still reported rather than hidden — an
+    unavailable dashboard is deliberately not written, and the reason is the
+    useful part.
+    """
+    from lesysbot.dashboards.render import render_installed
+
+    names = [p.name for p in result.installed if p.kind is ArtifactKind.DASHBOARD]
+    results = render_installed(ctx, names)
+    if not results:
+        return
+    for res in results:
+        if res.written:
+            ctx.console.print(f"[green]✔[/green] {res.name} provisioned")
+        else:
+            ctx.console.print(f"[yellow]○[/yellow] {res.name} withheld — {res.reason}")
+    if any(res.written for res in results):
+        ctx.console.print("[dim]Grafana picks it up within 30s.[/dim]")
 
 
 # -- update --------------------------------------------------------------------

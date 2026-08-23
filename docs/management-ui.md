@@ -1,7 +1,8 @@
 # Control panel
 
-A small web page for the two things you change most — your **settings** and your
-**tools** — plus a status screen that answers "is it working?" at a glance.
+A small web page that does in a browser what the `lesysbot` command does in a
+terminal: answer "is it working?", turn tools on and off, install new ones, and
+edit your settings. If you'd rather click than type, start here.
 
 **It is always on.** The LeSysBot background service serves it, so it is there
 whenever your machine is, at the same address every time:
@@ -59,22 +60,21 @@ lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 
 ## What you can do with it
 
-**Status** — whether your model backend is reachable and how fast it answers,
-which provider and model are active, how many tools are on, whether the
-background bot service is running, a link to your
-[Grafana dashboard](../dashboard/README.md) if the dashboard stack is up, and
-where your config and tools actually live.
+Six tabs across the top, each the browser version of something you can also do
+from the terminal:
 
-**Tools** — every tool with its current state:
+| Tab | What's there | The terminal equivalent |
+|---|---|---|
+| **Status** | Is the model reachable and how fast, which provider and model are live, how many tools are on, whether the service is up, a link to [Grafana](../dashboard/README.md) if the stack is running, and where your config and tools actually are. | `lesysbot` |
+| **Marketplace** | Browse the catalog and install a package with one click. | `lesysbot search` / `install` |
+| **Tools** | Every tool with its state. Enable or disable with one click — a running bot picks it up within a second. Install by pasting `owner/repo`; remove a package, files and all. | `lesysbot list` / `enable` / `disable` / `remove` |
+| **Dashboards** | Which dashboard is installed (there is exactly one), whether it can render on this machine, and whether it's been provisioned. **Render** hands it to Grafana; **Reset to default** puts the bundled one back. | `lesysbot dashboard current` / `render` / `reset` |
+| **Doctor** | What a package needs, whether this machine has it, and the exact fix when it doesn't. | `lesysbot doctor` |
+| **Config** | Your `config.yaml` in an editor, with tokens and API keys hidden. Saving validates first and refuses to write something invalid, so a typo can't lock you out. | edit `~/.lesysbot/config.yaml` |
 
-- **Enable / disable** with one click, applied to a running bot within a second.
-- **Install** a package from GitHub by pasting `owner/repo`.
-- **Remove** a package, files and all.
-
-**Settings** — your `config.yaml` in an editor. Saving checks it first and
-refuses to write something invalid, so you can't lock yourself out with a typo.
-Most settings take effect the next time the bot starts; tool enable/disable is
-the exception and applies immediately.
+**What applies immediately, and what doesn't:** turning a tool on or off reaches
+a running bot within a second. Everything in **Config** takes effect when the
+service next restarts — the panel says so when you save.
 
 The toggle in the top-right switches between light and dark. It follows your
 system setting until you pick one, then remembers your choice.
@@ -93,9 +93,12 @@ why the panel can stay up permanently.
 - **There's no login.** Anyone who can open `http://127.0.0.1:8700` on the
   machine can use it — but they could equally just edit `config.yaml`. That's
   the trust boundary, and it's the same one.
-- **It shows your secrets**, because it shows your real config file. If that
-  bothers you, keep tokens in environment variables and reference them as
-  `${VAR}` — see [Settings](configuration.md).
+- **It doesn't show your tokens.** The Config tab is your real config file, but
+  every bot token and API key in it arrives as `****` plus its last four
+  characters — enough to tell which key is which, not enough to use. Leave a
+  masked value alone and the saved one is kept; type a new value and it
+  replaces it. A `${VAR}` reference is shown as written, since the name is the
+  point — see [Settings](configuration.md).
 
 Don't forward the port or put it behind a reverse proxy unless you add
 authentication and TLS yourself.
@@ -105,12 +108,12 @@ the project, and it only ever listens on loopback.
 
 ---
 
-## Settings
+## Moving it to another port
 
-Only the port:
+Only the port is configurable:
 
 ```yaml
-webui:
+management:
   port: 8700
 ```
 

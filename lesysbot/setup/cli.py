@@ -154,7 +154,9 @@ def _flow(ui, args: argparse.Namespace) -> int:
         # stack's scripts or dashboards actually reaches an existing install.
         ui.ok(f"dashboard stack installed/updated in {data_dir / 'dashboard'}")
     if apply.seed_dashboards(repo_dir, data_dir):
-        ui.ok("dashboards installed")
+        # Only into an empty slot: an install has one dashboard, and re-running
+        # setup must not put the default back over one the user chose.
+        ui.ok("default dashboard installed")
     if apply.seed_catalog(repo_dir, data_dir):
         ui.ok("marketplace catalog installed — browse it with `lesysbot search`")
 

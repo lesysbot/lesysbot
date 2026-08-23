@@ -113,7 +113,7 @@ detect_capabilities_macos() {
   [ "$(uname -m)" = "arm64" ] || add_cap intel
   command -v nvidia-smi >/dev/null 2>&1 && add_cap nvidia
   add_missing "CPU/GPU die temperature needs a helper on macOS:
-    brew install vladkens/tap/macmon   (Apple Silicon)
+    brew install macmon                (Apple Silicon)
     brew install narugit/tap/smctemp   (Intel or Apple Silicon)
     Or use ./scripts/install-macos.sh, which offers to install one for you."
 }
@@ -121,11 +121,16 @@ detect_capabilities_macos() {
 # Fill grafana/dashboards/generated/ — the directory the compose mounts. Three
 # routes, best first:
 #
-#   1. `lesysbot dashboard render` renders every *installed* dashboard package,
-#      so a user's own dashboards come up alongside System Overview.
+#   1. `lesysbot dashboard render` writes the installed dashboard package.
 #   2. gen-dashboards.py for this host, when LeSysBot isn't on PATH (running the
 #      stack straight from a checkout).
 #   3. The committed portable JSON, when there is no python3 at all.
+#
+# All three write the *same* filename at the same uid, so a machine ends up with
+# one dashboard at /d/lesysbot however it got there — and switching routes
+# replaces it rather than adding a second. (`lesysbot dashboard render` also
+# sweeps any other JSON out of this directory, which is what cleans up a file
+# left by an older layout.)
 #
 # The directory is created either way: Docker creates a missing bind-mount
 # source as a root-owned directory, which then can't be written without sudo.
@@ -133,11 +138,11 @@ DASH_DEFAULT=system-overview-linux-macos.json
 GENERATED="$ROOT/grafana/dashboards/generated"
 
 select_dashboard() { # $1 = linux|macos
-  local gen="$HERE/gen-dashboards.py" out="$GENERATED/system-overview.json"
+  local gen="$HERE/gen-dashboards.py" out="$GENERATED/lesysbot.json"
   mkdir -p "$GENERATED"
 
   if command -v lesysbot >/dev/null 2>&1 && lesysbot dashboard render >/dev/null 2>&1; then
-    echo "==> dashboards rendered by lesysbot"
+    echo "==> dashboard rendered by lesysbot"
     return
   fi
   if ! command -v python3 >/dev/null 2>&1 || [ ! -f "$gen" ]; then

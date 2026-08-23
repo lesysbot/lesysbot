@@ -326,7 +326,7 @@ one module per stage:
 
 ```mermaid
 flowchart LR
-    spec["spec.py<br>parse the<br>source spec"] --> fetch["fetch.py<br>download the zipball<br>(HTTPS, no git binary)"] --> archive["archive.py<br>extract with zip-slip/<br>symlink/size guards"] --> meta["meta.py<br>read README frontmatter<br>(no package code imported)"] --> manager["manager.py<br>move into tools/, record<br>provenance in tools.lock.json"]
+    spec["spec.py<br>parse the<br>source spec"] --> fetch["fetch.py<br>download the zipball<br>(HTTPS, no git binary)"] --> archive["archive.py<br>extract with zip-slip/<br>symlink/size guards"] --> manifest["manifest.py<br>read README frontmatter<br>(no package code imported)"] --> installer["installer.py<br>move into tools/, record<br>provenance in lesysbot.lock.json"]
 ```
 
 User guide: [Installing Tools](installing-tools.md); trust model included.
@@ -375,6 +375,18 @@ validated against the settings schema *before* the file is touched. Toggling a
 tool goes through `registry.set_enabled()`, which persists to `mcp.state_file`
 — the same file the `lesysbot install` CLI writes, and the one a running bot
 watches, which is why a toggle applies live while other settings need a restart.
+
+**Credentials never leave the process.** `GET /api/config` runs the file through
+`management/secrets.py` first: every bot token and API key goes out as `****`
+plus its last four characters, so the page a browser renders, caches or
+screenshots carries no usable credential. `POST /api/config` reverses it — a
+value still equal to the mask that was sent means "keep the stored one", while
+anything else is a real value the user typed. Masking is line-level rather than
+parse-and-redump so comments, key order and spacing survive the round trip, and
+so it still works on a config that no longer parses — which is exactly when
+someone opens the panel to fix it. `${VAR}` references and short placeholders
+like `api_key: ollama` are left readable (same `MIN_SECRET_LEN` rule the log
+redactor uses).
 
 **Which thing does `lesysbot` start?** `__main__.main()` decides:
 

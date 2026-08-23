@@ -78,3 +78,9 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# The suite is network-free by design; `network` marks the handful of checks
+# that genuinely cannot be (a catalog entry pointing at a repo path that no
+# longer exists is only observable against GitHub). Deselected by default, run
+# in CI: `pytest -m network`.
+markers = ["network: needs the internet; deselected by default"]
+addopts = "-m 'not network'"

@@ -16,7 +16,9 @@ patterns do not apply to it. That matters here because several paths inside
   reason the hook exists; the rest are merely wasteful.
 * `bin/`, `run/`, `native/` — downloaded exporter binaries, PIDs and generated
   absolute-path config. Large, machine-specific, regenerated on first run.
-* `grafana/dashboards/generated-*.json` — per-host dashboard cuts.
+* `grafana/dashboards/generated/` — the rendered dashboards Grafana provisions,
+  written for one host's sensors by `lesysbot dashboard render` or the start
+  scripts. Never portable.
 
 So the hook copies each tree into a temporary staging directory, dropping those,
 and force-includes the *staged* copy instead.
@@ -35,7 +37,8 @@ BUNDLED = ("tools", "dashboard", "dashboards", "catalog.json")
 EXCLUDED_NAMES = {"__pycache__", ".pytest_cache", ".ruff_cache",
                   "bin", "run", "native", ".DS_Store"}
 EXCLUDED_FILES = {".env"}
-EXCLUDED_GLOBS = ("generated-*.json",)
+#: Directories (relative to a bundled root) excluded with everything under them.
+EXCLUDED_DIRS = (("grafana", "dashboards", "generated"),)
 
 
 def _keep(path: Path, root: Path) -> bool:
@@ -44,7 +47,7 @@ def _keep(path: Path, root: Path) -> bool:
         return False
     if path.name in EXCLUDED_FILES:
         return False
-    return not any(path.match(pattern) for pattern in EXCLUDED_GLOBS)
+    return not any(rel.parts[:len(d)] == d for d in EXCLUDED_DIRS)
 
 
 # hatchling is a *build* dependency: it exists while a wheel is being built and

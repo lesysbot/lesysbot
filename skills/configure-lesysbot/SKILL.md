@@ -72,7 +72,7 @@ llm:
 mcp:
   tools_dir: "./tools"       # where tool packages load from (anchored to config dir)
   hot_reload: true           # reload tools/ on any .py change
-  # lock_file: tools.lock.json   # install provenance (repo, pinned commit)
+  # lock_file: lesysbot.lock.json   # install provenance (repo, pinned commit)
   # state_file: tool_state.json  # persisted disabled tools (watched → applies live)
 
 agent:
@@ -87,6 +87,9 @@ logging:
   trace_file: logs/traces.jsonl   # per-request JSON traces; null to disable
   when: midnight             # rotation: midnight | H | D | W0..W6 | S
   backup_count: 7            # rotated files kept, oldest deleted
+
+management:
+  port: 8700                 # control panel; always 127.0.0.1, only the port is settable
 ```
 
 Both log files rotate on time (date-suffixed, e.g. `lesysbot.log.2026-06-21`) so
@@ -101,9 +104,7 @@ at INFO. Covers token shapes (Telegram, Discord's three-part token, OpenAI `sk-`
 plus the exact values in the active config, in tracebacks as well as messages;
 short values are skipped so the default `api_key: ollama` is not redacted.
 Never disable this to make logs "readable" — the token is the one thing that
-must not be in a file someone pastes into an issue. Logs written by older
-versions may still hold a cleartext token: check with
-`grep -c 'bot[0-9]\{6,\}:' ~/.lesysbot/logs/lesysbot.log`.
+must not be in a file someone pastes into an issue.
 
 ## Environment-variable overrides
 

@@ -31,9 +31,10 @@ messaging:
     allowed_user_ids: [123456789]   # allow-list; [] = ANYONE who finds the bot
 ```
 
-**Run:** `lesysbot --provider telegram` (or just `lesysbot` with the config above);
-restart the service if one is installed. Open the bot in Telegram, press
-**Start**, chat. Natural language and `/commands` both work.
+**Run:** `lesysbot run` (or `lesysbot --provider telegram` to override the config);
+restart the service if one is installed. Bare `lesysbot` only prints status. Open
+the bot in Telegram, press **Start**, chat. Natural language and `/commands` both
+work.
 
 - Access control: users not in `allowed_user_ids` get `Unauthorized.` — an
   empty list allows everyone, only acceptable for a deliberately public bot.
@@ -76,7 +77,7 @@ messaging:
     allowed_user_ids: [123456789012345678]   # allow-list; [] = anyone sharing a server
 ```
 
-`lesysbot --provider discord` (or just `lesysbot` with the config above). DM the
+`lesysbot run` (or `lesysbot --provider discord` to override the config). DM the
 bot, or **@-mention** it in a channel.
 
 - **DMs:** every message is handled. **Channels:** only messages that @-mention

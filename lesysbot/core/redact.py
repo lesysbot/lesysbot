@@ -23,7 +23,7 @@ Two sources of truth for what counts as a secret:
 Registration deliberately ignores short values: ``llm.api_key`` is ``"ollama"``
 on a default install, and treating a six-letter dictionary word as a secret
 would replace it everywhere and make the logs unreadable. See
-:data:`_MIN_SECRET_LEN`.
+:data:`MIN_SECRET_LEN`.
 """
 
 from __future__ import annotations
@@ -39,8 +39,10 @@ PLACEHOLDER = "<redacted>"
 
 # Values shorter than this are never registered as secrets: real credentials
 # clear it easily, while the common placeholders ("ollama", "vllm", "none")
-# do not — and redacting one of those would rewrite unrelated log text.
-_MIN_SECRET_LEN = 12
+# do not — and redacting one of those would rewrite unrelated log text. Public
+# because the control panel masks the same values on the same rule
+# (``management/secrets.py``) — one threshold, both surfaces.
+MIN_SECRET_LEN = 12
 
 _PATTERNS: tuple[re.Pattern[str], ...] = (
     # Telegram bot token in an API URL: /bot<digits>:<35-ish chars>/method.
@@ -66,10 +68,10 @@ _secrets: set[str] = set()
 def add_secret(value: str | None) -> None:
     """Register *value* for exact-match redaction.
 
-    Ignores anything falsy or shorter than :data:`_MIN_SECRET_LEN` — see the
+    Ignores anything falsy or shorter than :data:`MIN_SECRET_LEN` — see the
     module docstring on why ``api_key: "ollama"`` must not become a secret.
     """
-    if value and len(value) >= _MIN_SECRET_LEN:
+    if value and len(value) >= MIN_SECRET_LEN:
         _secrets.add(value)
 
 

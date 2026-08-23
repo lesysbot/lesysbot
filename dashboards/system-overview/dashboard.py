@@ -1,17 +1,23 @@
 """System Overview — the dashboard LeSysBot ships with, as an installable package.
 
-This is deliberately the *first* dashboard package: it is the hardest case in
-the repo (three host cuts, hardware-conditional rows, `or`-fallbacks across
-OSes), so if the package format can express it, it can express a third-party
-one. Its output is byte-identical to what `gen-dashboards.py` produced before —
-`tests/test_dashboards.py` pins that, so the format change cannot silently alter
-anybody's dashboard.
+This is the **default**, and it is deliberately the *basic* one: the Overview,
+CPU, Memory, Disk and Network rows, which is what a stock `node_exporter` /
+`windows_exporter` can always fill. Nothing here depends on hardware the machine
+may not have.
+
+That restraint is the whole point. There is no one-size-fits-all dashboard —
+OSes differ, and within one OS the hardware differs (NVIDIA vs Apple Silicon vs
+no GPU; hwmon vs the SMC vs WMI thermal zones; NTFS with no inodes). A default
+that tried to cover all of it would render as blank panels on most machines, and
+a blank panel is indistinguishable from a broken one. So temperatures, GPU
+detail and per-filesystem breakdowns are **not** here: install a dashboard built
+for your machine, or fork this one and add the rows you want.
 
 The panel definitions themselves are **not** copied here. They stay in
 `dashboard/scripts/gen-dashboards.py`, which remains the single source of truth
 and is still runnable standalone by the stack's start scripts on a machine with
-no LeSysBot install. This file only maps LeSysBot's host/capability vocabulary
-onto that generator's.
+no LeSysBot install. This file maps LeSysBot's host vocabulary onto that
+generator's, and then keeps the basic rows.
 """
 
 from __future__ import annotations
@@ -20,10 +26,10 @@ import importlib.util
 import sys
 from pathlib import Path
 
-# LeSysBot's GPU vendor names → the capability flags gen-dashboards.py expects.
-# Only NVIDIA and AMD have their own rows; Apple's GPU row is part of the macOS
-# cut unconditionally, because ioreg is always readable on Apple silicon.
-_GPU_CAPS = {"nvidia": "nvidia", "amd": "amd_gpu"}
+# Row titles the default keeps, matched as prefixes. Everything the generator
+# emits beyond these — "Temperatures — …", "GPU — …" — is hardware-dependent and
+# belongs in a dashboard chosen for that hardware.
+BASIC_ROWS = ("Overview", "CPU", "Memory", "Disk", "Network")
 
 
 def _generator():
@@ -56,31 +62,36 @@ def _generator_candidates() -> list[Path]:
     ]
 
 
-def _capabilities(host: str, caps: set[str], generator) -> set[str]:
-    """Translate detected capabilities into the ones this host's cut accepts.
+def basic_rows(model: dict) -> dict:
+    """Keep only the rows a stock exporter always fills.
 
-    Filtered against the generator's own `CAPABILITIES` table rather than passed
-    through: an unknown flag is an argparse error there, and a dashboard that
-    refuses to render because the host grew a new GPU vendor would be a worse
-    failure than simply omitting that row.
+    The generator appends its hardware sections *after* the core ones, so the
+    panels kept here are always a **prefix** of what it produced — which is why
+    no `gridPos` reflow is needed and none is done. `tests/test_dashboards.py`
+    asserts that prefix property: if a future generator ever interleaves a
+    hardware row among the basic ones, that test fails rather than this quietly
+    leaving a vertical hole in the middle of somebody's dashboard.
     """
-    known = generator.CAPABILITIES.get(host, set())
-    translated = {_GPU_CAPS[c] for c in caps if c in _GPU_CAPS}
-
-    # Linux temperature rows are driven by hwmon chips, which the stack's
-    # start.sh probes for. Rendering from LeSysBot can't see that probe, so the
-    # sensor caps are requested and simply dropped when this host's cut has no
-    # such row — a panel with no data is omitted, never emptied.
-    translated |= {"cpu_temp", "disk_temp", "thermal_zone", "thermalzone"}
-    return translated & known
+    kept, dropping = [], False
+    for panel in model.get("panels", []):
+        if panel.get("type") == "row":
+            dropping = not panel.get("title", "").startswith(BASIC_ROWS)
+        if not dropping:
+            kept.append(panel)
+    return {**model, "panels": kept}
 
 
 def build(host: str, caps: set[str], ctx: dict) -> dict:
-    """The Grafana model for this host. Signature is the dashboard-package API."""
+    """The Grafana model for this host. Signature is the dashboard-package API.
+
+    `caps` is accepted and deliberately unused: the default does not branch on
+    hardware, it *omits* everything that would. A fork that wants an NVIDIA row
+    has the argument ready — that is the intended way to specialise this.
+    """
     generator = _generator()
     if host not in generator.CAPABILITIES:
         # A host the generator has no cut for (BSD, say). The portable
         # Linux/macOS dashboard is the honest fallback: its `or`-fallbacks cover
         # the metric names node_exporter actually emits there.
-        return generator.build_node()
-    return generator.build_for(host, _capabilities(host, caps, generator))
+        return basic_rows(generator.build_node())
+    return basic_rows(generator.build_for(host, set()))

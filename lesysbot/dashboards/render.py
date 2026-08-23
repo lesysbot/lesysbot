@@ -14,6 +14,12 @@ anything about the machine:
 tools — an unavailable tool stays visible with a stub, because you should know
 the capability exists — but a dashboard that renders as empty panels is
 indistinguishable from a broken one, so it is withheld and explained instead.
+
+**There is exactly one dashboard.** It renders to one file at one fixed uid, so
+the Grafana address is a constant that documentation, the status screen and
+``share_dashboard`` can all point at without asking which dashboard is meant.
+Installing a dashboard replaces the current one (``artifacts/installer.py``);
+this module is what makes the result a single page rather than a pile.
 """
 
 from __future__ import annotations
@@ -34,6 +40,13 @@ from lesysbot.core.paths import generated_dashboards_dir
 # version 1 keeps working — which is why the context is a dict and not
 # positional arguments.
 RENDER_API_VERSION = 2
+
+# The one dashboard's Grafana uid and filename. Fixed, not derived from the
+# package: the link is quoted in the docs, returned by `share_dashboard` and
+# shown on the status screen, so a package must not be able to move it. A
+# package's own `uid` is overwritten at render time.
+DASHBOARD_UID = "lesysbot"
+OUTPUT_NAME = f"{DASHBOARD_UID}.json"
 
 
 @dataclass
@@ -123,9 +136,11 @@ def check(pkg):
 
 
 def render_one(ctx, pkg, context: dict, *, force: bool = False) -> RenderResult:
+    out_dir = generated_dashboards_dir(ctx.settings.config_dir)
+
     report = check(pkg)
     if report is not None and not report.ok and not force:
-        _unprovision(ctx, pkg.name)
+        _sweep(out_dir, keep=None)
         return RenderResult(pkg.name, False, reason=report.reason)
 
     try:
@@ -133,42 +148,117 @@ def render_one(ctx, pkg, context: dict, *, force: bool = False) -> RenderResult:
     except Exception as e:
         return RenderResult(pkg.name, False, reason=f"render failed: {e}")
 
-    out_dir = generated_dashboards_dir(ctx.settings.config_dir)
+    # The uid is ours, not the package's. Everything that links to the dashboard
+    # — docs, `share_dashboard`, the status screen — hardcodes it, so a fork
+    # that kept its parent's uid (or invented one) must not be able to break
+    # those links just by being installed.
+    model["uid"] = DASHBOARD_UID
+
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{pkg.name}.json"
+    path = out_dir / OUTPUT_NAME
     # Written whole then replaced, because Grafana's file provider polls this
     # directory and would happily load a half-written file.
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(model, indent=2) + "\n", encoding="utf-8")
     tmp.replace(path)
+    _sweep(out_dir, keep=OUTPUT_NAME)
     return RenderResult(pkg.name, True, path=path)
 
 
-def _unprovision(ctx, name: str) -> None:
-    """Remove a previously rendered copy when a dashboard stops being available.
+def _sweep(out_dir: Path, keep: str | None) -> None:
+    """Delete every provisioned dashboard except *keep*.
 
-    Without this, a dashboard that worked yesterday keeps being served after its
-    exporter goes away — showing empty panels, which is the failure mode the
-    availability check exists to prevent.
+    Two kinds of leftover end up here, and both would show as a second page in
+    Grafana beside the real one:
+
+    * per-package files from before dashboards became a singleton, named after
+      whichever package rendered them;
+    * the standalone stack's own output — the docker stack runs without LeSysBot
+      and writes its cut here, so a machine that started that way and *then*
+      installed LeSysBot has one of each.
+
+    Sweeping on every render (rather than once, at migration) is what makes both
+    self-correcting: whatever appears in this directory, the next render leaves
+    exactly one dashboard. ``keep=None`` withdraws even ours, which is how an
+    exporter going away stops a dashboard that has quietly gone blank.
     """
-    path = generated_dashboards_dir(ctx.settings.config_dir) / f"{name}.json"
-    if path.exists():
-        path.unlink()
+    if not out_dir.is_dir():
+        return
+    for path in out_dir.glob("*.json"):
+        if path.name != keep:
+            path.unlink()
 
 
-def render_all(ctx, names: list[str] | None = None, *,
-               force: bool = False) -> list[RenderResult]:
+def current_package(ctx):
+    """The installed dashboard package, or ``None`` when none is installed.
+
+    Normally there is exactly one directory and this is trivial. When there is
+    more than one — a home that predates the singleton rule, or a folder placed
+    by hand — the **lock decides**, so this and ``lesysbot dashboard current``
+    can never name different dashboards while the user is trying to work out
+    which one they have. Falling back to the first sorted name keeps the answer
+    deterministic when the lock is silent; arbitrary-but-stable beats arbitrary.
+    """
     packages = installed_packages(ctx)
-    if names:
-        wanted = set(names)
-        packages = [p for p in packages if p.name in wanted]
-    context = host_context()
-    return [render_one(ctx, pkg, context, force=force) for pkg in packages]
+    if len(packages) <= 1:
+        return packages[0] if packages else None
+    lock = getattr(ctx, "lock", None)
+    entry = lock.current_dashboard() if lock is not None else None
+    named = entry.get("name") if entry else None
+    return next((p for p in packages if p.name == named), packages[0])
+
+
+def render_all(ctx, *, force: bool = False) -> list[RenderResult]:
+    """Render the installed dashboard. A list of 0 or 1 results.
+
+    Still a list because every caller reports per-dashboard outcomes and the
+    "nothing installed" case has to stay distinguishable from "installed but
+    withheld" — a bare ``None`` collapses those two into one silence.
+    """
+    pkg = current_package(ctx)
+    if pkg is None:
+        _sweep(generated_dashboards_dir(ctx.settings.config_dir), keep=None)
+        return []
+    return [render_one(ctx, pkg, host_context(), force=force)]
+
+
+def render_installed(ctx, names: list[str]) -> list[RenderResult]:
+    """Render dashboards that were just installed, for the install path itself.
+
+    "Install it, then go run render" was one step too many: a dashboard you
+    just chose is not in Grafana until you notice a second instruction, in the
+    CLI epilogue or in a different tab of the panel. Installing renders.
+
+    Never raises. The install already succeeded and is on disk — a renderer
+    failure must be *reported* against that, not turned into a failed install
+    that the lock now disagrees with. An empty list means "nothing renderable
+    here", which is the normal answer for a tools-only repo.
+    """
+    if not names:
+        return []
+    try:
+        pkg = current_package(ctx)
+        # A tools-only install must not re-render: it would be work nobody asked
+        # for, and it could withdraw a dashboard whose exporter went away since
+        # — a surprising thing for `lesysbot install some-tool` to do.
+        if pkg is None or pkg.name not in set(names):
+            return []
+        return [render_one(ctx, pkg, host_context())]
+    except Exception as e:                    # pragma: no cover - defensive
+        return [RenderResult(name, False, reason=f"render failed: {e}")
+                for name in names]
 
 
 def describe_all(ctx) -> list[dict]:
-    """Rows for ``lesysbot dashboard list`` — state without rendering anything."""
-    out_dir = generated_dashboards_dir(ctx.settings.config_dir)
+    """Rows for ``lesysbot dashboard current`` — state without rendering anything.
+
+    Normally one row. A second row means more than one package is on disk, which
+    the singleton rule forbids — ``lesysbot doctor`` reports it, and showing both
+    here is how the user sees which one is live (``provisioned``) and which is
+    the leftover.
+    """
+    provisioned = (generated_dashboards_dir(ctx.settings.config_dir) / OUTPUT_NAME).exists()
+    live = current_package(ctx)
     rows = []
     for pkg in installed_packages(ctx):
         report = check(pkg)
@@ -177,6 +267,6 @@ def describe_all(ctx) -> list[dict]:
             "description": pkg.description,
             "ok": report.ok if report is not None else True,
             "reason": report.reason if report is not None else "",
-            "provisioned": (out_dir / f"{pkg.name}.json").exists(),
+            "provisioned": provisioned and live is not None and pkg.name == live.name,
         })
     return rows

@@ -29,6 +29,7 @@ from lesysbot.cli.context import CLIContext
 from lesysbot.core.config import Settings
 from lesysbot.core.paths import user_dir
 from lesysbot.core.status import build_registry, detect_grafana, gather_status, probe_health
+from lesysbot.management import secrets
 from lesysbot.management.jobs import JobRegistry
 from lesysbot.management.page import PAGE
 
@@ -177,6 +178,8 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._update()
             if path == "/api/dashboards/render":
                 return self._render_dashboards()
+            if path == "/api/dashboards/reset":
+                return self._reset_dashboard()
         except Exception as e:  # never leak a traceback to the browser
             return self._send(500, {"ok": False, "error": str(e)})
         return self._send(404, {"error": "not found"})
@@ -204,18 +207,35 @@ class _Handler(BaseHTTPRequestHandler):
             r["source_kind"] = src.get("kind") if src else None
         return rows
 
-    def _get_config(self):
+    def _config_file(self) -> Path:
         s = self.server.settings
-        path = Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
+        return Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
+
+    def _stored_config(self) -> str:
+        """The config as it is on disk — credentials and all.
+
+        Falls back to the active settings when no file exists yet, so the panel
+        can show (and then write) a first config.
+        """
+        path = self._config_file()
         if path.exists():
-            text = path.read_text()
-        else:
-            text = yaml.safe_dump(s.model_dump(mode="json", exclude_none=True),
-                                  sort_keys=False)
-        self._send(200, {"yaml": text, "path": str(path), "exists": path.exists()})
+            return path.read_text()
+        return yaml.safe_dump(self.server.settings.model_dump(mode="json", exclude_none=True),
+                              sort_keys=False)
+
+    def _get_config(self):
+        path, text = self._config_file(), self._stored_config()
+        # Never hand a real token to the browser — see management/secrets.py.
+        self._send(200, {"yaml": secrets.mask(text), "path": str(path),
+                         "exists": path.exists(), "masked": secrets.is_masked(text)})
 
     def _save_config(self):
         text = self._body().get("yaml", "")
+        try:
+            # Values still carrying the mask we sent mean "leave that one alone".
+            text = secrets.restore(text, self._stored_config())
+        except secrets.AmbiguousMask as e:
+            return self._send(400, {"ok": False, "error": str(e)})
         try:
             data = yaml.safe_load(text) or {}
         except yaml.YAMLError as e:
@@ -226,8 +246,7 @@ class _Handler(BaseHTTPRequestHandler):
             Settings(**data)                     # validate against the schema
         except Exception as e:
             return self._send(400, {"ok": False, "error": f"Invalid config: {e}"})
-        s = self.server.settings
-        path = Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
+        path = self._config_file()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         self._send(200, {"ok": True, "path": str(path),
@@ -316,12 +335,30 @@ class _Handler(BaseHTTPRequestHandler):
         server = self.server
 
         def work(console):
+            from lesysbot.artifacts.kinds import ArtifactKind
+            from lesysbot.dashboards.render import render_installed
+
             installer = ctx.installer(console=console)
             result = installer.install(src, yes=True,
                                        install_deps=body.get("deps", True))
             with server.lock:
                 server.registry.reload(ctx.settings.mcp.tools_dir)
-            return {"installed": result.names}
+
+            # Provision here rather than leaving a Render button to press in
+            # another tab: clicking Install in the Marketplace should put the
+            # dashboard in Grafana. Withholding is still reported, since an
+            # unavailable dashboard is deliberately not written.
+            names = [p.name for p in result.installed
+                     if p.kind is ArtifactKind.DASHBOARD]
+            rendered = render_installed(ctx, names)
+            for res in rendered:
+                console.print(f"{res.name} provisioned" if res.written
+                              else f"{res.name} withheld — {res.reason}")
+            return {
+                "installed": result.names,
+                "dashboards": [{"name": r.name, "written": r.written,
+                                "reason": r.reason} for r in rendered],
+            }
 
         job = server.jobs.start("install", f"Installing {source}", work)
         self._send(202, {"ok": True, "job": job.id})
@@ -351,6 +388,27 @@ class _Handler(BaseHTTPRequestHandler):
         from lesysbot.dashboards.render import render_all
 
         results = render_all(self.server.ctx, force=bool(self._body().get("force")))
+        self._send(200, {"ok": True, "results": [
+            {"name": r.name, "written": r.written, "reason": r.reason}
+            for r in results
+        ]})
+
+    def _reset_dashboard(self):
+        """Put the bundled default dashboard back.
+
+        The browser equivalent of `lesysbot dashboard reset`, and the reason it
+        belongs in the panel at all: someone whose newly installed dashboard
+        renders badly is already looking at Grafana in another tab, and telling
+        them to go and find a terminal is the wrong answer.
+        """
+        from lesysbot.dashboards.render import render_all
+        from lesysbot.setup.apply import reset_dashboard
+
+        ctx = self.server.ctx
+        if not reset_dashboard(None, ctx.data_dir):
+            return self._send(500, {"ok": False,
+                                    "error": "no bundled dashboard to restore"})
+        results = render_all(ctx)
         self._send(200, {"ok": True, "results": [
             {"name": r.name, "written": r.written, "reason": r.reason}
             for r in results

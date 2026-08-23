@@ -70,4 +70,12 @@ def run(args: argparse.Namespace) -> int:
         table.add_row(entry.id, entry.kind.value, badge, entry.description)
     ctx.console.print(table)
     ctx.console.print(f"\n[dim]Install one with:  lesysbot install {results[0].id}[/dim]")
+    # Said once, here, rather than repeated into seven catalog descriptions: the
+    # surprise isn't that a dashboard installs, it's that it displaces the one
+    # you already had.
+    if any(e.kind is ArtifactKind.DASHBOARD for e in results):
+        ctx.console.print(
+            "[dim]A dashboard install replaces the one you have — LeSysBot keeps "
+            "exactly one. `lesysbot dashboard reset` restores the default.[/dim]"
+        )
     return 0

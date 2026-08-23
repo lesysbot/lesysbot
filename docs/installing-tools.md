@@ -19,14 +19,37 @@ One repo covers every OS — each package carries its per-OS variants, so there
 is nothing to match to your machine:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official
-# network (ping, DNS, traceroute), temperature, battery, speedtest,
-# plus the network-traffic and gpu-detail dashboards
+lesysbot install official
+# network (ping, DNS, traceroute), temperature, battery, speedtest, plus the
+# cpu, memory, storage, network, thermals and GPU dashboards
 ```
+
+`official` is a [catalog](#browsing-whats-out-there) id — a nickname for
+`lesysbot/lesysbot-packages-official`, which you can also type in full. Either
+way the install is the same GitHub download with the same prompt.
 
 Packages that can't run on this machine's OS are skipped and named with the
 reason (`battery` outside macOS, say); `--all` installs them anyway, and
 `--only NAME` picks out one package.
+
+---
+
+## Browsing what's out there
+
+```bash
+lesysbot search             # everything in the catalog
+lesysbot search gpu         # narrow it down
+lesysbot search --refresh   # re-fetch the list before searching
+```
+
+Each row is a name, what it does, and the GitHub link behind it — so you can go
+and read the code before installing. The catalog ships inside LeSysBot, so
+`search` works with no network; `--refresh` pulls the current copy from
+<https://lesysbot.github.io/catalog.json>.
+
+It is a **list, not a gatekeeper**. Nothing has to be in it to be installable,
+and being in it grants no special access — an entry resolves to an ordinary
+GitHub link and goes through the same prompt as one you typed yourself.
 
 ---
 
@@ -46,7 +69,7 @@ Useful flags:
 | `--only NAME` | Install just one package from a multi-package repo (repeatable) |
 | `--yes` | Skip the confirmation prompt |
 | `--force` | Overwrite a folder LeSysBot didn't install |
-| `--install-deps` | Run the package's `requirements.txt` instead of just printing it |
+| `--no-deps` | Don't install the package's `requirements.txt` (it is installed by default) |
 
 ---
 
@@ -64,8 +87,10 @@ worth thinking about for a moment, then not agonising over:
   will land in your tools directory. `--yes` skips that prompt, so keep it for
   scripts you already trust.
 
-If a package needs Python libraries, LeSysBot **prints** the `pip install -r`
-command rather than running it — you decide.
+If a package needs Python libraries, they're listed in that same plan and
+installed into LeSysBot's own environment when you say yes — a package that
+can't import its dependencies isn't installed, it's just broken. `--no-deps`
+holds them back and prints the `pip install -r` line instead.
 
 ---
 
@@ -110,7 +135,7 @@ GITHUB_TOKEN=ghp_… lesysbot install you/private-tools
 | `Not found: owner/repo@ref` | Check the spelling and the ref. For a private repo, set `GITHUB_TOKEN`. |
 | `tools dir already has X` | That folder wasn't installed by LeSysBot, so it's protected. `--force` if you're sure. |
 | Installed but not in `/help` | Restart if hot reload is off; otherwise check the log for an import error. |
-| Complains about a missing Python package | Re-run with `--install-deps`, or run the `pip install -r` line it printed. |
+| Complains about a missing Python package | Deps install by default — re-run the install without `--no-deps`, or run the `pip install -r` line it printed. |
 
 More in [Troubleshooting](troubleshooting.md).
 
@@ -133,8 +158,11 @@ git@github.com:owner/repo
 A branch name containing `/` is ambiguous inside a `/tree/` URL — use the short
 form for those: `owner/repo/subdir@feature/x`.
 
-Bare words aren't accepted. Installs are by GitHub link only, deliberately —
-there's no catalog that could go stale or be taken over.
+A bare word is accepted only when it names an entry in the marketplace catalog
+(`lesysbot search`) — and that entry is just a github.com link, resolved through
+this same parser and the same confirmation. Anything else is a usage error: the
+catalog is a *list*, never a resolver, so nothing decides on your behalf what a
+name downloads.
 
 </details>
 
@@ -159,7 +187,7 @@ Package code is never imported while LeSysBot is working out what's in the repo
 ```yaml
 mcp:
   tools_dir: "./tools"          # packages are installed and loaded here
-  lock_file: tools.lock.json    # which repo and commit each package came from
+  lock_file: lesysbot.lock.json    # which repo and commit each package came from
 ```
 
 Both are relative to your active config, so a normal install puts them under

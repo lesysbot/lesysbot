@@ -88,9 +88,9 @@ lesysbot/            the package
 ├─ management/       the loopback panel on :8700 (stdlib http.server, no deps)
 ├─ artifacts/        fetch tool AND dashboard packages from GitHub; lock; catalog
 ├─ prereq/           what a package needs, whether this machine has it, the fix
-└─ dashboards/       render installed dashboard packages for Grafana
+└─ dashboards/       render the one installed dashboard package for Grafana
 tools/             bundled tool packages
-dashboards/        bundled dashboard packages (System Overview)
+dashboards/        the bundled default dashboard (System Overview)
 dashboard/         the Prometheus + Grafana stack (compose, scripts, provisioning)
 catalog.json       the marketplace index — metadata pointing at GitHub links
 hatch_build.py     copies the four above into the wheel, minus local state

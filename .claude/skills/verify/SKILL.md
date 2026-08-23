@@ -26,11 +26,11 @@ redirects the `~/.lesysbot` fallback:
 ```bash
 S=$(mktemp -d)                      # scratch root
 mkdir -p "$S/tools/mypkg" "$S/home"
-# write tool packages under $S/tools/…, optionally a lock: $S/tools.lock.json
+# write tool packages under $S/tools/…, optionally a lock: $S/lesysbot.lock.json
 cd "$S" && export LESYSBOT_HOME="$S/home"
 ```
 
-State then lands in `$S/tool_state.json`, `$S/tools.lock.json`, `$S/logs/`.
+State then lands in `$S/tool_state.json`, `$S/lesysbot.lock.json`, `$S/logs/`.
 
 ## Driving the surfaces
 
@@ -47,7 +47,7 @@ cat > "$S/run-bot.sh" <<'SH'
 #!/bin/bash
 cd "$(dirname "$0")"
 export LESYSBOT_HOME="$PWD/home"
-tail -f /dev/null | lesysbot --provider cli > "$1" 2>&1 &
+tail -f /dev/null | lesysbot chat > "$1" 2>&1 &
 echo $! > bot.pid
 SH
 chmod +x "$S/run-bot.sh" && "$S/run-bot.sh" "$S/bot.log" && sleep 5
@@ -55,7 +55,7 @@ grep -i "tools loaded" "$S/bot.log"
 ```
 
 To drive slash commands instead of holding the session open, pipe them in:
-`printf '/help\n/cpu_temp\nexit\n' | lesysbot --provider cli`. Config values can
+`printf '/help\n/cpu_temp\nexit\n' | lesysbot chat`. Config values can
 be overridden from the environment with the `LESYSBOT_<SECTION>__<FIELD>`
 pattern (e.g. `LESYSBOT_MCP__HOT_RELOAD=false`).
 

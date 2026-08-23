@@ -55,9 +55,10 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       # A *directory* of rendered dashboards, not one file. Grafana's file
-      # provider loads every JSON it finds there, which is what lets more than
-      # one dashboard exist — the single-file `DASH_JSON` mount this replaces
-      # made "install a second dashboard" structurally impossible.
+      # provider loads every JSON it finds there. LeSysBot keeps exactly one
+      # dashboard and sweeps the rest on each render; the directory (rather
+      # than one file) is what lets the standalone start scripts write a
+      # host-named cut here when LeSysBot isn't installed.
       #
       # It is populated by `lesysbot dashboard render`, which writes only the
       # dashboards this host can actually fill, and by the start scripts falling

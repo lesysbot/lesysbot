@@ -31,8 +31,9 @@ working bot in about five minutes.
 | Guide | What it's for |
 |---|---|
 | [Install tools](installing-tools.md) | Add tools from GitHub with one command |
-| [Install dashboards](installing-dashboards.md) | Add graphs from GitHub, and write your own |
+| [Your dashboard](dashboards.md) | The one dashboard: install, update, modify, reset |
 | [Write a tool](writing-tools.md) | Turn a Python function or a shell command into an ability |
+| [Write a dashboard](writing-dashboards.md) | Build a page of graphs and publish it for other people |
 | [Share your tools](sharing-tools.md) | Publish yours so other people can install them |
 | [Write tools with Claude Code](claude-code.md) | Let an AI assistant scaffold them for you |
 
@@ -41,7 +42,7 @@ working bot in about five minutes.
 | Guide | What it's for |
 |---|---|
 | [Run as a service](service.md) | Background operation, auto-start on boot, logs |
-| [Dashboards](../dashboard/README.md) | Grafana dashboards of CPU, memory, disk, network, GPU |
+| [The dashboard stack](../dashboard/README.md) | Prometheus + Grafana: ports, exporters, running it |
 | [Build a Windows .exe](building-windows-exe.md) | Ship a standalone executable to people without Python |
 
 ## Under the hood
@@ -61,7 +62,8 @@ working bot in about five minutes.
   Enter through the wizard.
 - **"I want it to do X."** → [Write a tool](writing-tools.md), or check whether
   someone already did: [Install tools](installing-tools.md).
-- **"I want more graphs."** → [Install dashboards](installing-dashboards.md).
+- **"I want more graphs."** → [Your dashboard](dashboards.md), or
+  build your own: [Write a dashboard](writing-dashboards.md).
 - **"I want to message it from my phone."** → [Telegram setup](adapters.md#2-telegram).
 - **"Something's wrong."** → [Troubleshooting](troubleshooting.md).
 - **"I want to change how it behaves."** → [Settings](configuration.md).

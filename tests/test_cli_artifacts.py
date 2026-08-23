@@ -125,6 +125,18 @@ def test_install_rejects_a_bare_word(env, capsys):
     assert "GitHub link" in capsys.readouterr().out
 
 
+def _installed(name: str = "greet", kind: ArtifactKind = ArtifactKind.TOOL):
+    """A stand-in for what the installer reports it placed.
+
+    A real `ArtifactPackage`, not a bare object: the install path reads `kind`
+    off these to decide what to provision afterwards.
+    """
+    from lesysbot.artifacts.manifest import ArtifactPackage
+
+    from pathlib import Path
+    return ArtifactPackage(path=Path(name), name=name, kind=kind)
+
+
 def test_install_dispatches_to_installer(env, monkeypatch):
     from lesysbot.artifacts.installer import InstallResult
     from lesysbot.artifacts.spec import ToolSource
@@ -137,7 +149,7 @@ def test_install_dispatches_to_installer(env, monkeypatch):
 
         def install(self, src, **kw):
             calls["src"], calls["kw"] = src, kw
-            return InstallResult([object()], [])
+            return InstallResult([_installed()], [])
 
     monkeypatch.setattr("lesysbot.artifacts.installer.ArtifactInstaller", FakeInstaller)
     assert _run(["install", "acme/repo@v2", "--yes"]) == 0
@@ -146,6 +158,82 @@ def test_install_dispatches_to_installer(env, monkeypatch):
     assert calls["kw"]["install_deps"] is True           # deps are on by default
     assert calls["destinations"][ArtifactKind.TOOL] == env / "tools"
     assert calls["lock"] == env / "lesysbot.lock.json"
+
+
+def _fake_installer(monkeypatch, result):
+    class FakeInstaller:
+        def __init__(self, *a, **kw):
+            pass
+
+        def install(self, src, **kw):
+            return result
+
+    monkeypatch.setattr("lesysbot.artifacts.installer.ArtifactInstaller", FakeInstaller)
+
+
+def test_installing_a_dashboard_provisions_it(env, monkeypatch, capsys):
+    """"Install it, then go render it" was one step too many.
+
+    A dashboard you just chose should be in Grafana when the command ends.
+    """
+    from lesysbot.artifacts.installer import InstallResult
+
+    installed = env / ".lesysbot" / "dashboard" / "installed" / "cpu"
+    installed.mkdir(parents=True)
+    (installed / "dashboard.json").write_text('{"title": "CPU"}')
+
+    _fake_installer(monkeypatch, InstallResult(
+        [_installed("cpu", ArtifactKind.DASHBOARD)], []))
+    assert _run(["install", "acme/repo", "--yes"]) == 0
+
+    from lesysbot.dashboards.render import OUTPUT_NAME
+
+    generated = (env / ".lesysbot" / "dashboard" / "grafana" / "dashboards"
+                 / "generated" / OUTPUT_NAME)
+    assert generated.exists(), "installing a dashboard should provision it"
+    assert json.loads(generated.read_text())["title"] == "CPU"
+    assert "provisioned" in capsys.readouterr().out
+
+
+def test_a_withheld_dashboard_is_reported_not_hidden(env, monkeypatch, capsys):
+    """Withholding is the honest outcome, so it has to be *said*.
+
+    Otherwise the command looks like it worked and Grafana simply has no such
+    dashboard — which is the confusion the whole mechanism exists to prevent.
+    """
+    from lesysbot.artifacts.installer import InstallResult
+
+    from types import SimpleNamespace
+
+    installed = env / ".lesysbot" / "dashboard" / "installed" / "gpu"
+    installed.mkdir(parents=True)
+    (installed / "dashboard.json").write_text('{"title": "GPU"}')
+
+    # Patched at the renderer's own seam rather than at a checker: `CHECKERS`
+    # captures the function objects at import, so patching `check_metric` would
+    # be a no-op and this test would pass only because no Prometheus happens to
+    # be running on the machine running it.
+    monkeypatch.setattr(
+        "lesysbot.dashboards.render.check",
+        lambda pkg: SimpleNamespace(ok=False, reason="the NVIDIA metric isn't scraped"),
+    )
+    _fake_installer(monkeypatch, InstallResult(
+        [_installed("gpu", ArtifactKind.DASHBOARD)], []))
+    assert _run(["install", "acme/repo", "--yes"]) == 0
+
+    out = capsys.readouterr().out
+    assert "withheld" in out
+    generated = (env / ".lesysbot" / "dashboard" / "grafana" / "dashboards"
+                 / "generated" / "gpu.json")
+    assert not generated.exists()
+
+
+def test_installing_only_tools_says_nothing_about_dashboards(env, monkeypatch, capsys):
+    from lesysbot.artifacts.installer import InstallResult
+
+    _fake_installer(monkeypatch, InstallResult([_installed("greet")], []))
+    assert _run(["install", "acme/repo", "--yes"]) == 0
+    assert "provisioned" not in capsys.readouterr().out
 
 
 def test_no_deps_flag_reaches_the_installer(env, monkeypatch):
@@ -159,7 +247,7 @@ def test_no_deps_flag_reaches_the_installer(env, monkeypatch):
 
         def install(self, src, **kw):
             calls.update(kw)
-            return InstallResult([object()], [])
+            return InstallResult([_installed()], [])
 
     monkeypatch.setattr("lesysbot.artifacts.installer.ArtifactInstaller", FakeInstaller)
     assert _run(["install", "acme/repo", "--yes", "--no-deps"]) == 0

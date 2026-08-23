@@ -193,3 +193,118 @@ def test_installed_package_loads_in_registry(tmp_path):
     registry = ToolRegistry()
     registry.load_directory(tmp_path / "tools")
     assert "hello" in registry.names
+
+
+# -- one dashboard per install -------------------------------------------------
+
+DASHBOARD_README = ("---\nname: {name}\nkind: dashboard\n"
+                    "description: {name} dashboard\n---\n")
+
+
+def _dashboard_zip(*names: str) -> bytes:
+    files = {}
+    for name in names:
+        files[f"dashboards/{name}/README.md"] = DASHBOARD_README.format(name=name)
+        files[f"dashboards/{name}/dashboard.json"] = '{"title": "%s"}' % name
+    return make_github_zip("repo-HEAD", files)
+
+
+def test_installing_a_dashboard_replaces_the_current_one(tmp_path):
+    """An install has room for exactly one dashboard.
+
+    The previous one goes from disk *and* from the lock — a leftover directory
+    would show in Grafana as a second page nobody chose, and a leftover lock
+    entry would make `lesysbot list` claim something that isn't installed.
+    """
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("alpha")}))
+    mgr.install(ToolSource("acme", "repo"), yes=True)
+    assert (tmp_path / "dashboards" / "alpha").is_dir()
+
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("beta")}))
+    mgr.install(ToolSource("acme", "repo"), yes=True)
+
+    assert (tmp_path / "dashboards" / "beta").is_dir()
+    assert not (tmp_path / "dashboards" / "alpha").exists()
+    assert set(_lock(tmp_path)) == {"beta"}
+
+
+def test_reinstalling_the_same_dashboard_is_an_update(tmp_path):
+    """Replacement must not mean "delete then install" for the *same* name.
+
+    That path runs `_carry_preserved`, which reads the user's kept files out of
+    the installed copy — deleting it first would take those with it.
+    """
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("alpha")}))
+    mgr.install(ToolSource("acme", "repo"), yes=True)
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("alpha")}))
+    mgr.install(ToolSource("acme", "repo"), yes=True)
+
+    assert (tmp_path / "dashboards" / "alpha" / "dashboard.json").is_file()
+    assert set(_lock(tmp_path)) == {"alpha"}
+
+
+def test_a_repo_with_several_dashboards_refuses_to_guess(tmp_path):
+    """Naming them is the point: silently taking one is the bug this replaces."""
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("alpha", "beta")}))
+    with pytest.raises(ToolInstallError) as excinfo:
+        mgr.install(ToolSource("acme", "repo"), yes=True)
+
+    message = str(excinfo.value)
+    assert "alpha" in message and "beta" in message and "--only" in message
+    assert not (tmp_path / "dashboards").exists()
+
+
+def test_only_picks_one_dashboard_out_of_a_collection(tmp_path):
+    """The escape hatch the refusal names actually works."""
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: _dashboard_zip("alpha", "beta")}))
+    mgr.install(ToolSource("acme", "repo"), only=["beta"], yes=True)
+
+    assert set(_lock(tmp_path)) == {"beta"}
+
+
+def test_tools_and_one_dashboard_install_together(tmp_path):
+    """A collection carrying both kinds still installs in one command."""
+    files = {"dashboards/alpha/README.md": DASHBOARD_README.format(name="alpha"),
+             "dashboards/alpha/dashboard.json": '{"title": "alpha"}'}
+    for rel, content in package_files("mytool").items():
+        files[f"tools/mytool/{rel}"] = content
+
+    mgr = _manager(tmp_path, FakeFetcher({HEAD_URL: make_github_zip("repo-HEAD", files)}))
+    mgr.install(ToolSource("acme", "repo"), yes=True)
+
+    assert set(_lock(tmp_path)) == {"alpha", "mytool"}
+
+
+def test_a_mixed_repo_installs_its_tools_and_defers_the_dashboards(tmp_path):
+    """`lesysbot install official` must not fail over an ambiguity in one kind.
+
+    It is the documented first command a new user runs, and the official
+    collection carries several dashboards. Failing the whole install would be a
+    far worse answer than installing what was unambiguous and naming the choice.
+    """
+    files = {}
+    for name in ("alpha", "beta"):
+        files[f"dashboards/{name}/README.md"] = DASHBOARD_README.format(name=name)
+        files[f"dashboards/{name}/dashboard.json"] = '{"title": "%s"}' % name
+    for rel, content in package_files("mytool").items():
+        files[f"tools/mytool/{rel}"] = content
+
+    console = _console()
+    mgr = ArtifactInstaller(
+        {ArtifactKind.TOOL: tmp_path / "tools",
+         ArtifactKind.DASHBOARD: tmp_path / "dashboards"},
+        tmp_path / "lesysbot.lock.json",
+        FakeFetcher({HEAD_URL: make_github_zip("repo-HEAD", files)}),
+        console=console,
+    )
+    result = mgr.install(ToolSource("acme", "repo"), yes=True)
+
+    assert result.names == ["mytool"]
+    assert sorted(p.name for p in result.skipped) == ["alpha", "beta"]
+    assert set(_lock(tmp_path)) == {"mytool"}
+    assert not (tmp_path / "dashboards").exists()
+
+    # And it is *said*, before consent — skipping quietly is the same failure as
+    # picking quietly: a different set than asked for, with no visible reason.
+    out = console.export_text()
+    assert "alpha" in out and "beta" in out and "--only" in out

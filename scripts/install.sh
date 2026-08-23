@@ -529,6 +529,32 @@ remove_service() {
     esac
 }
 
+# Stop whatever dashboard stack this machine ended up with. macOS can have been
+# set up either way (brew services or Docker Desktop), so try both. Only ever
+# *stops*: `start.sh down` omits -v so history in the Docker volumes survives,
+# and the brew path leaves the formulae installed. No sudo — docker and brew
+# both run unprivileged.
+stop_dashboard_stack() {
+    stack="$1/dashboard/scripts"
+
+    if [ "$(uname -s)" = "Darwin" ] && [ -f "$stack/install-macos.sh" ] \
+       && command -v brew >/dev/null 2>&1; then
+        bash "$stack/install-macos.sh" down >/dev/null 2>&1 \
+            && ok "Dashboard services stopped" || true
+        # `down` only unloads the metrics collector's agent; drop the plist too,
+        # or launchd keeps firing it every 15s against a script we are about to
+        # delete.
+        rm -f "$HOME/Library/LaunchAgents/com.lesysbot.macos-metrics.plist"
+        note "Grafana/Prometheus stay installed — remove them with:"
+        note "  brew uninstall grafana prometheus node_exporter"
+    fi
+
+    if [ -x "$stack/start.sh" ] && command -v docker >/dev/null 2>&1; then
+        "$stack/start.sh" down >/dev/null 2>&1 \
+            && ok "Dashboard containers stopped" || true
+    fi
+}
+
 strip_path_block() {
     for rc in "$HOME/.profile" "$HOME/.bashrc" "$HOME/.zshenv"; do
         [ -f "$rc" ] || continue
@@ -546,8 +572,7 @@ do_uninstall() {
     rule
     remove_service
 
-    stack="$data_dir/dashboard/scripts/stop.sh"
-    [ -x "$stack" ] && sh "$stack" >/dev/null 2>&1 || true
+    stop_dashboard_stack "$data_dir"
 
     rm -f "$BIN_DIR/lesysbot"
     rm -rf "$INSTALL_DIR"

@@ -92,6 +92,28 @@ def build_registry(settings: Settings):
     return reg
 
 
+def _add_dashboard_url(grafana: dict | None, settings) -> None:
+    """Point the reported link at the dashboard itself, not Grafana's home.
+
+    LeSysBot renders one dashboard at one fixed uid, so there is a single URL
+    worth handing someone — and Grafana's landing page is an extra click plus a
+    folder to find. Added only when the dashboard has actually been provisioned:
+    linking `/d/lesysbot` on a machine that has never rendered would advertise a
+    404, which is worse than the generic link it replaces.
+    """
+    if not grafana or not grafana.get("reachable") or not grafana.get("url"):
+        return
+    from lesysbot.core.paths import generated_dashboards_dir
+    from lesysbot.dashboards.render import DASHBOARD_UID, OUTPUT_NAME
+
+    try:
+        provisioned = (generated_dashboards_dir(settings.config_dir) / OUTPUT_NAME).is_file()
+    except Exception:                        # never break the status screen
+        return
+    if provisioned:
+        grafana["dashboard_url"] = f"{grafana['url'].rstrip('/')}/d/{DASHBOARD_UID}"
+
+
 async def gather_status(
     settings: Settings, registry=None, *, check_health: bool = True
 ) -> dict[str, Any]:
@@ -118,6 +140,7 @@ async def gather_status(
         except Exception as e:
             health = {"ok": False, "error": str(e)}
         grafana = detect_grafana()
+        _add_dashboard_url(grafana, settings)
         panel = detect_panel(settings)
 
     # The service runs for every provider now — it hosts the control panel even

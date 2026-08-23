@@ -95,7 +95,7 @@ dropped straight in `tools/` also still works for quick local tools.)
 ## Verify
 
 - `ruff check tools/` — lint.
-- Run `lesysbot --provider cli`, then `/help` (tool listed; gated tools show a "⚠ unavailable here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up saves.
+- Run `lesysbot chat`, then `/help` (tool listed; gated tools show a "⚠ unavailable here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up saves.
 - If logic is non-trivial, add a test under `tests/` (registries are built over temp tool dirs — see `tests/test_registry.py`; `asyncio_mode=auto` means async tests need no decorator).
 
 Full reference: [docs/writing-tools.md](../../../docs/writing-tools.md), the catalog [tools/README.md](../../../tools/README.md), and the tool-registry/decorator notes in [CLAUDE.md](../../../CLAUDE.md).

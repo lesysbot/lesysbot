@@ -100,13 +100,47 @@ def test_macos_surfaces_collector_staleness(gen):
     assert "macos_metrics_last_run_timestamp_seconds" in _exprs(gen.build_macos())
 
 
-def test_die_temperature_panels_explain_the_missing_helper(gen):
-    """Both die-temperature tiles are empty without smctemp/macmon, so each one
-    has to say so — an unexplained empty tile reads as a fault."""
-    model = gen.build_macos()
-    for title in ("CPU Die Temperature", "GPU Die Temperature"):
-        panel = next(p for p in model["panels"] if p.get("title") == title)
-        assert "macmon" in panel["description"] and "smctemp" in panel["description"]
+def test_cpu_die_temperature_panel_explains_the_missing_helper(gen):
+    """The CPU tile is empty until smctemp/macmon is installed, and that is
+    actionable — so it ships on every Mac and has to name the fix."""
+    panel = next(p for p in gen.build_macos()["panels"]
+                 if p.get("title") == "CPU Die Temperature")
+    assert "macmon" in panel["description"] and "smctemp" in panel["description"]
+
+
+def test_gpu_die_temperature_tile_only_where_it_can_be_filled(gen):
+    """Unlike the CPU tile, an empty GPU tile is not actionable: on an M1 macmon
+    reports 0 and smctemp cannot read the sensor, so there is no helper to
+    suggest. Omit it rather than ship a tile that can only ever be empty."""
+    titles = [p.get("title") for p in gen.build_macos()["panels"]]
+    assert "CPU Die Temperature" in titles
+    assert "GPU Die Temperature" not in titles
+
+    with_gpu = gen.build_macos(gpu_die_temp=True)
+    assert "GPU Die Temperature" in [p.get("title") for p in with_gpu["panels"]]
+
+
+def test_gpu_die_series_tracks_the_tile(gen):
+    """The row's timeseries must not keep a GPU die series the cut just dropped —
+    a legend entry that never draws is the same ambiguity in another shape."""
+    without = next(p for p in gen.build_macos()["panels"]
+                   if p.get("title") == "Temperatures")
+    assert not any("gpu_temperature" in t["expr"] for t in without["targets"])
+    assert "omitted" in without["description"]      # says why, in the one place left
+
+    with_gpu = next(p for p in gen.build_macos(gpu_die_temp=True)["panels"]
+                    if p.get("title") == "Temperatures")
+    assert any("gpu_temperature" in t["expr"] for t in with_gpu["targets"])
+
+
+def test_macos_temperature_tiles_fill_the_row_either_way(gen):
+    """Dropping a tile must re-balance the row, not leave a 6-column hole."""
+    for caps in ({}, {"gpu_die_temp": True}):
+        model = gen.build_macos(**caps)
+        tiles = [p for p in model["panels"]
+                 if p.get("title") in ("CPU Die Temperature", "GPU Die Temperature",
+                                       "Battery Temperature", "Collector Age")]
+        assert sum(p["gridPos"]["w"] for p in tiles) == 24, caps
 
 
 # ------------------------------------------------------------------ Linux cut
@@ -191,9 +225,12 @@ def test_every_cut_is_valid_grafana_json(gen, host, caps):
     dashboard Grafana silently refuses to load."""
     model = gen.build_for(host, set(caps))
     json.dumps(model)                                   # serialisable
-    # Shared uid per exporter family: re-running a start script replaces the
-    # dashboard rather than leaving near-duplicates side by side.
-    assert model["uid"] == ("lesysbot-windows" if host == "windows" else "lesysbot-node")
+    # One uid for every cut. A machine has one LeSysBot dashboard, so
+    # `/d/lesysbot` is its address whichever route wrote the file — this
+    # generator standing alone, or `lesysbot dashboard render`, which stamps the
+    # same value. Per-OS uids used to leave near-duplicates side by side and gave
+    # the docs no single URL to quote.
+    assert model["uid"] == gen.DASHBOARD_UID == "lesysbot"
     ids = [p["id"] for p in model["panels"]]
     assert len(ids) == len(set(ids))
     for panel in model["panels"]:

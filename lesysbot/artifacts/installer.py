@@ -136,8 +136,9 @@ class ArtifactInstaller:
             if kind is not None:
                 packages = self._filter_kind(packages, ArtifactKind(kind), src)
             self._validate(packages)
+            packages, deferred = self._select_one_dashboard(packages, src)
             self._check_collisions(packages, force)
-            self._print_plan(src, commit, packages)
+            self._print_plan(src, commit, packages, deferred)
 
             prompt = (
                 f"Install {len(packages)} package(s) from {src.slug}"
@@ -146,14 +147,14 @@ class ArtifactInstaller:
             )
             if not yes and not self._confirm(prompt):
                 self.console.print("Aborted.")
-                return InstallResult([], packages)
+                return InstallResult([], packages + deferred)
 
             installed = [
                 self._place(pkg, src, commit, staging, install_deps=install_deps)
                 for pkg in packages
             ]
             self._print_epilogue(installed)
-            return InstallResult(installed, [])
+            return InstallResult(installed, deferred)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
@@ -169,6 +170,8 @@ class ArtifactInstaller:
         # `beta/` inside it, and `update` has to re-fetch each from its own path.
         pkg_subdir = _join_subdir(src.subdir, pkg.path.relative_to(staging))
 
+        if pkg.kind is ArtifactKind.DASHBOARD:
+            self._replace_current_dashboard(pkg)
         if target.exists():
             self._carry_preserved(pkg, target)
             _rmtree(target)
@@ -272,6 +275,57 @@ class ArtifactInstaller:
                 )
             seen.add(key)
 
+    def _select_one_dashboard(self, packages: list[ArtifactPackage],
+                              src: ToolSource,
+                              ) -> tuple[list[ArtifactPackage], list[ArtifactPackage]]:
+        """Split off the dashboards when a repo offers more than one.
+
+        An install has room for exactly one dashboard, so a collection carrying
+        several is a question, not a default. Picking one silently is the bug
+        ``share_dashboard`` used to have — it took ``rows[0]`` from a search and
+        nobody could tell which dashboard they were looking at.
+
+        The repo's **tools still install**. `lesysbot install official` is the
+        documented first command a new user runs, and failing the whole thing
+        over an ambiguity in one of the two kinds would be a far worse answer
+        than installing what was unambiguous and naming the choice. When there
+        is nothing *but* the ambiguous dashboards there is no install left to
+        do, so that is the one case that raises.
+        """
+        dashboards = [p for p in packages if p.kind is ArtifactKind.DASHBOARD]
+        if len(dashboards) < 2:
+            return packages, []
+        names = ", ".join(sorted(p.name for p in dashboards))
+        rest = [p for p in packages if p.kind is not ArtifactKind.DASHBOARD]
+        if not rest:
+            raise ToolInstallError(
+                f"{src.slug} offers {len(dashboards)} dashboards ({names}) and "
+                "LeSysBot installs exactly one — choose with --only NAME."
+            )
+        return rest, dashboards
+
+    def _replace_current_dashboard(self, pkg: ArtifactPackage) -> None:
+        """Remove whatever dashboard is installed, so *pkg* becomes the only one.
+
+        Called for the incoming dashboard only. A same-named dashboard is left
+        alone: ``_place`` already replaces it in place, and doing it here would
+        delete the directory ``_carry_preserved`` is about to read the user's
+        kept files out of.
+        """
+        current = self.lock.of_kind(ArtifactKind.DASHBOARD)
+        stale = [name for name in current if name != pkg.name]
+        if not stale:
+            return
+        dest_dir = self.destination(ArtifactKind.DASHBOARD)
+        for name in stale:
+            directory = dest_dir / name
+            if directory.is_dir():
+                _rmtree(directory)
+            self.console.print(
+                f"  [dim]replaced {name} — an install has one dashboard[/dim]"
+            )
+        self.lock.drop(stale, ArtifactKind.DASHBOARD)
+
     def _check_collisions(self, packages: list[ArtifactPackage], force: bool) -> None:
         """Refuse to clobber a directory the lock has never heard of.
 
@@ -295,7 +349,8 @@ class ArtifactInstaller:
     # -- reporting ------------------------------------------------------------
 
     def _print_plan(self, src: ToolSource, commit: str | None,
-                    packages: list[ArtifactPackage]) -> None:
+                    packages: list[ArtifactPackage],
+                    deferred: list[ArtifactPackage] | None = None) -> None:
         pin = commit[:12] if commit else (src.ref or "HEAD")
         self.console.print(f"\n[bold]{src.slug}[/bold] @ {pin}")
         for pkg in packages:
@@ -309,8 +364,48 @@ class ArtifactInstaller:
             if pkg.has_requirements or pkg.requires_python:
                 self.console.print("    has Python dependencies")
             self.console.print(f"    → {self.destination(pkg.kind) / pkg.name}")
+        self._report_deferred(deferred or [])
+        self._warn_replacement(packages)
         if self._preflight is not None:
             self._report_preflight(packages)
+
+    def _report_deferred(self, deferred: list[ArtifactPackage]) -> None:
+        """Name the dashboards being skipped, before consent rather than after.
+
+        Skipping them quietly would be the same failure as picking one quietly:
+        the user ends up with a different set than they asked for and no idea
+        which decision produced it.
+        """
+        if not deferred:
+            return
+        self.console.print(
+            f"\n  [yellow]![/yellow] {len(deferred)} dashboards here and LeSysBot "
+            "installs one — none will be, unless you pick:"
+        )
+        for pkg in sorted(deferred, key=lambda p: p.name):
+            self.console.print(
+                f"      [bold]{pkg.name}[/bold] — {pkg.description or '(no description)'}"
+            )
+        self.console.print("    [dim]…re-run with --only NAME to pick one[/dim]")
+
+    def _warn_replacement(self, packages: list[ArtifactPackage]) -> None:
+        """Say which dashboard is about to be lost, before asking for consent.
+
+        Replacement is the whole point of the one-dashboard rule, but it is
+        still someone's dashboard going away — and the consent prompt below is
+        the last moment they can stop it.
+        """
+        incoming = next((p for p in packages if p.kind is ArtifactKind.DASHBOARD), None)
+        if incoming is None:
+            return
+        outgoing = [n for n in self.lock.of_kind(ArtifactKind.DASHBOARD)
+                    if n != incoming.name]
+        if outgoing:
+            self.console.print(
+                f"\n  [yellow]![/yellow] this replaces your current dashboard "
+                f"([bold]{', '.join(sorted(outgoing))}[/bold]) — "
+                "`lesysbot dashboard reset` restores the default"
+            )
 
     def _report_preflight(self, packages: list[ArtifactPackage]) -> None:
         """Print what this machine can and can't satisfy, before consent.
@@ -337,11 +432,10 @@ class ArtifactInstaller:
                 "A running LeSysBot with hot_reload picks new tools up automatically; "
                 "otherwise restart it. Type /help in the chat to see them."
             )
-        if ArtifactKind.DASHBOARD in kinds:
-            self.console.print(
-                "Render it with `lesysbot dashboard render`; "
-                "Grafana picks it up within 30s."
-            )
+        # Dashboards deliberately say nothing here. The caller renders them
+        # immediately after this and reports the real per-dashboard outcome —
+        # provisioned, or withheld and why. Telling the user to go and render
+        # would contradict the lines printed a moment later.
 
     # -- dependencies ---------------------------------------------------------
 

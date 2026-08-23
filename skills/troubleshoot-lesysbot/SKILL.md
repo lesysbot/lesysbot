@@ -71,7 +71,7 @@ redirects the `~/.lesysbot` fallback:
 ```bash
 S=$(mktemp -d) && mkdir -p "$S/tools" "$S/home"
 cd "$S" && export LESYSBOT_HOME="$S/home"
-# state now lands in $S: tool_state.json, tools.lock.json, logs/
+# state now lands in $S: tool_state.json, lesysbot.lock.json, logs/
 ```
 
 - the `lesysbot` CLI verbs just work from `$S`; `echo n | lesysbot remove X`

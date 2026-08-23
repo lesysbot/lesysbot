@@ -99,7 +99,7 @@ temp_helper() { # -> prints the installed helper's name, if any
   return 1
 }
 if [ "$MAC_ARCH" = arm64 ]; then
-  TEMP_HELPER_TAP=vladkens/tap/macmon
+  TEMP_HELPER_TAP=macmon
 else
   TEMP_HELPER_TAP=narugit/tap/smctemp
 fi
@@ -108,10 +108,28 @@ fi
 # there and as start.sh's detect_capabilities_macos, and the two must not drift:
 # a capability this doesn't claim is a dashboard row that silently goes missing,
 # and one it claims wrongly is a row that can never fill.
+
+# Ask the collector whether a GPU die temperature actually comes out, rather
+# than inferring it from the chip or from "a helper is installed". Neither
+# inference works: on an M1 macmon installs fine, fills the CPU tile, and still
+# reports 0 for the GPU (its IOReport temperature channels read 0 there), while
+# smctemp 0.7.0 cannot read that sensor either. Running the real collector is
+# the only answer that cannot be wrong, and it is the same probe-don't-guess
+# rule start.ps1 follows for windows_exporter's thermal zones.
+# `${VAR:-}` because this is also reached with the script *sourced* (the test
+# harness runs under `set -u`, and PYTHON is assigned past the sourcing guard).
+has_gpu_die_temp() {
+  [ -n "${PYTHON:-}" ] || return 1
+  [ -f "${HERE:-}/macos-metrics.py" ] || return 1
+  "$PYTHON" "${HERE}/macos-metrics.py" --stdout 2>/dev/null \
+    | grep -q '^macos_gpu_temperature_celsius '
+}
+
 dashboard_caps() {
   local caps=""
   [ "$MAC_ARCH" = arm64 ] || caps="intel"
   if has_nvidia; then caps="${caps:+$caps,}nvidia"; fi
+  if has_gpu_die_temp; then caps="${caps:+$caps,}gpu_die_temp"; fi
   printf '%s' "$caps"
 }
 
@@ -247,7 +265,7 @@ done
 install_temp_helper() { # $1 = macmon|smctemp
   local tap
   case "$1" in
-    macmon)  tap=vladkens/tap/macmon ;;
+    macmon)  tap=macmon ;;
     smctemp) tap=narugit/tap/smctemp ;;
     *) return 1 ;;
   esac
@@ -360,7 +378,8 @@ fi
 # It has to be that *subdirectory* and not grafana/dashboards itself: the
 # provider loads every JSON it finds, and the committed portable cuts live one
 # level up — pointing at them would provision the Windows dashboard on a Mac,
-# permanently empty.
+# permanently empty. One file lands there, named and uid'd the same whichever
+# route wrote it, so the machine has one dashboard at /d/lesysbot.
 GENERATED="$ROOT/grafana/dashboards/generated"
 rm -rf "$NATIVE"
 mkdir -p "$NATIVE/provisioning/datasources" "$NATIVE/provisioning/dashboards" \
@@ -407,7 +426,7 @@ EOF
 # generator for a cut that matches the hardware detected above instead — it drops
 # those and adds the Intel-only throttling panels where they apply. Falling back
 # to the portable file keeps the stack installable without python3.
-DASHBOARD="$GENERATED/system-overview.json"
+DASHBOARD="$GENERATED/lesysbot.json"
 GEN="$HERE/gen-dashboards.py"
 DASH_CAPS="$(dashboard_caps)"
 DASH_FLAVOUR="$MAC_KIND"

@@ -80,11 +80,15 @@ call** — typing `/tool_name …` yourself runs immediately (you already decide
 ## Quick overrides without editing config
 
 ```bash
-lesysbot --model qwen3.5                                        # different model
-lesysbot --base-url https://api.openai.com/v1 --model gpt-4o    # different backend
-lesysbot --provider telegram                                    # different adapter
-LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot                          # any setting via env var
+lesysbot chat --model qwen3.5                                        # different model
+lesysbot chat --base-url https://api.openai.com/v1 --model gpt-4o    # different backend
+lesysbot --provider telegram                                         # different adapter
+LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot chat                        # any setting via env var
 ```
+
+The flags only take effect on an invocation that actually starts something —
+`lesysbot chat`, `lesysbot run`, or an explicit `--provider`. Bare `lesysbot`
+prints status and exits whatever else you pass it.
 
 Precedence: **CLI flags → `LESYSBOT_*` env vars → config file**.
 

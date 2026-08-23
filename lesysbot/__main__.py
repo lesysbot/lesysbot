@@ -311,14 +311,19 @@ def _print_status(settings: Settings) -> dict:
     gf = st.get("grafana")
     if gf and gf.get("reachable"):
         ver = f" · v{gf['version']}" if gf.get("version") else ""
-        t.add_row("Grafana", f"[link={gf['url']}]{gf['url']}[/link]{ver}")
+        # The dashboard itself when one is provisioned, else Grafana's home —
+        # `dashboard_url` is only set when the file exists, so this never
+        # advertises a 404.
+        link = gf.get("dashboard_url") or gf["url"]
+        t.add_row("Grafana", f"[link={link}]{link}[/link]{ver}")
     elif gf:
         # configured (LESYSBOT_GRAFANA_URL) but nothing answered there or on the
         # usual ports — don't offer it as a working link
         t.add_row("Grafana", f"[dim]not answering at {gf['url']} — "
-                             "start it with dashboard/scripts/start.sh[/dim]")
+                             "start it with `lesysbot dashboard start`[/dim]")
     else:
-        t.add_row("Grafana", "[dim]not running — start it with dashboard/scripts/start.sh[/dim]")
+        t.add_row("Grafana", "[dim]not running — start it with "
+                             "`lesysbot dashboard start`[/dim]")
     t.add_row("Config", st["config_path"] or "[dim](built-in defaults)[/dim]")
     from lesysbot.core.banner import banner
 
