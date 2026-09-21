@@ -411,7 +411,7 @@ PID must not read as "running".
 | Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — the Python implementation; `scripts/install.sh` only bootstraps into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the control panel | [lesysbot/management/](../lesysbot/management/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
 
 ---

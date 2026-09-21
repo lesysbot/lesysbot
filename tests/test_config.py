@@ -185,3 +185,26 @@ def test_env_overrides_yaml_file(tmp_path: Path, monkeypatch) -> None:
     assert s.llm.model == "from-env"
     # sibling keys from the file survive the env deep-merge
     assert s.llm.temperature == 0.5
+
+
+def test_shipped_default_yaml_has_no_key_settings_ignores() -> None:
+    """Every top-level section in `config/default.yaml` must be a real field.
+
+    `Settings` is `extra="ignore"`, which it has to be (an old config must not
+    stop the bot booting) — but that also means a section renamed in the code
+    and not in the shipped YAML goes on being parsed and silently discarded.
+    That is exactly how `webui:` outlived the rename to `management:`: the key
+    still documented a port nobody could change, because setting it did
+    nothing at all. This pins the two together.
+    """
+    import yaml
+
+    from lesysbot.core.config import Settings
+
+    shipped = Path(__file__).resolve().parents[1] / "config" / "default.yaml"
+    data = yaml.safe_load(shipped.read_text()) or {}
+    unknown = set(data) - set(Settings.model_fields)
+    assert not unknown, (
+        f"{shipped.name} has section(s) Settings would silently ignore: "
+        f"{sorted(unknown)} — rename them, or add the field."
+    )

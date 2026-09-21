@@ -82,9 +82,8 @@ can message it run tools on the machine.
 Two more guards worth knowing when scripting or testing:
 
 - `LESYSBOT_SKIP_SERVICE=1` — don't install/replace the background service.
-  `LESYSBOT_HOME` does *not* relocate the LaunchAgent/systemd unit/scheduled
-  task, so **without this a scratch-home test replaces the real machine's
-  service.**
+  `LESYSBOT_HOME` does *not* relocate the `systemd --user` unit, so **without
+  this a scratch-home test replaces the real machine's service.**
 - `LESYSBOT_HOME` — move config, tools, logs and dashboards somewhere else.
 
 Re-running the installer or `lesysbot setup --yes` is the **upgrade** path: it

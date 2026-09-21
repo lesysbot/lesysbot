@@ -261,7 +261,7 @@ logging:
   backup_count: 7            # how many rotated files to keep
 
 # ── Control panel (served by the service, always on) ──────────────────────────
-webui:
+management:
   port: 8700                 # always bound to 127.0.0.1; only the port is settable
 ```
 

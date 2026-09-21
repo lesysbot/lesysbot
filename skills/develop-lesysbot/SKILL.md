@@ -116,7 +116,7 @@ Conventions (keep new tests the same):
 
 ## Install-script rules
 
-`scripts/install.{sh,ps1}` and `scripts/uninstall.{sh,ps1}` are each the **same job twice** — change one, change the other. The wizard they hand off to is a single cross-platform Python implementation in `lesysbot/setup/`.
+`scripts/install.sh` bootstraps only — it hands off to the wizard in `lesysbot/setup/`. `scripts/uninstall.sh` remains for installs that predate it.
 
 `install.sh` is **POSIX sh** (it is piped into `sh`, which is dash on Debian/Ubuntu): no `[[ ]]`, no arrays, no `BASH_SOURCE`, and `set -o pipefail` only inside a subshell guard. `tests/test_shell_portability.py` enforces this; CI also runs `shellcheck --shell=sh --severity=warning scripts/install.sh`.
 

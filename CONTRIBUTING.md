@@ -209,10 +209,10 @@ break there. Every *other* script is bash.
 `shellcheck --shell=sh --severity=warning scripts/install.sh` — bashisms are
 SC3xxx *warnings*, so the error-only pass misses all of them.
 
-**Testing either installer against a scratch directory:** always set
+**Testing the installer against a scratch directory:** always set
 `LESYSBOT_SKIP_SERVICE=1`. `LESYSBOT_HOME` and `--prefix` do not relocate the
-LaunchAgent / systemd unit / scheduled task, so without it a test run replaces
-the service on your own machine.
+`systemd --user` unit, so without it a test run replaces the service on your own
+machine.
 
 ---
 

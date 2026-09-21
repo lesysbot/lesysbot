@@ -110,7 +110,7 @@ the project, and it only ever listens on loopback.
 Only the port:
 
 ```yaml
-webui:
+management:
   port: 8700
 ```
 
