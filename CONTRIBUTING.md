@@ -98,7 +98,7 @@ tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
 scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config
-monitoring/        the Prometheus + Grafana stack `lesysbot setup` seeds
+dashboard/         the Prometheus + Grafana stack `lesysbot setup` seeds
 ```
 
 The full walkthrough of how these interact is
@@ -201,16 +201,11 @@ ruff check lesysbot/
 [CLAUDE.md](CLAUDE.md) for architecture changes, the relevant guide in
 `docs/` for behaviour changes.
 
-**A note on the shell scripts:** `install.sh`/`install.ps1` and
-`uninstall.sh`/`uninstall.ps1` are each the same job twice and must stay in sync
-— change one, change the other.
-
-`scripts/install.sh` is **POSIX `sh`**, not bash: the documented install command
-pipes it into `sh`, which is dash on Debian and Ubuntu, so `[[ ]]`, arrays,
-`BASH_SOURCE` and a bare `set -o pipefail` all break there. Every *other* script
-is bash, where the trap is that macOS ships bash 3.2 and `${var,,}` fails at
-*runtime*; use a case-based helper (`is_yes`). `tests/test_shell_portability.py`
-enforces both sets of rules, and CI additionally runs
+**A note on the shell scripts:** `scripts/install.sh` is **POSIX `sh`**, not
+bash: the documented install command pipes it into `sh`, which is dash on Debian
+and Ubuntu, so `[[ ]]`, arrays, `BASH_SOURCE` and a bare `set -o pipefail` all
+break there. Every *other* script is bash.
+`tests/test_shell_portability.py` enforces that split, and CI additionally runs
 `shellcheck --shell=sh --severity=warning scripts/install.sh` — bashisms are
 SC3xxx *warnings*, so the error-only pass misses all of them.
 

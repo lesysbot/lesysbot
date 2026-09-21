@@ -54,7 +54,7 @@ class CatalogEntry:
         """Whether this entry's declared platforms include the current OS."""
         if not self.platforms:
             return True
-        from lesysbot.mcp.platform import current_os
+        from lesysbot.core.host import current_os
 
         return current_os() in self.platforms
 

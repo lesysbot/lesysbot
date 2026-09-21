@@ -24,8 +24,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from lesysbot.core.paths import is_frozen
-
 # A requirements.txt may reference others or point pip at an index; those are
 # pip's business, not ours, and are passed through untouched.
 _COMMENT = "#"
@@ -84,8 +82,6 @@ def can_install() -> tuple[bool, str | None]:
 
     if os.environ.get(SKIP_ENV):
         return False, f"{SKIP_ENV} is set"
-    if is_frozen():
-        return False, "this is a standalone build, which has no pip"
     try:
         proc = subprocess.run([sys.executable, "-m", "pip", "--version"],
                               capture_output=True, timeout=30)

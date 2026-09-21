@@ -447,8 +447,7 @@ def main() -> None:
             print(
                 f"Another LeSysBot instance for this {settings.messaging.provider} "
                 f"configuration is already running{who} — most likely the background "
-                "service.\nStop it first (Linux: systemctl --user stop lesysbot; "
-                "macOS: launchctl stop com.lesysbot.lesysbot; Windows: Task Scheduler), "
+                "service.\nStop it first (systemctl --user stop lesysbot), "
                 "or use `lesysbot chat` for an interactive session, "
                 "which runs fine alongside the service.",
                 file=sys.stderr,

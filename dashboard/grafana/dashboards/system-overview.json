@@ -680,7 +680,7 @@
     {
       "type": "timeseries",
       "title": "Swap Usage",
-      "description": "Linux and macOS name their swap metrics differently; each target `or`s both, so exactly one side answers on any given host. Empty means swap is off.",
+      "description": "Empty means swap is off \u2014 on this un-probed dashboard that is indistinguishable from a host that simply has none.",
       "id": 13,
       "datasource": {
         "type": "prometheus",
@@ -699,7 +699,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "node_memory_SwapTotal_bytes{instance=~\"$instance\"} - node_memory_SwapFree_bytes{instance=~\"$instance\"} or node_memory_swap_used_bytes{instance=~\"$instance\"}",
+          "expr": "node_memory_SwapTotal_bytes{instance=~\"$instance\"} - node_memory_SwapFree_bytes{instance=~\"$instance\"}",
           "legendFormat": "used"
         },
         {
@@ -708,7 +708,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "node_memory_SwapFree_bytes{instance=~\"$instance\"} or (node_memory_swap_total_bytes{instance=~\"$instance\"} - node_memory_swap_used_bytes{instance=~\"$instance\"})",
+          "expr": "node_memory_SwapFree_bytes{instance=~\"$instance\"}",
           "legendFormat": "free"
         }
       ],
@@ -1051,7 +1051,7 @@
     {
       "type": "stat",
       "title": "CPU Temperature",
-      "description": "Linux: hottest hwmon CPU sensor (coretemp/k10temp/cpu_thermal). On macOS this needs a helper \u2014 Apple publishes die temperature only through IOReport or root-only powermetrics. Install `smctemp` or `macmon` (see dashboard/README.md) and it fills in within 15s. Empty here is expected, not a fault.",
+      "description": "Hottest hwmon CPU sensor (coretemp / k10temp / cpu_thermal).",
       "id": 21,
       "datasource": {
         "type": "prometheus",
@@ -1059,7 +1059,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 8,
         "x": 0,
         "y": 42
       },
@@ -1070,7 +1070,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(node_hwmon_temp_celsius * on(chip) group_left(chip_name) node_hwmon_chip_names{chip_name=~\"coretemp|k10temp|cpu_thermal\"}) or macos_cpu_temperature_celsius",
+          "expr": "max(node_hwmon_temp_celsius * on(chip) group_left(chip_name) node_hwmon_chip_names{chip_name=~\"coretemp|k10temp|cpu_thermal\"})",
           "legendFormat": "cpu"
         }
       ],
@@ -1116,7 +1116,7 @@
     {
       "type": "stat",
       "title": "Disk Temperature",
-      "description": "NVMe / SATA drive temperature. Linux only \u2014 macOS and Windows expose no disk sensor without a third-party helper.",
+      "description": "NVMe / SATA drive temperature, from the nvme and drivetemp chips.",
       "id": 22,
       "datasource": {
         "type": "prometheus",
@@ -1124,8 +1124,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 8,
+        "x": 8,
         "y": 42
       },
       "targets": [
@@ -1181,7 +1181,7 @@
     {
       "type": "stat",
       "title": "GPU Temperature",
-      "description": "NVIDIA GPUs report this directly. On macOS this needs a helper \u2014 Apple publishes die temperature only through IOReport or root-only powermetrics. Install `smctemp` or `macmon` (see dashboard/README.md) and it fills in within 15s. Empty here is expected, not a fault.",
+      "description": "NVIDIA GPUs report this directly through nvidia_gpu_exporter.",
       "id": 23,
       "datasource": {
         "type": "prometheus",
@@ -1189,8 +1189,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 42
       },
       "targets": [
@@ -1200,73 +1200,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max(nvidia_smi_temperature_gpu) or macos_gpu_temperature_celsius",
+          "expr": "max(nvidia_smi_temperature_gpu)",
           "legendFormat": "gpu"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 85
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Battery Temperature",
-      "description": "macOS laptops only (AppleSmartBattery). Tracks chassis heat rather than the CPU die, so it moves slowly \u2014 good for 'is this machine cooking?', not for catching a short load spike.",
-      "id": 24,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 42
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_battery_temperature_celsius",
-          "legendFormat": "battery"
         }
       ],
       "options": {
@@ -1311,8 +1246,8 @@
     {
       "type": "timeseries",
       "title": "CPU Temperature (package & per-core)",
-      "description": "Package and per-core temperatures (Intel coretemp / AMD k10temp / ARM). Linux only.",
-      "id": 25,
+      "description": "Package and per-core temperatures (Intel coretemp / AMD k10temp / ARM).",
+      "id": 24,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1374,8 +1309,8 @@
     {
       "type": "timeseries",
       "title": "Disk Temperature",
-      "description": "NVMe (nvme) and SATA (drivetemp) drive temperatures. Linux only.",
-      "id": 26,
+      "description": "NVMe (nvme) and SATA (drivetemp) drive temperatures.",
+      "id": 25,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1436,9 +1371,9 @@
     },
     {
       "type": "timeseries",
-      "title": "Other Sensors \u2014 ACPI zone / chipset / Wifi radio / Mac battery",
-      "description": "Linux: ACPI thermal zones \u2014 CPU package (x86_pkg_temp), chassis (acpitz), Wifi radio (iwlwifi). macOS: battery temperature, plus CPU/GPU die temperatures when smctemp or macmon is installed (Apple publishes no die temperature without one).",
-      "id": 27,
+      "title": "Other Sensors \u2014 ACPI zone / chipset / Wifi radio",
+      "description": "ACPI thermal zones \u2014 CPU package (x86_pkg_temp), chassis (acpitz), Wifi radio (iwlwifi).",
+      "id": 26,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1458,33 +1393,6 @@
           },
           "expr": "node_thermal_zone_temp",
           "legendFormat": "{{type}} (zone {{zone}})"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_battery_temperature_celsius",
-          "legendFormat": "battery (macOS)"
-        },
-        {
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_cpu_temperature_celsius",
-          "legendFormat": "CPU die (macOS)"
-        },
-        {
-          "refId": "D",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_temperature_celsius",
-          "legendFormat": "GPU die (macOS)"
         }
       ],
       "options": {
@@ -1528,7 +1436,7 @@
       "type": "row",
       "title": "GPU \u2014 NVIDIA (down if no NVIDIA card / exporter)",
       "collapsed": false,
-      "id": 28,
+      "id": 27,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1541,7 +1449,7 @@
       "type": "gauge",
       "title": "GPU Utilization",
       "description": "",
-      "id": 29,
+      "id": 28,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1608,7 +1516,7 @@
       "type": "gauge",
       "title": "GPU Memory Used",
       "description": "",
-      "id": 30,
+      "id": 29,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1675,7 +1583,7 @@
       "type": "stat",
       "title": "GPU Temperature",
       "description": "",
-      "id": 31,
+      "id": 30,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1740,7 +1648,7 @@
       "type": "stat",
       "title": "GPU Power Draw",
       "description": "",
-      "id": 32,
+      "id": 31,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1797,7 +1705,7 @@
       "type": "timeseries",
       "title": "GPU Utilization",
       "description": "",
-      "id": 33,
+      "id": 32,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1860,7 +1768,7 @@
       "type": "timeseries",
       "title": "GPU Memory Used",
       "description": "",
-      "id": 34,
+      "id": 33,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1923,7 +1831,7 @@
       "type": "timeseries",
       "title": "GPU Temperature",
       "description": "",
-      "id": 35,
+      "id": 34,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1986,7 +1894,7 @@
       "type": "timeseries",
       "title": "GPU Power Draw",
       "description": "",
-      "id": 36,
+      "id": 35,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2026,326 +1934,6 @@
       "fieldConfig": {
         "defaults": {
           "unit": "watt",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "gradientMode": "opacity",
-            "spanNulls": false,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisPlacement": "auto"
-          },
-          "min": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "row",
-      "title": "GPU \u2014 Apple (macOS only; empty elsewhere)",
-      "collapsed": false,
-      "id": 37,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 83
-      },
-      "panels": []
-    },
-    {
-      "type": "gauge",
-      "title": "GPU Utilization",
-      "description": "",
-      "id": 38,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 84
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_utilization_ratio{engine=\"device\"} * 100",
-          "legendFormat": "gpu"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          },
-          "min": 0,
-          "max": 100
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "GPU Memory In Use",
-      "description": "",
-      "id": 39,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 84
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_memory_bytes{kind=\"in_use\"}",
-          "legendFormat": "in use"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "GPU Memory Allocated",
-      "description": "",
-      "id": 40,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 84
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_memory_bytes{kind=\"allocated\"}",
-          "legendFormat": "allocated"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "orientation": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "GPU Utilization \u2014 device / renderer / tiler",
-      "description": "IOAccelerator PerformanceStatistics. 'device' is overall busy time; 'renderer' and 'tiler' are the two halves of Apple's tile-based pipeline. Apple exposes no per-process GPU split without sudo.",
-      "id": 41,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 88
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_utilization_ratio * 100",
-          "legendFormat": "{{engine}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "gradientMode": "opacity",
-            "spanNulls": false,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisPlacement": "auto"
-          },
-          "min": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "GPU Memory",
-      "description": "Apple GPUs share system memory, so this is a slice of RAM, not dedicated VRAM. 'allocated' is reserved, 'in use' is live.",
-      "id": 42,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 88
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "macos_gpu_memory_bytes",
-          "legendFormat": "{{kind}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "linear",

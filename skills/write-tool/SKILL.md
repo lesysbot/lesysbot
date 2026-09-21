@@ -111,7 +111,6 @@ Helper edits hot-reload too.
 name: gpu-temp
 description: Read NVIDIA GPU temperature
 version: "1.0.0"          # optional; shown by `lesysbot list/info`
-platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
 # gpu-temp

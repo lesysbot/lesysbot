@@ -64,7 +64,7 @@ tools/             bundled tool packages (the seeded catalog)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
 scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config
-monitoring/        the Prometheus + Grafana stack `lesysbot setup` seeds
+dashboard/         the Prometheus + Grafana stack `lesysbot setup` seeds
 docs/              user & contributor guides
 ```
 

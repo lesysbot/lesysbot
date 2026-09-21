@@ -11,7 +11,7 @@ Everything here works the same in CLI, Telegram, and Discord.
 
 ```bash
 lesysbot chat     # force a terminal chat (works even if config says telegram/discord)
-lesysbot run                # the service: control panel + bot (what systemd/launchd runs)
+lesysbot run                # the service: control panel + bot (what systemd runs)
 lesysbot                    # health + metrics, then exits — NOT a chat, starts nothing
 ```
 

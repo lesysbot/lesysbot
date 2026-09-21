@@ -13,9 +13,10 @@
 #
 #   ...or just run ./scripts/start.sh (auto-detects the GPU).
 #
-# On LINUX use docker-compose.linux.yml instead — it runs everything on the host
-# network so it captures real host NICs (Ethernet/Wifi) and dodges the ufw block
-# that stops containers reaching a host port. See the README.
+# The GPU exporter is a container using the NVIDIA runtime, so it needs the
+# nvidia-container-toolkit. No toolkit? Drop the `--profile gpu` and instead run
+# the GPU exporter natively:  ./scripts/run-exporters.sh  (it starts only the GPU
+# one when node-exporter's port is already served).
 # Deliberately still `lesysbot-monitoring` after the monitoring → dashboard
 # rename: this is the Compose *project* name, and it is how `docker compose
 # down` finds containers it started. Renaming it would strand every already

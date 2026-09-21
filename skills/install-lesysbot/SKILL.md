@@ -1,6 +1,6 @@
 ---
 name: install-lesysbot
-description: Install LeSysBot from scratch on Linux, macOS, or Windows — the one-command installer (no prerequisites at all), a fully scripted unattended install driven by LESYSBOT_SETUP_* variables, the interactive wizard with every prompt explained, or a by-hand install from a clone. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
+description: Install LeSysBot from scratch on Linux — the one-command installer (no prerequisites at all), a fully scripted unattended install driven by LESYSBOT_SETUP_* variables, the interactive wizard with every prompt explained, or a by-hand install from a clone. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
 ---
 
 # Install LeSysBot
@@ -17,13 +17,7 @@ on LeSysBot itself.
 ## 1. Path A — the one-command installer (use this unless told otherwise)
 
 ```bash
-# Linux / macOS
 curl -fsSL https://lesysbot.github.io/install.sh | sh
-```
-
-```powershell
-# Windows
-irm https://lesysbot.github.io/install.ps1 | iex
 ```
 
 **There are no prerequisites.** The script finds a Python 3.11+ or fetches one
@@ -44,7 +38,7 @@ environment twin of each (a bare `curl … | sh` can't easily take arguments):
 
 | Flag | Env | Use when |
 |---|---|---|
-| `--skip-dashboard` | `LESYSBOT_SKIP_DASHBOARD=1` | Fastest install; skips Grafana/Prometheus (which needs Docker on Linux, Homebrew on macOS). |
+| `--skip-dashboard` | `LESYSBOT_SKIP_DASHBOARD=1` | Fastest install; skips Grafana/Prometheus (which needs Docker). |
 | `--skip-ollama` | `LESYSBOT_SKIP_OLLAMA=1` | A model runner already exists, or the backend is OpenAI. |
 | `--model NAME` | `LESYSBOT_MODEL` | A different model. |
 | `--no-modify-path` | `LESYSBOT_NO_MODIFY_PATH=1` | Never touch shell startup files (CI). |
@@ -54,8 +48,7 @@ environment twin of each (a bare `curl … | sh` can't easily take arguments):
 
 **The one thing it can't always finish:** on **Linux**, Ollama's own installer
 needs root, and LeSysBot never asks for a password. Unless already root or
-passwordless-sudo, the installer skips it and prints the two lines to run. macOS
-and Windows install Ollama without elevation, so there it is fully automatic.
+passwordless-sudo, the installer skips it and prints the two lines to run.
 `--with-ollama` forces the attempt and accepts the prompt.
 
 ## 2. Path B — scripted / unattended (no terminal at all)
@@ -136,10 +129,10 @@ The prompts, in order:
    the bot needs MESSAGE CONTENT INTENT enabled in the developer portal),
    `4) ← Back` (re-pick the LLM backend).
    The terminal always works regardless: `lesysbot chat`.
-4. **"Service"** — asked for **every** provider (systemd / launchd / Task
-   Scheduler), because the service also serves the always-on control panel:
-   `1) Start now and automatically after reboot` (default; "at login" on
-   Windows), `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
+4. **"Service"** — asked for **every** provider (a `systemd --user` unit),
+   because the service also serves the always-on control panel:
+   `1) Start now and automatically after reboot` (default), `2) Start now only`,
+   `3) ← Back` (re-pick how to reach LeSysBot).
    On the kept-config path this is a plain
    **"Start LeSysBot automatically after reboot?" `[Y/n]`** instead.
 5. **Summary menu** — `1) Apply these settings` (default; only now is
@@ -166,21 +159,13 @@ It also seeds **`~/.lesysbot/dashboard/`** (the Grafana/Prometheus dashboard) an
 sets it up — a standard part of LeSysBot. It first **asks for the Grafana username
 and password** LeSysBot should use (defaults `admin`/`admin`), saving them to
 **`~/.lesysbot/grafana.env`** (loaded into the bot's environment at startup, so
-`share_dashboard`/status authenticate automatically). Then, OS-specific and never
-fatal:
-- **Linux** — if Docker is running, it **asks** whether to auto-start the bundled
-  stack now or set it up manually; if Docker isn't ready it prints the exact
-  no-`sudo` steps to get it going (or run Grafana natively).
-- **macOS** — it does **not** require Docker Desktop. It **asks** whether to
-  install now, then runs `dashboard/scripts/install-macos.sh`: `brew install`
-  of `grafana`/`prometheus`/`node_exporter`, provisioning written, admin password
-  set, all three started under `brew services`. Without Homebrew it says so
-  (`https://brew.sh`) and falls back to the manual instructions.
-- **Windows** — it does **not** require Docker Desktop; it warns and
-  instructs a native Grafana install from `https://grafana.com/grafana/download`
-  and how to connect it (auto-detected on `localhost:3000`, else
-  `LESYSBOT_GRAFANA_URL`), mentioning the one-command Docker stack only as a
-  shortcut when Docker is already running.
+`share_dashboard`/status authenticate automatically). Then, never fatal: if
+Docker is running it **asks** whether to auto-start the bundled stack now or set
+it up manually; if Docker isn't ready it prints the exact no-`sudo` steps to get
+it going (install Docker Engine, start the daemon, join the `docker` group) — or
+points at a native Grafana install from `https://grafana.com/grafana/download`
+and how to connect it (auto-detected on `localhost:3000`, else
+`LESYSBOT_GRAFANA_URL`).
 
 Set `LESYSBOT_SKIP_DASHBOARD=1` to skip this step on an unattended install.
 

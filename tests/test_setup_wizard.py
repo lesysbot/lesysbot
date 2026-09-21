@@ -8,7 +8,6 @@ monkeypatching like the rest of the suite.
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -335,8 +334,7 @@ def _fake_stack(data_dir: Path) -> Path:
     mon = data_dir / "dashboard"
     (mon / "scripts").mkdir(parents=True)
     (mon / "scripts" / "start.sh").write_text("#!/usr/bin/env bash\n")
-    (mon / "scripts" / "start.ps1").write_text("")
-    (mon / "scripts" / "install-macos.sh").write_text("#!/usr/bin/env bash\n")
+    (mon / "scripts" / "run-exporters.sh").write_text("#!/usr/bin/env bash\n")
     return mon
 
 
@@ -380,20 +378,14 @@ def test_seed_dashboard_adds_new_files_and_refreshes_shipped_ones(tmp_path):
     (data / "dashboard" / ".env").write_text("GRAFANA_PORT=3005\n")
 
     # The upgrade adds a new script…
-    installer = repo / "dashboard" / "scripts" / "install-macos.sh"
+    installer = repo / "dashboard" / "scripts" / "run-exporters.sh"
     installer.write_text("#!/usr/bin/env bash\n")
     installer.chmod(0o755)
     assert apply_mod.seed_dashboard(repo, data) is True
-    seeded = data / "dashboard" / "scripts" / "install-macos.sh"
+    seeded = data / "dashboard" / "scripts" / "run-exporters.sh"
     assert seeded.exists()
-    # …executable, or bash can't run it. NTFS has no POSIX permission bits and
-    # os.chmod on Windows only toggles the read-only flag, so the `chmod(0o755)`
-    # above is a no-op there and copy2 has no bit to carry across — the property
-    # simply does not exist on that platform. Everything else this test pins
-    # (new files delivered, stale ones refreshed, idempotent once current) is
-    # platform-independent and still runs on Windows.
-    if sys.platform != "win32":
-        assert seeded.stat().st_mode & 0o111
+    # …executable, or bash can't run it.
+    assert seeded.stat().st_mode & 0o111
     # …and refreshes the stale one it already had.
     assert (data / "dashboard" / "scripts" / "start.sh").read_text() == "new upstream\n"
     assert apply_mod.seed_dashboard(repo, data) is False   # idempotent once current
@@ -425,15 +417,15 @@ def test_seed_dashboard_delivers_a_dashboard_fix(tmp_path):
     repo = tmp_path / "repo"
     dash = repo / "dashboard" / "grafana" / "dashboards"
     dash.mkdir(parents=True)
-    (dash / "system-overview-linux-macos.json").write_text('{"version": 2}')
+    (dash / "system-overview.json").write_text('{"version": 2}')
     (repo / "dashboard" / ".env.example").write_text("GRAFANA_PORT=3000\n")
     data = tmp_path / "home"
     old = data / "dashboard" / "grafana" / "dashboards"
     old.mkdir(parents=True)
-    (old / "system-overview-linux-macos.json").write_text('{"version": 1}')
+    (old / "system-overview.json").write_text('{"version": 1}')
 
     assert apply_mod.seed_dashboard(repo, data) is True
-    assert (old / "system-overview-linux-macos.json").read_text() == '{"version": 2}'
+    assert (old / "system-overview.json").read_text() == '{"version": 2}'
 
 
 def test_start_dashboard_env_skip(tmp_path, monkeypatch):
@@ -481,15 +473,11 @@ def _ran_script(runner, name: str) -> bool:
 
 
 def _ran_stack(runner) -> bool:
-    return _ran_script(runner, "start.sh") or _ran_script(runner, "start.ps1")
-
-
-def _ran_brew_install(runner) -> bool:
-    return _ran_script(runner, "install-macos.sh")
+    return _ran_script(runner, "start.sh")
 
 
 def _which(**found):
-    """A ``shutil.which`` stub: ``_which(brew=True)`` finds brew and nothing else."""
+    """A ``shutil.which`` stub: ``_which(docker=True)`` finds docker, nothing else."""
     return lambda name: f"/usr/local/bin/{name}" if found.get(name) else None
 
 
@@ -648,88 +636,6 @@ def test_start_dashboard_linux_daemon_down(tmp_path, monkeypatch):
     assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
     assert not _ran_stack(runner)
     assert _said(ui, "daemon isn't reachable")
-
-
-# ── macOS: install natively with Homebrew (no Docker Desktop) ─────────────────
-def test_start_dashboard_macos_brew_auto_install(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", _which(brew=True))
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_stack(tmp_path)
-    runner = DockerRunner(daemon_up=False)  # Docker is irrelevant on this path
-    ui = FakeUI([("menu", 1), *CREDS])      # way first, then the login
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is True
-    assert _ran_brew_install(runner)
-    assert not _ran_stack(runner)           # the Docker stack is never touched
-
-
-def test_start_dashboard_macos_brew_manual_choice(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", _which(brew=True))
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_stack(tmp_path)
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([("menu", 2), *CREDS])      # way first (manual), then the login
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
-    assert not _ran_brew_install(runner)    # nothing installed; just told how
-    assert _said(ui, "install-macos.sh")
-
-
-def test_start_dashboard_macos_brew_manual_mentions_docker_when_running(
-        tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", _which(brew=True, docker=True))
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_stack(tmp_path)
-    runner = DockerRunner(daemon_up=True)   # Docker running → offer it as an option
-    ui = FakeUI([("menu", 2), *CREDS])
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
-    assert _said(ui, "start.sh")            # the bundled-stack alternative
-
-
-def test_start_dashboard_macos_without_the_script_says_so(tmp_path, monkeypatch):
-    """A dashboard/ folder older than install-macos.sh must not look like a
-    failure of the automatic path — name the missing file and how to seed it."""
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", _which(brew=True))
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    mon = _fake_stack(tmp_path)
-    (mon / "scripts" / "install-macos.sh").unlink()
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([*CREDS])
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
-    assert not _ran_brew_install(runner)
-    assert _said(ui, "install-macos.sh")
-    assert _said(ui, "--repo")                    # how to seed it
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)  # and the manual route meanwhile
-
-
-def test_start_dashboard_macos_without_brew_instructs(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", _which())  # no brew, no docker
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_stack(tmp_path)
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([*CREDS])                   # no menu — there's nothing to automate
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
-    assert not _ran_brew_install(runner)
-    assert _said(ui, apply_mod.BREW_INSTALL)      # how to get the automatic path
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)  # how to install Grafana by hand
-    assert _said(ui, "LESYSBOT_GRAFANA_URL")      # how to connect it
-
-
-# ── Windows: warn + instruct native Grafana ───────────────────────────────────
-
-
-def test_start_dashboard_windows_instructs(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_DASHBOARD", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
-    monkeypatch.setattr(apply_mod.sys, "platform", "win32")
-    _fake_stack(tmp_path)
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([*CREDS])
-    assert apply_mod.start_dashboard(ui, tmp_path, runner=runner) is False
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)
 
 
 class Recorder:
@@ -1016,15 +922,14 @@ def test_skip_dashboard_flag_sets_the_env_var(tmp_path, monkeypatch):
 
 
 def test_skip_service_env_var_leaves_the_machine_alone(tmp_path, monkeypatch):
-    """LESYSBOT_HOME does not relocate the LaunchAgent/systemd unit, so without
-    this guard a scratch-home test would replace the real machine's service."""
+    """LESYSBOT_HOME does not relocate the systemd --user unit, so without this
+    guard a scratch-home test would replace the real machine's service."""
     monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("LESYSBOT_SKIP_SERVICE", "1")
     called = []
-    for name in ("setup_service_linux", "setup_service_macos", "setup_service_windows"):
-        monkeypatch.setattr(apply_mod, name,
-                            lambda *a, **k: called.append(name))
+    monkeypatch.setattr(apply_mod, "setup_service_linux",
+                        lambda *a, **k: called.append("setup_service_linux"))
 
     ui = FakeUI([])
     apply_mod.setup_service(ui, WizardState(), tmp_path)

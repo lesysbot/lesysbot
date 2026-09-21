@@ -1,6 +1,6 @@
 ---
 name: manage-dashboards
-description: Run LeSysBot's default Prometheus + Grafana "System Overview" stack that records CPU, memory, disk, network (Ethernet/Wifi), temperatures (CPU/disk/GPU/sensors) and NVIDIA GPU as time series on ready-made Grafana dashboards. Cross-platform (Linux/macOS/Windows), localhost-only, no sudo. Use when asked to "monitor my system", "see CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard", or "record hardware metrics over time".
+description: Run LeSysBot's default Prometheus + Grafana "System Overview" stack that records CPU, memory, disk, network (Ethernet/Wifi), temperatures (CPU/disk/GPU/sensors) and NVIDIA GPU as time series on a ready-made Grafana dashboard. Linux, localhost-only, no sudo. Use when asked to "monitor my system", "see CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard", or "record hardware metrics over time".
 ---
 
 # System Overview — Prometheus + Grafana
@@ -12,19 +12,11 @@ time series and shows them on a pre-built Grafana dashboard.
 
 `lesysbot setup` (run by the installer) seeds this stack into
 `~/.lesysbot/dashboard` and gets the user to a Grafana dashboard at
-**http://localhost:3000** — the mechanism is OS-specific:
-- **Linux** — if Docker is running, setup *asks* whether to auto-start the
-  bundled stack now or leave it for manual start; otherwise it prints the no-sudo
-  steps to get Docker ready.
-- **macOS** — setup does *not* require Docker Desktop; it asks whether to install
-  now and then runs `scripts/install-macos.sh`, which `brew install`s
-  `grafana`/`prometheus`/`node_exporter`, provisions the datasource + dashboard,
-  sets the admin password, and starts all three under `brew services`. Without
-  Homebrew it falls back to the native-Grafana instructions.
-- **Windows** — setup does *not* require Docker Desktop; it instructs a
-  **native Grafana install** from `https://grafana.com/grafana/download` and how
-  to connect it (auto-detected on `localhost:3000`, else `LESYSBOT_GRAFANA_URL`),
-  and mentions the Docker stack only as a shortcut when Docker is already running.
+**http://localhost:3000**: if Docker is running, setup *asks* whether to
+auto-start the bundled stack now or leave it for manual start; otherwise it
+prints the no-sudo steps to get Docker ready, or points at a **native Grafana
+install** from `https://grafana.com/grafana/download` and how to connect it
+(auto-detected on `localhost:3000`, else `LESYSBOT_GRAFANA_URL`).
 
 Use the steps below to start/stop the stack by hand, seed it on a box where the
 prerequisite arrived later, or reconfigure it. `LESYSBOT_SKIP_DASHBOARD=1`
@@ -37,27 +29,20 @@ Key properties to know before you start:
   exposes binds to **`127.0.0.1` only** (nothing on the LAN) and needs **no
   sudo**.
 - **Standard components only** — Prometheus, Grafana, `node_exporter`,
-  `windows_exporter`, `nvidia_gpu_exporter`. Nothing custom to trust.
-- **One prerequisite per OS** — Homebrew on macOS, Docker (Compose v2) on Linux
-  and Windows. Prometheus, Grafana and the exporters install and configure
-  themselves on first start.
+  `nvidia_gpu_exporter`. Nothing custom to trust.
+- **One prerequisite** — Docker (Compose v2). Prometheus, Grafana and the
+  exporters install and configure themselves on first start.
 
 ## Prerequisite
 
-**macOS — Homebrew.** `brew --version`; install from https://brew.sh if absent.
-Nothing else: no Docker Desktop.
-
-**Linux / Windows — Docker.**
+**Docker.**
 
 ```bash
 docker compose version      # need "v2.x"; if missing, install Docker first
 ```
 
-Install if absent:
-[Docker Engine](https://docs.docker.com/engine/install/) on Linux
-(`sudo usermod -aG docker $USER`, then re-login), or
-[Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) on
-Windows.
+Install if absent: [Docker Engine](https://docs.docker.com/engine/install/),
+then `sudo usermod -aG docker $USER` and re-login.
 
 **Get the files.** The stack lives in the repo's `dashboard/` folder. If the
 user installed LeSysBot with `pip` (no checkout), fetch it first:
@@ -69,120 +54,71 @@ git clone https://github.com/lesysbot/lesysbot && cd lesysbot/dashboard
 Run every command below from that `dashboard/` folder. It is self-contained —
 copying just that folder is enough.
 
-## Start it (one command per OS)
+## Start it
 
-Run from the repo's `dashboard/` folder.
+```bash
+./scripts/start.sh          # start   (auto-detects the NVIDIA GPU)
+./scripts/start.sh down     # stop
+```
 
-| OS | Start | Stop |
-|---|---|---|
-| **macOS** | `./scripts/install-macos.sh` | `./scripts/install-macos.sh down` |
-| **Linux** | `./scripts/start.sh` | `./scripts/start.sh down` |
-| **Windows** (PowerShell) | `.\scripts\start.ps1` | `.\scripts\start.ps1 down` |
+Then open **http://localhost:3000** (login `admin` / the password in `.env`).
+The dashboard is in the **LeSysBot** folder in Grafana.
 
-The scripts auto-detect the OS and the NVIDIA GPU and do the right thing. Then
-open **http://localhost:3000** (login `admin` / the password in `.env`). The
-dashboard is in the **LeSysBot** folder in Grafana.
+**What the start script does under the hood** (useful when debugging): runs
+Prometheus + Grafana + `node-exporter` all on the **host network**, bound to
+localhost (`docker compose up -d`). Host networking is required so
+`node_exporter` sees the real NICs and to avoid the `ufw`/firewall block on
+container→host traffic. **GPU is automatic:** `start.sh` adds `--profile gpu`
+(containerised exporter) when the Docker NVIDIA runtime is present, else falls
+back to a native GPU exporter (`run-exporters.sh`) — no
+nvidia-container-toolkit required either way; no GPU → skipped.
 
-On macOS the Docker stack (`./scripts/start.sh`) still works if the user prefers
-containers — but run one or the other, never both: they bind the same ports, and
-`install-macos.sh` refuses to start when it sees the containers running.
-
-**What the start scripts do under the hood** (useful when debugging):
-
-- **macOS (`install-macos.sh`)** — no Docker at all. `brew install`s the three
-  formulae, generates `dashboard/native/` (Prometheus scrape config on plain
-  `localhost`, Grafana provisioning with the datasource URL baked in, and a
-  dashboards folder holding only the macOS JSON), points
-  `$(brew --prefix)/etc/{prometheus,node_exporter}.args` at it, appends a marked
-  block to `grafana.ini` (`[paths] provisioning`, port, hardening), sets the
-  admin password with `grafana cli admin reset-admin-password`, and
-  `brew services restart`s all three. Re-running is safe and idempotent; ports
-  and the admin login come from `dashboard/.env`, same as the Docker stack.
-
-- **Linux** — runs Prometheus + Grafana + `node-exporter` all on the **host
-  network**, bound to localhost (`docker compose -f docker-compose.linux.yml up
-  -d`). Host networking is required so `node_exporter` sees the real NICs and to
-  avoid the `ufw`/firewall block on container→host traffic. **GPU is automatic:**
-  `start.sh` adds `--profile gpu` (containerised exporter) when the Docker NVIDIA
-  runtime is present, else falls back to a native GPU exporter
-  (`run-exporters.sh`) — no nvidia-container-toolkit required either way; no GPU
-  → skipped.
 ## What you get
 
-**One dashboard**, matching the OS you started — only that one is provisioned
-(the compose file mounts a single dashboard JSON), so a Linux box never shows an
-empty "System Overview — Windows":
-
-| Started on… | Dashboard | Exporter |
-|---|---|---|
-| Linux | **System Overview — Linux** | `node_exporter` |
-| macOS (`install-macos.sh` or Docker) | **System Overview — macOS (Apple Silicon \| Intel)** | `node_exporter` (+ `macos-metrics.py` natively) |
-| Windows | **System Overview — Windows** | `windows_exporter` |
+**One dashboard**: **System Overview — Linux**, fed by `node_exporter` (plus
+`nvidia_gpu_exporter` when an NVIDIA card is present).
 
 It covers: **CPU** (busy %, per-mode, load, cores) · **Memory** (used/cached,
-swap/commit) · **Disk** (used % per mount, read/write) · **Network** per
-interface (the interface name distinguishes Ethernet from Wifi) ·
-**Temperatures** · **GPU** (NVIDIA: util, memory, temp, power).
+swap) · **Disk** (used % per mount, read/write) · **Network** per interface (the
+interface name distinguishes Ethernet from Wifi) · **Temperatures** · **GPU**
+(NVIDIA: util, memory, temp, power).
 
-**Every start script generates its dashboard rather than copying one**, because a
-panel querying a metric the host can't produce looks identical to a broken panel.
-Each probes first, then calls `gen-dashboards.py --host H --have CAPS --out F`:
+**`start.sh` generates its dashboard rather than copying one**, because a panel
+querying a metric the host can't produce looks identical to a broken panel. It
+probes first, then calls `gen-dashboards.py --host linux --have CAPS --out F`:
 
-| OS | Probe | Capabilities it can pass |
-|---|---|---|
-| Linux (`start.sh`) | chip names in `/sys/class/hwmon/*/name`, `/sys/class/thermal/`, `nvidia-smi` | `cpu_temp`, `disk_temp`, `amd_gpu`, `thermal_zone`, `nvidia` |
-| macOS (`install-macos.sh`, `start.sh`) | `uname -m`, `nvidia-smi` | `intel`, `nvidia` |
-| Windows (`start.ps1`) | the **running** `windows_exporter`'s `/metrics`, `nvidia-smi`, `Win32_VideoController` | `thermalzone`, `nvidia` |
+| Probe | Capabilities it can pass |
+|---|---|
+| chip names in `/sys/class/hwmon/*/name`, `/sys/class/thermal/`, `nvidia-smi` | `cpu_temp`, `disk_temp`, `amd_gpu`, `thermal_zone`, `nvidia` |
 
 Key invariants when changing this:
 
 - **NVIDIA is keyed on `nvidia-smi`, never on the card.** `nvidia_gpu_exporter`
-  shells out to it, so a GPU with no driver can't be scraped by anything. Each
+  shells out to it, so a GPU with no driver can't be scraped by anything. The
   script detects the *hardware* separately only to explain the omission.
-- **Windows thermalzone must be probed live.** Whether it returns anything is a
-  firmware property, not an OS one, so no static rule is correct.
 - Unknown capabilities are a **usage error** in `gen-dashboards.py`, so a typo in
-  a start script fails loudly instead of dropping a row.
+  the start script fails loudly instead of dropping a row.
 - Generated files are `grafana/dashboards/generated-*.json` (git-ignored),
-  selected through `DASH_JSON` in both compose files. The committed portable
-  JSONs are the fallback when the host has no `python3` — each script warns when
-  it falls back. **A user reporting whole empty rows is usually on that
-  fallback.**
+  written into the `generated/` directory Grafana provisions. The committed
+  portable `system-overview.json` is the fallback when the host has no
+  `python3` — the script warns when it falls back. **A user reporting whole empty
+  rows is usually on that fallback**, which asks for every sensor family.
 
-### Temperature sensor coverage (per OS)
+### Temperature sensor coverage
 
 Only what the kernel exposes without sudo is shown:
 
-| Sensor | Linux | macOS | Windows |
-|---|---|---|---|
-| **GPU** (NVIDIA) | yes | no macOS driver since Mojave | yes |
-| **CPU** (package + cores) | yes (`coretemp`/`k10temp`) | needs a helper (see below) | only if ACPI reports it |
-| **Disk** (NVMe/SATA) | yes (`nvme`/`drivetemp`) | no | no |
-| **Battery** (laptops) | — | yes (`ioreg`) | — |
-| **CPU throttling** (not degrees) | — | Intel only (`node_thermal_cpu_*`) | — |
-| **ACPI / chipset / Wifi radio** | yes (thermal zones) | no | ACPI zone, often empty on desktops |
+| Sensor | Source |
+|---|---|
+| **CPU** (package + cores) | `coretemp` / `k10temp` / `cpu_thermal` hwmon chips |
+| **Disk** (NVMe/SATA) | `nvme` / `drivetemp` hwmon chips |
+| **GPU** (NVIDIA) | `nvidia_gpu_exporter` → `nvidia-smi` |
+| **GPU** (AMD) | `amdgpu` hwmon chip — no exporter needed |
+| **ACPI / chipset / Wifi radio** | `/sys/class/thermal` zones |
 
-- **Linux** is fullest. A SATA drive temp may need `sudo modprobe drivetemp`
-  once; NVMe needs nothing. Panels for sensors the hardware lacks stay empty.
-- **macOS** gets no temperature from `node_exporter` itself — no GPU support, and
-  its `thermal` collector reports CPU *throttling* rather than degrees, through
-  an Intel-only API. `scripts/macos-metrics.py` (installed and scheduled by
-  `install-macos.sh`, launchd every 15s, served via node_exporter's textfile
-  collector) supplies `macos_gpu_utilization_ratio`, `macos_gpu_memory_bytes` and
-  `macos_battery_temperature_celsius` from `ioreg`, with **no sudo and no extra
-  software**. CPU/GPU **die** temperature is not available unprivileged — the
-  collector picks it up only if `smctemp` or `macmon` is installed. The installer
-  now **offers** to install one (defaulting to no, and offering only `smctemp` on
-  Intel since `macmon` is arm64-only); `LESYSBOT_TEMP_HELPER=macmon|smctemp|none`
-  answers up front, and is what an unattended install uses. Until one exists
-  those two tiles stay empty and that is expected, not a fault. Debug with
-  `python3 scripts/macos-metrics.py --stdout` and
-  `./scripts/install-macos.sh status`, whose first three lines report chip,
-  NVIDIA and helper, then the sample's age — a stale textfile is served
-  indefinitely after the collector dies.
-- **Windows** shows ACPI thermal-zone temps when firmware provides them (laptops
-  usually, desktops rarely). Per-component CPU/disk temps need a helper like
-  LibreHardwareMonitor — not bundled.
+A SATA drive temp may need `sudo modprobe drivetemp` once; NVMe needs nothing.
+Panels for sensors the hardware lacks are left out of the generated cut, and
+stay empty on the portable fallback.
 
 ## Ports, credentials, configuration
 
@@ -206,11 +142,11 @@ The JSON under `grafana/dashboards/` is **generated** — edit
 consistent. Never hand-edit the JSON:
 
 ```bash
-python3 scripts/gen-dashboards.py                       # the committed, portable JSONs
-python3 scripts/gen-dashboards.py --host {linux|macos|windows} --have CAPS --out FILE
+python3 scripts/gen-dashboards.py                       # the committed, portable JSON
+python3 scripts/gen-dashboards.py --host linux --have CAPS --out FILE
 ```
 
-The second form is what the start scripts run; the per-host cuts are generated
+The second form is what the start script runs; the per-host cuts are generated
 rather than committed so one generator still covers every hardware combination.
 `tests/test_gen_dashboards.py` pins the inclusion/exclusion decisions per cut
 (and fails if the committed JSON goes stale — regenerate after touching the
@@ -237,7 +173,7 @@ the UI to experiment, then fold the change back into the generator.
   `GRAFANA_PORT` back, so the status screen and `share_dashboard` follow the move.
 - **Metrics missing despite an exporter running.** A firewall (`ufw`) blocks
   container→host; that's why the stack runs on the **host network**. Use
-  `./scripts/start.sh` (or plain `docker compose up -d` in `monitoring/`), never
+  `./scripts/start.sh` (or plain `docker compose up -d` in `dashboard/`), never
   a bridge network of your own.
 - **Grafana login fails after wrong tries.** Brute-force throttling returns 401
   for a few minutes. Wait, or `docker restart lesysbot-grafana`. Reset the

@@ -40,9 +40,8 @@ compose, Grafana provisioning) are refreshed when they differ, while `.env`
 (ports, Grafana login) and `prometheus/` (hand-added scrape targets) are seeded
 once and then never touched. The stack ships inside the package, so a plain
 re-run refreshes it — `--repo` is only needed when seeding from a checkout you
-are editing. Re-run the OS's start
-script afterwards (`dashboard/scripts/install-macos.sh` on macOS, `start.sh` on
-Linux) so the dashboard is regenerated with the new code.
+are editing. Re-run `dashboard/scripts/start.sh` afterwards so the dashboard is
+regenerated with the new code.
 
 **Or just reinstall the package** and restart the service yourself:
 

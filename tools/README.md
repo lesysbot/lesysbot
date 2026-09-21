@@ -16,26 +16,25 @@ See [docs/installing-tools.md](../docs/installing-tools.md).
 
 ## Catalog
 
-| Package        | Tools                                  | Runs on            | Needs                         |
-|----------------|----------------------------------------|--------------------|-------------------------------|
-| `system-info/` | `get_system_info`, `disk_usage`        | Linux/macOS/Win    | —                             |
-| `date-time/`   | `get_datetime`                         | Linux/macOS/Win    | —                             |
-| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | Linux/macOS/Win  | —                             |
-| `cpu-temp/`    | `cpu_temp`                             | Linux              | — (reads `/sys` sensors)      |
-| `gpu-temp/`    | `gpu_temp`                             | Linux, Windows     | `nvidia-smi` (NVIDIA driver)  |
-| `speedtest/`   | `speedtest`                            | Linux/macOS/Win    | —                             |
-| `web/`         | `fetch_url`                            | Linux/macOS/Win    | `httpx` (pip)                 |
-| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | Linux/macOS/Win | the [dashboard stack](../dashboard/README.md) running |
+| Package        | Tools                                  | Needs                         |
+|----------------|----------------------------------------|-------------------------------|
+| `system-info/` | `get_system_info`, `disk_usage`        | —                             |
+| `date-time/`   | `get_datetime`                         | —                             |
+| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | —                           |
+| `temperature/` | `temperature`                          | — (hwmon; `nvidia-smi` for NVIDIA) |
+| `network/`     | `dns_lookup`, `ping`, `traceroute`     | `nslookup`, `ping`, `traceroute` |
+| `speedtest/`   | `speedtest`                            | —                             |
+| `web/`         | `fetch_url`                            | `httpx` (pip)                 |
+| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | the [dashboard stack](../dashboard/README.md) running |
 
-A tool whose OS or required binary isn't satisfied still appears in `/help`, but
-calling it returns a one-line explanation instead of failing — so the catalog
+A tool whose required binary isn't on PATH still appears in `/help`, but calling
+it returns a one-line explanation instead of failing — so the "Needs" column
 above is a guide, not a hard wall.
 
-OS- and hardware-specific packages live in the official companion repo — one
-install covers every OS, each package carrying its per-OS variants:
+More packages live in the official companion repo:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, speedtest, dashboards
+lesysbot install lesysbot/lesysbot-packages-official   # battery, extra dashboards
 ```
 
 ## Package layout

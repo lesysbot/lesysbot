@@ -131,16 +131,6 @@ in their own directory:
 python -m site --user-scripts     # e.g. /home/you/.local/bin
 ```
 
-On Windows the PATH entry is set for your user account, so only *new* terminals
-see it. If you installed Python by hand, re-run its installer and tick **Add
-Python to PATH**.
-
-### PowerShell refuses to run the installer
-
-```powershell
-powershell -ExecutionPolicy Bypass -Command "irm https://lesysbot.github.io/install.ps1 | iex"
-```
-
 
 ### Edits to the code or a tool seem to do nothing
 
@@ -237,35 +227,30 @@ host can actually report, and leaves out panels nothing could fill. So an empty
 panel is meaningful — it means a reading you *should* be getting isn't arriving.
 Work through it in this order.
 
-**1. Are you on the dashboard built for this machine?** Its title names your
-platform — *System Overview — Linux*, *— macOS (Apple Silicon)*, *— Windows*. If
-it says **"Linux / macOS"** you're on the portable fallback, which carries every
-panel for every platform and therefore shows rows your hardware can never fill.
-You get that when the host has no `python3`, or when you started `docker compose`
-by hand. Re-run the start script — it warns when it falls back:
+**1. Are you on the dashboard built for this machine?** The host-specific cut is
+titled *System Overview — Linux*. If it says just **"System Overview"** you're on
+the portable fallback, which carries every sensor panel and therefore shows rows
+your hardware can never fill. You get that when the host has no `python3`, or
+when you started `docker compose` by hand. Re-run the start script — it warns
+when it falls back:
 
 ```bash
-./scripts/install-macos.sh      # macOS
-./scripts/start.sh              # Linux
-.\scripts\start.ps1             # Windows
+./scripts/start.sh
 ```
 
 **2. Is your install up to date?** A fix only reaches `~/.lesysbot/dashboard`
-when you re-run the wizard — `lesysbot setup`, or
-`lesysbot setup`. Then re-run the start script above so the
-dashboard is regenerated. Without that step you keep running the scripts from
-whenever you first installed.
+when you re-run the wizard — `lesysbot setup`. Then re-run the start script above
+so the dashboard is regenerated. Without that step you keep running the scripts
+from whenever you first installed.
 
 **3. Which panels?**
 
 | Empty panel | Meaning |
 |---|---|
-| **CPU / GPU Die Temperature** (macOS) | Expected without a helper. Apple publishes die temperature only through a private framework or root-only `powermetrics`, and LeSysBot never uses `sudo`. The installer offers to install one; you can also do it later with `brew install vladkens/tap/macmon` (Apple Silicon) or `brew install narugit/tap/smctemp` (either). It fills in within 15 s, nothing to reconfigure. |
-| **All macOS-specific panels** | The collector stopped. The **Collector Age** tile shows how stale the data is; `./scripts/install-macos.sh status` reports the same, and errors land in `dashboard/run/macos-metrics.log`. |
-| **No Temperatures row at all** (Linux) | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
-| **No Temperatures row** (Windows) | `windows_exporter` served no ACPI thermal zones — normal on desktops. Windows has no per-component CPU or disk sensor of its own; **LibreHardwareMonitor** is the usual answer. |
-| **GPU row** | The exporter isn't answering. GPU metrics need `nvidia-smi` on `PATH` — the exporter shells out to it, so a card with no driver can't be read. AMD GPUs on Linux report temperature through `hwmon` instead and need no exporter. |
-| **Everything, on every panel** | Grafana is up and Prometheus isn't. Check `http://localhost:9090/targets` (or your `PROM_PORT`); on macOS `./scripts/install-macos.sh status` says which service is down. |
+| **No Temperatures row at all** | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
+| **GPU row** | The exporter isn't answering. NVIDIA metrics need `nvidia-smi` on `PATH` — the exporter shells out to it, so a card with no driver can't be read. AMD GPUs report temperature through `hwmon` instead and need no exporter. |
+| **Disk Temperature** | No `nvme` or `drivetemp` hwmon chip. `drivetemp` often needs loading (`sudo modprobe drivetemp`); some drives expose nothing at all. |
+| **Everything, on every panel** | Grafana is up and Prometheus isn't. Check `http://localhost:9090/targets` (or your `PROM_PORT`). |
 
 ---
 

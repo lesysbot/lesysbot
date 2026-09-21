@@ -53,3 +53,24 @@ def linux_command(tool_name: str, command: str | dict[str, str]) -> str:
         "(Linux only) — pass the Linux command as a plain string.",
     )
     return command.get("linux", "")
+
+
+def linux_requires(
+    tool_name: str, requires: list[str] | dict[str, list[str]] | None
+) -> list[str] | None:
+    """Take the Linux entry out of a legacy OS-keyed ``requires`` dict.
+
+    ``CLITool`` used to accept ``requires`` keyed by OS, for commands that are
+    the same tool under different binary names (``traceroute`` vs ``tracert``).
+    On Linux only the Linux list can ever apply, and a dict with no Linux key
+    means the tool needs nothing here — matching how the old code treated an
+    unmentioned OS.
+    """
+    if requires is None or isinstance(requires, list):
+        return requires
+    _warn_once(
+        f"tool '{tool_name}'",
+        "uses an OS-keyed requires dict, which LeSysBot no longer needs "
+        "(Linux only) — pass the Linux list as a plain list.",
+    )
+    return requires.get("linux")

@@ -11,13 +11,8 @@ The installer leaves a copy of itself in the install directory, so this needs no
 network and no clone:
 
 ```bash
-~/.local/share/lesysbot/install.sh --uninstall            # Linux/macOS
+~/.local/share/lesysbot/install.sh --uninstall            # remove the install
 ~/.local/share/lesysbot/install.sh --uninstall --purge    # …and delete ~/.lesysbot
-```
-
-```powershell
-& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall
-& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall -Purge
 ```
 
 It removes only what the installer created: the service, the `lesysbot` command,

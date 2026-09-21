@@ -87,19 +87,16 @@ def _list(ctx: CLIContext, _args) -> int:
 def _stack_script(ctx: CLIContext, action: str) -> int:
     """Run the stack's own start/stop script — the same one setup uses."""
     import subprocess
-    import sys
 
     from lesysbot.core.paths import dashboard_dir
 
     stack = dashboard_dir(ctx.settings.config_dir)
-    script = stack / "scripts" / ("start.ps1" if sys.platform == "win32" else "start.sh")
+    script = stack / "scripts" / "start.sh"
     if not script.is_file():
         return ctx.error(
             f"no dashboard stack at {stack} — run `lesysbot setup` to install it."
         )
-    cmd = (["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script)]
-           if sys.platform == "win32" else ["bash", str(script)])
-    return subprocess.run([*cmd, action], cwd=str(stack)).returncode
+    return subprocess.run(["bash", str(script), action], cwd=str(stack)).returncode
 
 
 def _start(ctx: CLIContext, _args) -> int:

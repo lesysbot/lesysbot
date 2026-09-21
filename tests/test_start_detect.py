@@ -2,9 +2,8 @@
 
 `start.sh` returns early when sourced rather than executed, so these drive its
 detection functions directly against a fixture `/sys` tree (`SYSFS_ROOT`) — no
-Docker, no root, nothing started. That also means they run on macOS and on Linux
-CI alike, which matters: the logic being tested is *Linux* behaviour that a Mac
-developer would otherwise never exercise.
+Docker, no root, nothing started. The fixture tree is also what lets them pin
+sensor combinations the developer's own machine doesn't have.
 
 What's worth pinning is the mapping from hwmon chip name to dashboard
 capability. Get it wrong in the permissive direction and a panel is provisioned
@@ -15,23 +14,17 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "dashboard" / "scripts" / "start.sh"
 
-# Windows is excluded deliberately, not because the harness is awkward there.
-# `start.sh` brings up the *Linux* Docker stack; Windows runs `start.ps1`
-# instead, so sourcing this under Git Bash would exercise a path that never runs
-# on a Windows machine. It would also fail on the paths alone: `bash` is on PATH
-# on the runners, so the which() guard below does not fire, and a Windows path
-# interpolated into a bash string has its separators eaten as escapes
-# (`D:\a\lesysbot\…` sources as `D:alesysbot…`).
+# `bash` is the one thing these need beyond the fixture tree: start.sh is a bash
+# script, and sourcing it is the whole technique.
 pytestmark = pytest.mark.skipif(
-    sys.platform == "win32" or shutil.which("bash") is None,
-    reason="drives a Linux-only shell script; needs a POSIX bash",
+    shutil.which("bash") is None,
+    reason="drives a shell script; needs bash",
 )
 
 
@@ -55,8 +48,7 @@ def _detect(sysfs: Path, virtual: bool = False, nvidia: bool = False) -> tuple[s
     """Source start.sh, run the Linux probe, return (caps, missing).
 
     `is_virtual` and the nvidia-smi lookup are the two things that depend on the
-    machine rather than on /sys, so they're overridden after sourcing — the same
-    shape as test_macos_metrics.py stubbing `_run`.
+    machine rather than on /sys, so they're overridden after sourcing.
     """
     script = f"""
       set -euo pipefail

@@ -71,7 +71,7 @@ my-dashboard/
 
 ```python
 def build(host, caps, ctx):
-    """host: linux|macos|windows. caps: {'nvidia', 'amd', 'apple'} — what's usable here."""
+    """host: always "linux". caps: {'nvidia', 'amd'} — what's usable here."""
     panels = [cpu_panel(), memory_panel()]
     if "nvidia" in caps:
         panels.append(nvidia_panel())      # only where a driver can answer
@@ -123,8 +123,7 @@ lesysbot install yourname/your-repo
 ```
 
 `generated/` is derived output, rewritten on every render — edit the package,
-never that. All three ways of running the stack (Docker on Linux, Docker Desktop
-on macOS/Windows, and the Docker-free Homebrew path on macOS) provision from
-that one directory, so an installed dashboard shows up however you run it.
+never that. The stack provisions from that one directory, so an installed
+dashboard shows up whether you start it with `start.sh` or `docker compose`.
 
 </details>

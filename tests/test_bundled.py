@@ -72,7 +72,7 @@ def test_generated_dashboards_are_excluded():
 
     root = REPO / "dashboard"
     assert not _keep(root / "grafana" / "dashboards" / "generated-linux.json", root)
-    assert _keep(root / "grafana" / "dashboards" / "system-overview-windows.json", root)
+    assert _keep(root / "grafana" / "dashboards" / "system-overview.json", root)
 
 
 # -- the content itself --------------------------------------------------------
@@ -84,7 +84,7 @@ def test_bundled_tools_are_loadable_packages():
 
     found = discover_packages(bundled_dir() / "tools", "tools")
     names = {p.name for p in found}
-    assert {"cpu-temp", "gpu-temp", "system-info"} <= names
+    assert {"temperature", "network", "system-info"} <= names
 
 
 def test_bundled_dashboards_are_recognised_as_dashboards():
@@ -99,5 +99,5 @@ def test_bundled_dashboards_are_recognised_as_dashboards():
 def test_the_stack_ships_its_start_scripts():
     stack = bundled_dir() / "dashboard"
     for rel in ("scripts/start.sh", "scripts/gen-dashboards.py",
-                "docker-compose.yml", "docker-compose.linux.yml"):
+                "docker-compose.yml"):
         assert (stack / rel).is_file(), rel

@@ -43,7 +43,7 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Tool missing from `/help` | File not in the tools dir, name starts with `_`, or an import error — check `lesysbot.log`. Also consider stale-install shadowing (above) and *which* tools dir is active (installed setup = `~/.lesysbot/tools/`, dev checkout = repo `tools/`). |
 | Tool listed but "⚠ unavailable here" | Deliberate gating: wrong OS for its `platforms`, or a `requires` binary not on PATH. Install the binary or run on a supported OS. |
 | `/tool` returns "disabled" | It was disabled — `lesysbot enable NAME`. It applies live (the bot watches `tool_state.json`). |
-| `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, add it (Windows: Python `Scripts\` dir). |
+| `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, then add it. |
 | Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Discord tokens. |
 | Control panel unreachable (`lesysbot` shows it offline) | The service isn't running — start it (see [manage-service](../manage-service/SKILL.md)); or serve it ad-hoc with `lesysbot manage`. |
 | Log: `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port and restart; the bot itself keeps running. |

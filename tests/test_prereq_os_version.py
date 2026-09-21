@@ -2,8 +2,8 @@
 
 The reason this exists separately from `os:` is that the OS name alone is not
 enough to know whether a package will work. Exporter metric names move between
-releases, and macOS 14 vs 26 is a bigger behavioural gap than Linux vs macOS for
-some dashboards.
+releases, so Ubuntu 22.04 vs 24.04 is a real behavioural gap for some
+dashboards even though the OS itself is a given.
 
 The load-bearing rule: **an undeterminable version passes.** A machine whose
 /etc/os-release we cannot read is a detection gap on our side, and turning that
@@ -22,7 +22,7 @@ from lesysbot.prereq import checks as checks_mod
 def version(monkeypatch):
     """Pin the reported OS version for the duration of a test."""
     def _set(value: str) -> None:
-        monkeypatch.setattr("lesysbot.mcp.platform.os_version", lambda: value)
+        monkeypatch.setattr("lesysbot.core.host.os_version", lambda: value)
     return _set
 
 
@@ -100,7 +100,7 @@ def test_non_numeric_version_components_do_not_raise(version):
 
 def test_linux_version_comes_from_os_release_not_the_kernel(tmp_path, monkeypatch):
     """A dashboard cares which Ubuntu this is, not which kernel."""
-    from lesysbot.mcp import platform as platform_mod
+    from lesysbot.core import host as platform_mod
 
     release = tmp_path / "os-release"
     release.write_text('NAME="Ubuntu"\nVERSION_ID="24.04"\nID=ubuntu\n')
@@ -116,7 +116,7 @@ def test_linux_version_comes_from_os_release_not_the_kernel(tmp_path, monkeypatc
 
 
 def test_a_missing_os_release_is_empty_not_an_error(monkeypatch):
-    from lesysbot.mcp import platform as platform_mod
+    from lesysbot.core import host as platform_mod
 
     def _raise(*_a, **_kw):
         raise OSError("nope")

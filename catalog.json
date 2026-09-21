@@ -16,10 +16,10 @@
       "id": "official",
       "name": "Official Packages",
       "kind": "tool",
-      "description": "The official collection — network, temperature, battery, speedtest tools and dashboards for every OS",
+      "description": "The official collection — network, temperature, battery and speedtest tools, plus dashboards",
       "source": "lesysbot/lesysbot-packages-official",
       "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
-      "platforms": ["linux", "macos", "windows"],
+      "platforms": ["linux"],
       "tags": ["network", "temperature", "battery", "speedtest", "official"],
       "official": true
     },
@@ -30,7 +30,7 @@
       "description": "Per-interface network throughput over time, adapted to this host's exporter",
       "source": "lesysbot/lesysbot-packages-official/dashboards/network-traffic",
       "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
-      "platforms": ["linux", "macos", "windows"],
+      "platforms": ["linux"],
       "tags": ["network", "grafana", "official"],
       "official": true
     },
@@ -41,7 +41,7 @@
       "description": "NVIDIA GPU utilization, memory, temperature and power draw",
       "source": "lesysbot/lesysbot-packages-official/dashboards/gpu-detail",
       "homepage": "https://github.com/lesysbot/lesysbot-packages-official",
-      "platforms": ["linux", "windows"],
+      "platforms": ["linux"],
       "tags": ["gpu", "nvidia", "grafana", "official"],
       "official": true
     }

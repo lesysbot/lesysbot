@@ -26,7 +26,7 @@ from lesysbot.prereq.report import Requirement, Result
 NET_TIMEOUT = 0.7
 CMD_TIMEOUT = 5.0
 
-_OS_LABELS = {"linux": "Linux", "macos": "macOS", "windows": "Windows"}
+_OS_LABELS = {"linux": "Linux"}
 
 # Well-known services a package may depend on, and where they usually listen.
 _SERVICE_PORTS = {
@@ -58,7 +58,7 @@ ANY_PLATFORM = {"all", "any", "*"}
 
 
 def check_os(req: Requirement) -> Result:
-    from lesysbot.mcp.platform import current_os
+    from lesysbot.core.host import current_os
 
     here = current_os()
     wanted = [p.strip().lower() for p in req.value.replace(",", " ").split() if p.strip()]
@@ -69,7 +69,7 @@ def check_os(req: Requirement) -> Result:
 
 
 def check_arch(req: Requirement) -> Result:
-    from lesysbot.mcp.platform import current_arch, normalize_arch
+    from lesysbot.core.host import current_arch, normalize_arch
 
     here = current_arch()
     want = normalize_arch(req.value)
@@ -102,14 +102,14 @@ def check_os_version(req: Requirement) -> Result:
     """Compare this machine's OS version against ``>=X.Y`` (or a bare ``X.Y``).
 
     Bare values mean *at least*, because that is what a manifest almost always
-    intends: a dashboard needing macOS 14 works on 15 too. Pinning an exact
-    release is rare enough to be worth spelling out as ``==``.
+    intends: a dashboard needing Ubuntu 24.04 works on 25.04 too. Pinning an
+    exact release is rare enough to be worth spelling out as ``==``.
 
     An undeterminable version **passes**. Refusing to install because we could
     not read /etc/os-release would turn a detection gap into a hard failure on
     the user's machine, which is the wrong way round.
     """
-    from lesysbot.mcp.platform import os_version
+    from lesysbot.core.host import os_version
 
     here = os_version()
     if not here:
@@ -160,12 +160,8 @@ _KNOWN_BINARY_FIXES = {
     "nvidia-smi": "install the NVIDIA driver — https://www.nvidia.com/download/index.aspx",
     "docker": "install Docker Engine — https://docs.docker.com/engine/install/",
     "ollama": "install Ollama — https://ollama.com/download",
-    "brew": "install Homebrew — https://brew.sh",
     "nslookup": "part of bind-utils / dnsutils",
-    "smctemp": "brew install smctemp   (a personal tap; needs Xcode CLT)",
-    "macmon": "brew install macmon     (Apple silicon only)",
-    "osx-cpu-temp": "brew install osx-cpu-temp",
-    "traceroute": "brew install traceroute (macOS) / part of inetutils (Linux)",
+    "traceroute": "part of inetutils (or the traceroute package)",
 }
 
 

@@ -60,15 +60,15 @@ def host_context() -> dict:
     """What a host-adaptive dashboard is allowed to branch on.
 
     ``arch`` and ``os_version`` are here because the right panels depend on more
-    than the OS name. The sharpest case is Apple Silicon: no unprivileged die
-    temperature exists there, so a temperature row that is correct on an Intel
-    Mac renders permanently blank on an M-series one — and ``host`` says
-    "macos" for both. Exporter metric names likewise move between OS releases.
+    than the OS name, which is now a constant. An arm64 board exposes its CPU
+    sensor as ``cpu_thermal`` where an x86_64 desktop uses ``coretemp``, so a
+    temperature row that is correct on one renders permanently blank on the
+    other. Exporter metric names likewise move between distro releases.
 
     ``os_version`` is "" when it can't be determined; a dashboard must treat
     that as "unknown", never as "old".
     """
-    from lesysbot.mcp.platform import current_arch, current_os, os_version
+    from lesysbot.core.host import current_arch, current_os, os_version
     from lesysbot.prereq import gpu
 
     caps = {info.vendor for info in gpu.detect_all() if info.usable}

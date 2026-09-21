@@ -47,14 +47,6 @@ stay with you. No account, no cloud service, nothing to sign up for.
 curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-<details>
-<summary><b>Windows</b></summary>
-
-```powershell
-irm https://lesysbot.github.io/install.ps1 | iex
-```
-</details>
-
 That gets a Python, installs Ollama and pulls a model, sets everything up and
 starts the background service. It needs no Python, no pipx, no git and no
 password — and it never prompts, so it is safe to run from a script. Your
