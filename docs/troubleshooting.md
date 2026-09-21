@@ -11,7 +11,7 @@ lesysbot            # status screen: is the model reachable? is the service up?
 ```
 
 ```bash
-lesysbot --provider cli -v      # same chat, but with the log on screen
+lesysbot chat -v      # same chat, but with the log on screen
 ```
 
 The status screen answers most "why isn't it working" questions in one look.
@@ -97,9 +97,9 @@ failing cryptically. Install the missing program (here, your distro's
 'traceroute' is disabled.
 ```
 
-Turn it back on: `lesysbot tools enable traceroute`.
+Turn it back on: `lesysbot enable gpu_temp`.
 
-### `lesysbot tools install` fails
+### `lesysbot install` fails
 
 | Message | What to do |
 |---|---|
@@ -114,19 +114,33 @@ Turn it back on: `lesysbot tools enable traceroute`.
 
 ### `lesysbot: command not found`
 
-pip put the command somewhere that isn't on your `PATH`:
+Almost always the shell you're in was started before the command existed. Open a
+new terminal, or:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The installer puts the command in `~/.local/bin` and adds that directory to your
+`~/.profile`, `~/.bashrc` and `~/.zshenv`. If it still isn't found there, either
+the installer ran with `--no-modify-path` (or `LESYSBOT_NO_MODIFY_PATH`) and
+added nothing, or you installed some other way — `pipx` and `pip --user` put it
+in their own directory:
 
 ```bash
 python -m site --user-scripts     # e.g. /home/you/.local/bin
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
 ```
 
-### `bash: scripts/install.sh: Permission denied`
+On Windows the PATH entry is set for your user account, so only *new* terminals
+see it. If you installed Python by hand, re-run its installer and tick **Add
+Python to PATH**.
 
-```bash
-chmod +x scripts/install.sh scripts/uninstall.sh
+### PowerShell refuses to run the installer
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://lesysbot.github.io/install.ps1 | iex"
 ```
+
 
 ### Edits to the code or a tool seem to do nothing
 
@@ -167,7 +181,7 @@ that holds it. Stop the service first:
 systemctl --user stop lesysbot
 ```
 
-A terminal chat (`lesysbot --provider cli`) doesn't poll, so it always runs fine
+A terminal chat (`lesysbot chat`) doesn't poll, so it always runs fine
 alongside the service.
 
 ### Config changes don't take effect
@@ -203,18 +217,55 @@ Full setup for both: [Telegram & Discord](adapters.md).
 
 ---
 
-## Control panel and monitoring
+## Control panel and dashboards
 
 | Symptom | Fix |
 |---|---|
-| `lesysbot` prints status when you wanted a chat | Use `lesysbot --provider cli`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
-| The panel says **offline** | The service isn't running — start it with `systemctl --user start lesysbot`. To use it without a service: `lesysbot manage`. |
-| The log says `Control panel not started — port … already in use` | Something else owns `webui.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
-| The UI port is taken | `lesysbot manage --port 9000`, or change `webui.port`. |
+| `lesysbot` prints status when you wanted a chat | Use `lesysbot chat`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
+| The panel says **offline** | The service isn't running — start it (`systemctl --user start lesysbot`, `launchctl start com.lesysbot.lesysbot`, `Start-ScheduledTask -TaskName 'LeSysBot'`). To use it without a service: `lesysbot manage`. |
+| The log says `Control panel not started — port … already in use` | Something else owns `management.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
+| The UI port is taken | `lesysbot manage --port 9000`, or change `management.port`. |
 | The UI isn't reachable from another machine | Correct — it binds `127.0.0.1` only, deliberately, and rejects non-localhost `Host` headers. Use SSH port forwarding if you need remote access. |
-| Grafana shows empty panels | The exporters need a minute of data. If it stays empty, check `docker compose ps` in `monitoring/`. |
-| "share me the dashboard" fails | The [monitoring stack](../monitoring/README.md) has to be running. LeSysBot finds Grafana itself (the `GRAFANA_PORT` from `monitoring/.env`, then `localhost:3000`/`3001`); set `LESYSBOT_GRAFANA_URL` only if it runs on another host. |
-| The status screen shows Grafana on the wrong port | It probes `GRAFANA_PORT` from `~/.lesysbot/monitoring/.env` first and verifies each candidate answers as Grafana, so a stack moved to 3001 is reported there. If you pinned `LESYSBOT_GRAFANA_URL` in `~/.lesysbot/grafana.env` to a port Grafana left, clear or correct that line — an unreachable pin is reported as "not answering", not as a link. |
+| Grafana shows empty panels | Give the exporters a minute of data first. If it stays empty, see [A few dashboard panels are empty](#a-few-dashboard-panels-are-empty) below. |
+| "share me the dashboard" fails | The [dashboard stack](../dashboard/README.md) has to be running. LeSysBot finds Grafana itself (the `GRAFANA_PORT` from `dashboard/.env`, then `localhost:3000`/`3001`); set `LESYSBOT_GRAFANA_URL` only if it runs on another host. |
+| The status screen shows Grafana on the wrong port | It probes `GRAFANA_PORT` from `~/.lesysbot/dashboard/.env` first and verifies each candidate answers as Grafana, so a stack moved to 3001 is reported there. If you pinned `LESYSBOT_GRAFANA_URL` in `~/.lesysbot/grafana.env` to a port Grafana left, clear or correct that line — an unreachable pin is reported as "not answering", not as a link. |
+
+### A few dashboard panels are empty
+
+The dashboard is **built for your machine**: each start script checks what the
+host can actually report, and leaves out panels nothing could fill. So an empty
+panel is meaningful — it means a reading you *should* be getting isn't arriving.
+Work through it in this order.
+
+**1. Are you on the dashboard built for this machine?** Its title names your
+platform — *System Overview — Linux*, *— macOS (Apple Silicon)*, *— Windows*. If
+it says **"Linux / macOS"** you're on the portable fallback, which carries every
+panel for every platform and therefore shows rows your hardware can never fill.
+You get that when the host has no `python3`, or when you started `docker compose`
+by hand. Re-run the start script — it warns when it falls back:
+
+```bash
+./scripts/install-macos.sh      # macOS
+./scripts/start.sh              # Linux
+.\scripts\start.ps1             # Windows
+```
+
+**2. Is your install up to date?** A fix only reaches `~/.lesysbot/dashboard`
+when you re-run the wizard — `lesysbot setup`, or
+`lesysbot setup`. Then re-run the start script above so the
+dashboard is regenerated. Without that step you keep running the scripts from
+whenever you first installed.
+
+**3. Which panels?**
+
+| Empty panel | Meaning |
+|---|---|
+| **CPU / GPU Die Temperature** (macOS) | Expected without a helper. Apple publishes die temperature only through a private framework or root-only `powermetrics`, and LeSysBot never uses `sudo`. The installer offers to install one; you can also do it later with `brew install vladkens/tap/macmon` (Apple Silicon) or `brew install narugit/tap/smctemp` (either). It fills in within 15 s, nothing to reconfigure. |
+| **All macOS-specific panels** | The collector stopped. The **Collector Age** tile shows how stale the data is; `./scripts/install-macos.sh status` reports the same, and errors land in `dashboard/run/macos-metrics.log`. |
+| **No Temperatures row at all** (Linux) | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
+| **No Temperatures row** (Windows) | `windows_exporter` served no ACPI thermal zones — normal on desktops. Windows has no per-component CPU or disk sensor of its own; **LibreHardwareMonitor** is the usual answer. |
+| **GPU row** | The exporter isn't answering. GPU metrics need `nvidia-smi` on `PATH` — the exporter shells out to it, so a card with no driver can't be read. AMD GPUs on Linux report temperature through `hwmon` instead and need no exporter. |
+| **Everything, on every panel** | Grafana is up and Prometheus isn't. Check `http://localhost:9090/targets` (or your `PROM_PORT`); on macOS `./scripts/install-macos.sh status` says which service is down. |
 
 ---
 
@@ -253,7 +304,7 @@ was ever shared.
 <summary><b>Turning up the detail</b></summary>
 
 ```bash
-lesysbot --provider cli -v          # DEBUG on screen for one session
+lesysbot chat -v          # DEBUG on screen for one session
 ```
 
 Or permanently, in `~/.lesysbot/config.yaml`:

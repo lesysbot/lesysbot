@@ -1,13 +1,13 @@
 ---
 name: verify
-description: How to run and drive LeSysBot end-to-end in an isolated scratch environment — the interactive CLI and the `lesysbot tools` subcommands — without touching the user's real ~/.lesysbot or the installed Telegram service.
+description: How to run and drive LeSysBot end-to-end in an isolated scratch environment — the interactive CLI and the `lesysbot` management subcommands — without touching the user's real ~/.lesysbot or the installed Telegram service.
 ---
 
 # Verifying LeSysBot changes
 
 ## Gotcha first: stale-install shadowing
 
-The install wizard (`scripts/install.sh`) does a **non-editable** `pip install`,
+A plain `pip install .` is **non-editable**,
 which shadows this repo for any run outside the repo directory (`lesysbot` then
 uses the old site-packages copy — new subcommands/flags "don't exist").
 Always check and fix before verifying:
@@ -34,8 +34,8 @@ State then lands in `$S/tool_state.json`, `$S/tools.lock.json`, `$S/logs/`.
 
 ## Driving the surfaces
 
-**Subcommand CLI** (`lesysbot tools …`) — just run it from `$S`.
-The y/N confirmation reads stdin, so `echo n | lesysbot tools remove X` exercises
+**Subcommand CLI** (`lesysbot install|list|enable|remove|…`) — just run it from `$S`.
+The y/N confirmation reads stdin, so `echo n | lesysbot remove X` exercises
 the abort path and `-y` skips it.
 
 **Interactive bot** — the CLI adapter exits on stdin EOF, so hold stdin open

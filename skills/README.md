@@ -32,7 +32,7 @@ skills and it works standalone:
 | "connect telegram", "set up discord", "message it from my phone" | [setup-messaging](setup-messaging/SKILL.md) |
 | "install/disable/remove a tool", "list my tools" | [manage-tools](manage-tools/SKILL.md) |
 | "restart the bot", "is it running", "start on boot", "show the logs" | [manage-service](manage-service/SKILL.md) |
-| "monitor my system", "CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard" | [monitor-system](monitor-system/SKILL.md) |
+| "monitor my system", "CPU/GPU/temperature graphs", "set up Grafana/Prometheus", "system dashboard" | [manage-dashboards](manage-dashboards/SKILL.md) |
 | "it's broken", "not responding", "my tool doesn't show up" | [troubleshoot-lesysbot](troubleshoot-lesysbot/SKILL.md) |
 | "write a tool", "make lesysbot able to X", "publish my tool" | [write-tool](write-tool/SKILL.md) |
 | "fix a bug", "add an adapter", "run the tests", "contribute" | [develop-lesysbot](develop-lesysbot/SKILL.md) |
@@ -42,7 +42,7 @@ skills and it works standalone:
 - **End users** (own a machine running LeSysBot): install-lesysbot,
   update-lesysbot, uninstall-lesysbot, use-lesysbot, configure-lesysbot,
   switch-llm-backend, setup-messaging, manage-tools, manage-service,
-  monitor-system, troubleshoot-lesysbot.
+  manage-dashboards, troubleshoot-lesysbot.
 - **Tool authors** (extend LeSysBot without touching its code): write-tool,
   plus manage-tools for the install/share round-trip.
 - **Repo maintainers / contributors**: develop-lesysbot, plus
@@ -54,7 +54,7 @@ These skills are distilled from the repo's `docs/` and `CLAUDE.md` and are
 intended to stay in sync with them: **when a behaviour change updates a doc
 page, update the matching skill too** (the mapping mirrors the docs — e.g.
 `docs/configuration.md` ↔ configure-lesysbot, `docs/service.md` ↔
-manage-service, `monitoring/README.md` ↔ monitor-system). Where a skill and the
+manage-service, `dashboard/README.md` ↔ manage-dashboards). Where a skill and the
 code disagree, the code is right — and the skill needs a fix.
 
 Two facts worth knowing before any task:

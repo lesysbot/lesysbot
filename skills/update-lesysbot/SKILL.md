@@ -24,13 +24,25 @@ nothing in `~/.lesysbot` depends on the old checkout.)
 **Re-run the wizard** (simplest; handles the service for you):
 
 ```bash
-bash scripts/install.sh
+curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-At *"~/.lesysbot/config.yaml already exists — overwrite?"* answer **`n`** to keep
-current settings. The wizard reinstalls the package and **stops, replaces, and
-restarts** any existing background service, so the new code is live when it
-finishes. An existing `~/.lesysbot/tools` is never clobbered.
+Re-running the installer **is** the upgrade path. It reinstalls the package into
+the same environment (`--force-reinstall`, because the version string doesn't
+move between releases), keeps your existing `config.yaml` without asking, and
+**stops, replaces, and restarts** the background service so the new code is live
+when it finishes. An existing `~/.lesysbot/tools` is never clobbered. Pass
+`--reconfigure` to `lesysbot setup --yes` if you *do* want the config replaced.
+
+`~/.lesysbot/dashboard` **is** brought up to date, because that is how a fix to
+the stack reaches an existing install: shipped files (scripts, dashboards,
+compose, Grafana provisioning) are refreshed when they differ, while `.env`
+(ports, Grafana login) and `prometheus/` (hand-added scrape targets) are seeded
+once and then never touched. The stack ships inside the package, so a plain
+re-run refreshes it — `--repo` is only needed when seeding from a checkout you
+are editing. Re-run the OS's start
+script afterwards (`dashboard/scripts/install-macos.sh` on macOS, `start.sh` on
+Linux) so the dashboard is regenerated with the new code.
 
 **Or just reinstall the package** and restart the service yourself:
 
@@ -66,8 +78,8 @@ Tool packages installed from GitHub are updated by re-installing — a package
 already owned by the lock file (`tools.lock.json`) is replaced in place:
 
 ```bash
-lesysbot tools list                        # origin column shows repo@commit
-lesysbot tools install owner/repo          # re-fetch HEAD (or @tag to pin)
+lesysbot list                        # origin column shows repo@commit
+lesysbot install owner/repo          # re-fetch HEAD (or @tag to pin)
 ```
 
 A running bot with hot-reload picks the new files up immediately; otherwise

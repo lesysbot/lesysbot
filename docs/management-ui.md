@@ -53,7 +53,7 @@ lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 ```
 
 > **Looking for a chat?** None of these are a conversation. Use
-> `lesysbot --provider cli` to chat in your terminal.
+> `lesysbot chat` to chat in your terminal.
 
 ---
 
@@ -62,7 +62,7 @@ lesysbot manage --port 9000 # a different port, e.g. for a second checkout
 **Status** — whether your model backend is reachable and how fast it answers,
 which provider and model are active, how many tools are on, whether the
 background bot service is running, a link to your
-[Grafana dashboard](../monitoring/README.md) if the monitoring stack is up, and
+[Grafana dashboard](../dashboard/README.md) if the dashboard stack is up, and
 where your config and tools actually live.
 
 **Tools** — every tool with its current state:

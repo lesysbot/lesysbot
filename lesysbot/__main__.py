@@ -70,12 +70,12 @@ def _start_ui(settings: Settings, registry):
     port (almost always a second copy already serving) is logged and the bot
     carries on.
     """
-    from lesysbot.webui.server import serve_background
+    from lesysbot.management.server import serve_background
 
     ui = serve_background(settings, registry=registry)
     if ui is None:
         logging.getLogger(__name__).warning(
-            "Control panel not started — port %d is already in use.", settings.webui.port
+            "Control panel not started — port %d is already in use.", settings.management.port
         )
     else:
         # The log line is for the service journal; the banner is for a human who
@@ -110,7 +110,7 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
         )
         if sys.stdout.isatty():
             print("  Provider is 'cli' — no remote chat to serve.\n"
-                  "  Chat in this terminal with:  lesysbot --provider cli\n")
+                  "  Chat in this terminal with:  lesysbot chat\n")
         try:
             await _idle()
         finally:
@@ -203,13 +203,25 @@ def build_parser() -> argparse.ArgumentParser:
     # Subcommands. Bare `lesysbot` prints status and exits; the background
     # service runs `lesysbot run` (bot + always-on control panel);
     # `lesysbot --provider …` runs the bot in the foreground.
-    from lesysbot.mcp.cli import register_subcommands
-    from lesysbot.setup.cli import register_subcommand as register_setup
+    from lesysbot.cli import register_all
 
-    subparsers = parser.add_subparsers(dest="command", metavar="{run,manage,tools,setup}")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        metavar="{chat,install,search,list,doctor,dashboard,run,manage,setup}",
+    )
     # Re-add -c on each leaf (SUPPRESS default) so a root-level -c isn't clobbered
-    # and `lesysbot manage -c …` works regardless of flag order — same pattern as
-    # the `tools` subcommands.
+    # and `lesysbot manage -c …` works regardless of flag order — the same pattern
+    # every artifact verb uses.
+    chat = subparsers.add_parser(
+        "chat", help="Chat with LeSysBot in this terminal (the long form is --provider cli)"
+    )
+    chat.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
+    chat.add_argument("--model", default=argparse.SUPPRESS, help="Override LLM model name")
+    chat.add_argument("--base-url", default=argparse.SUPPRESS, help="Override LLM base URL")
+    # -v after the subcommand too: `lesysbot chat -v` is what anyone following a
+    # troubleshooting page will type, and argparse would otherwise reject it
+    # because -v is only on the root parser.
+    chat.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS)
     run = subparsers.add_parser(
         "run", help="Run the service: the control panel plus the bot (what the "
                     "background service uses)"
@@ -221,8 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     manage.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
     manage.add_argument("--port", type=int, default=None, help="Control panel port")
     manage.add_argument("--open", action="store_true", help="Open the control panel in a browser")
-    register_subcommands(subparsers)
-    register_setup(subparsers)
+    register_all(subparsers)
     return parser
 
 
@@ -279,7 +290,7 @@ def _print_status(settings: Settings) -> dict:
         service = f"[green]running[/green]{pid}"
     else:
         service = "[dim]stopped[/dim] — start it with " + _service_start_hint()
-    ui = st.get("webui") or {}
+    ui = st.get("panel") or {}
     if ui.get("running"):
         panel = f"[green]online[/green] · [link={ui['url']}]{ui['url']}[/link]"
     else:
@@ -305,9 +316,9 @@ def _print_status(settings: Settings) -> dict:
         # configured (LESYSBOT_GRAFANA_URL) but nothing answered there or on the
         # usual ports — don't offer it as a working link
         t.add_row("Grafana", f"[dim]not answering at {gf['url']} — "
-                             "start it with monitoring/scripts/start.sh[/dim]")
+                             "start it with dashboard/scripts/start.sh[/dim]")
     else:
-        t.add_row("Grafana", "[dim]not running — start it with monitoring/scripts/start.sh[/dim]")
+        t.add_row("Grafana", "[dim]not running — start it with dashboard/scripts/start.sh[/dim]")
     t.add_row("Config", st["config_path"] or "[dim](built-in defaults)[/dim]")
     from lesysbot.core.banner import banner
 
@@ -340,10 +351,10 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
     points at it (and opens it, with --open); it starts one itself when nothing
     is serving — a dev checkout, or while the service is stopped.
     """
-    from lesysbot.core.status import detect_webui
+    from lesysbot.core.status import detect_panel
 
     st = _print_status(settings)
-    ui = (st.get("webui") if port is None else detect_webui(settings, port)) or {}
+    ui = (st.get("panel") if port is None else detect_panel(settings, port)) or {}
     if ui.get("running"):
         print(f"  The control panel is already served by the LeSysBot service: {ui['url']}\n")
         if open_browser:
@@ -355,7 +366,7 @@ def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
                 pass
         return
 
-    from lesysbot.webui.server import serve
+    from lesysbot.management.server import serve
 
     serve(settings, registry=getattr(_print_status, "registry", None),
           port=port, open_browser=open_browser)
@@ -365,7 +376,8 @@ def _runs_the_bot(command, args) -> bool:
     """Does this invocation start a long-running process?
 
     `run` is the service (bot + control panel); an explicit `--provider` is the
-    foreground bot — most often `lesysbot --provider cli` for a terminal chat.
+    foreground bot. `lesysbot chat` reaches here as `--provider cli` (main()
+    normalizes it before this is called), which is the terminal chat.
     Everything else (bare `lesysbot`) is the read-only status view.
     """
     return command == "run" or bool(getattr(args, "provider", None))
@@ -375,14 +387,26 @@ def main() -> None:
     args = build_parser().parse_args()
 
     command = getattr(args, "command", None)
-    if command == "setup":
-        from lesysbot.setup.cli import run as run_setup
 
-        sys.exit(run_setup(args))
-    if command in ("tools", "tool"):
-        from lesysbot.mcp.cli import run as run_tool_cli
+    # `chat` is `--provider cli` under a name people remember. Setting the flag
+    # rather than adding a branch means every decision below it — settings
+    # loading, _runs_the_bot, the interactive-logging test, the singleton guard —
+    # keeps working without knowing the command exists.
+    if command == "chat":
+        if getattr(args, "provider", None) not in (None, "cli"):
+            build_parser().error(
+                "`lesysbot chat` is the terminal chat — drop --provider, or use "
+                f"`lesysbot --provider {args.provider}` instead."
+            )
+        args.provider = "cli"
 
-        sys.exit(run_tool_cli(args))
+    # Everything that manages LeSysBot rather than *being* LeSysBot — install,
+    # search, doctor, dashboard, setup — is handled by lesysbot.cli and exits
+    # before any bot setup runs.
+    from lesysbot.cli import dispatch, handles
+
+    if handles(command):
+        sys.exit(dispatch(args))
 
     # command is now one of: None (bare), "run", "manage".
     settings = _load_settings(args)
@@ -423,9 +447,10 @@ def main() -> None:
             print(
                 f"Another LeSysBot instance for this {settings.messaging.provider} "
                 f"configuration is already running{who} — most likely the background "
-                "service.\nStop it first (`systemctl --user stop lesysbot`), or use "
-                "`lesysbot --provider cli` for an interactive session, which runs "
-                "fine alongside the service.",
+                "service.\nStop it first (Linux: systemctl --user stop lesysbot; "
+                "macOS: launchctl stop com.lesysbot.lesysbot; Windows: Task Scheduler), "
+                "or use `lesysbot chat` for an interactive session, "
+                "which runs fine alongside the service.",
                 file=sys.stderr,
             )
             sys.exit(1)

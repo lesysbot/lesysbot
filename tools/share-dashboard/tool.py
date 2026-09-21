@@ -7,7 +7,7 @@ shares (Grafana's own snapshot registry is the source of truth; a local record
 keeps each raintank delete key so orphans stay deletable), with a sharing
 expiration of your choice.
 
-Needs the monitoring stack running (see ``monitoring/README.md``). Everything is
+Needs the dashboard stack running (see ``dashboard/README.md``). Everything is
 configured by environment variables, all optional:
 
   LESYSBOT_GRAFANA_URL       Grafana base URL           (default http://localhost:3000)
@@ -46,7 +46,7 @@ STEP_SEC = 30
 
 
 class _StackDown(Exception):
-    """Grafana (the monitoring stack) is unreachable."""
+    """Grafana (the dashboard stack) is unreachable."""
 
 
 # --------------------------------------------------------------------------- config
@@ -62,10 +62,10 @@ def _home() -> Path:
     return Path(os.environ.get("LESYSBOT_HOME", str(Path.home() / ".lesysbot")))
 
 
-def _monitoring_port():
+def _grafana_port():
     """GRAFANA_PORT from the bundled stack's .env — the one place the port is set."""
     try:
-        text = (_home() / "monitoring" / ".env").read_text(encoding="utf-8")
+        text = (_home() / "dashboard" / ".env").read_text(encoding="utf-8")
     except OSError:
         return None
     for line in text.splitlines():
@@ -76,7 +76,7 @@ def _monitoring_port():
 
 
 def _candidates() -> list:
-    ports = _PORTS if (p := _monitoring_port()) is None else [p, *_PORTS]
+    ports = _PORTS if (p := _grafana_port()) is None else [p, *_PORTS]
     return list(dict.fromkeys(f"http://{h}:{port}" for port in ports for h in _HOSTS))
 
 
@@ -419,8 +419,8 @@ async def share_dashboard(expiration: str = "1h") -> str:
     try:
         uid = cfg["uid"] or _pick_uid(cfg)
         if not uid:
-            return ("No LeSysBot dashboard found in Grafana. Is the monitoring stack "
-                    "running? Start it with ./scripts/start.sh (see monitoring/README.md).")
+            return ("No LeSysBot dashboard found in Grafana. Is the dashboard stack "
+                    "running? Start it with ./scripts/start.sh (see dashboard/README.md).")
         model = _grafana(cfg, f"/api/dashboards/uid/{uid}")["dashboard"]
         title = model.get("title", "System Overview")
         _bake(cfg, model)
@@ -434,7 +434,7 @@ async def share_dashboard(expiration: str = "1h") -> str:
     except _StackDown:
         where = f"Grafana at {cfg['grafana']}" if cfg["grafana_explicit"] else \
             "Grafana on the usual ports (" + ", ".join(_PORTS) + ")"
-        return (f"Can't reach {where}. Start the monitoring stack first "
+        return (f"Can't reach {where}. Start the dashboard stack first "
                 f"(./scripts/start.sh), or set LESYSBOT_GRAFANA_URL if Grafana runs elsewhere.")
     except urllib.error.HTTPError as e:
         return (f"Grafana rejected the snapshot request (HTTP {e.code}: {e.reason}). "
@@ -471,7 +471,7 @@ async def list_snapshots() -> str:
     if not items:
         return ("No dashboard snapshots in Grafana. Create one with /share_dashboard."
                 if gf_ok else
-                "Can't reach Grafana to list snapshots — is the monitoring stack up?")
+                "Can't reach Grafana to list snapshots — is the dashboard stack up?")
     header = ("Dashboard snapshots (from Grafana):" if gf_ok else
               "Grafana unreachable — showing locally tracked shares (may be stale):")
     lines = [header, ""]
@@ -492,7 +492,7 @@ async def delete_snapshot(which: str) -> str:
     items, gf_ok = _combined_snapshots(cfg)
     if not items:
         return ("No dashboard snapshots to delete." if gf_ok else
-                "Can't reach Grafana to delete snapshots. Start the monitoring stack first "
+                "Can't reach Grafana to delete snapshots. Start the dashboard stack first "
                 "(./scripts/start.sh).")
     sel = which.strip().lower()
     if sel == "all":

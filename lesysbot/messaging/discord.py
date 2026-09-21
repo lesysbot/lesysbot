@@ -388,7 +388,7 @@ class DiscordAdapter(MessagingAdapter):
         service that refused to start over a cosmetic API call would be worse.
 
         Synced once at startup, so tools added by hot reload (or toggled with
-        `lesysbot tools enable/disable`) reach the picker on the next restart —
+        `lesysbot enable/disable`) reach the picker on the next restart —
         they are callable as typed messages immediately either way. Re-syncing on
         every tools-dir change would burn Discord's command-update rate limit.
         """

@@ -9,28 +9,34 @@ These packages can also be installed straight from this repo, so instead of copy
 folders you can install them by name:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot/tools/temperature
+lesysbot install lesysbot/lesysbot/tools/gpu-temp
 ```
 
 See [docs/installing-tools.md](../docs/installing-tools.md).
 
 ## Catalog
 
-| Package        | Tools                                  | Needs                         |
-|----------------|----------------------------------------|-------------------------------|
-| `system-info/` | `get_system_info`, `disk_usage`        | —                             |
-| `date-time/`   | `get_datetime`                         | —                             |
-| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | —                           |
-| `temperature/` | `temperature`                          | — (`nvidia-smi` used if present) |
-| `network/`     | `ping`, `dns_lookup`, `traceroute`     | `ping`, `nslookup`, `traceroute` |
-| `speedtest/`   | `speedtest`                            | —                             |
-| `web/`         | `fetch_url`                            | `httpx` (pip)                 |
-| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | the [monitoring stack](../monitoring/README.md) running |
+| Package        | Tools                                  | Runs on            | Needs                         |
+|----------------|----------------------------------------|--------------------|-------------------------------|
+| `system-info/` | `get_system_info`, `disk_usage`        | Linux/macOS/Win    | —                             |
+| `date-time/`   | `get_datetime`                         | Linux/macOS/Win    | —                             |
+| `power/`       | `reboot`, `power_off`, `cancel_shutdown` | Linux/macOS/Win  | —                             |
+| `cpu-temp/`    | `cpu_temp`                             | Linux              | — (reads `/sys` sensors)      |
+| `gpu-temp/`    | `gpu_temp`                             | Linux, Windows     | `nvidia-smi` (NVIDIA driver)  |
+| `speedtest/`   | `speedtest`                            | Linux/macOS/Win    | —                             |
+| `web/`         | `fetch_url`                            | Linux/macOS/Win    | `httpx` (pip)                 |
+| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | Linux/macOS/Win | the [dashboard stack](../dashboard/README.md) running |
 
-A tool whose required binary isn't on PATH still appears in `/help`, but calling
-it returns a one-line explanation instead of failing — so the "Needs" column
-above is a guide, not a hard wall. `network/` gates **per tool**: a box without
-`traceroute` still gets working `ping` and `dns_lookup`.
+A tool whose OS or required binary isn't satisfied still appears in `/help`, but
+calling it returns a one-line explanation instead of failing — so the catalog
+above is a guide, not a hard wall.
+
+OS- and hardware-specific packages live in the official companion repo — one
+install covers every OS, each package carrying its per-OS variants:
+
+```bash
+lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, speedtest, dashboards
+```
 
 ## Package layout
 

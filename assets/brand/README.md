@@ -71,8 +71,8 @@ resampled.
 | Apple touch icon | `…/src/assets/apple-touch-icon.png` | `lesysbot-mark-256.png` |
 | Social preview | `…/src/assets/og-image.png` | `lesysbot-wordmark.png` |
 | Status screen | `lesysbot` / `lesysbot manage` | drawn live — see below |
-| Install splash | `scripts/install.sh` | `banner.txt` |
-| Uninstall header | `scripts/uninstall.sh` | `banner-small.txt` |
+| Uninstall splash | `scripts/uninstall.sh` | `banner-small.txt` |
+| Uninstall header | `scripts/uninstall.sh`, `scripts/uninstall.ps1` | `banner-small.txt` |
 
 **The site's copies are copies.** After regenerating, re-copy them:
 

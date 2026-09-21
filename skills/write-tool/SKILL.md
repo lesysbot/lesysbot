@@ -1,6 +1,6 @@
 ---
 name: write-tool
-description: Write a new LeSysBot tool — a self-contained folder package with @tool Python functions or CLITool shell wrappers, confirmation gating, requirement declarations, and helpers — and share it on GitHub so anyone can `lesysbot tools install` it. Use when asked to "add a tool", "write a tool", "make lesysbot able to <do X>", "create a /command", or "publish/share my tool".
+description: Write a new LeSysBot tool — a self-contained folder package with @tool Python functions or CLITool shell wrappers, confirmation gating, cross-platform declarations, and helpers — and share it on GitHub so anyone can `lesysbot install` it. Use when asked to "add a tool", "write a tool", "make lesysbot able to <do X>", "create a /command", or "publish/share my tool".
 ---
 
 # Write (and share) a LeSysBot tool
@@ -110,7 +110,8 @@ Helper edits hot-reload too.
 ---
 name: gpu-temp
 description: Read NVIDIA GPU temperature
-version: "1.0.0"          # optional; shown by `lesysbot tools list/info`
+version: "1.0.0"          # optional; shown by `lesysbot list/info`
+platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
 # gpu-temp
@@ -123,7 +124,7 @@ The decorator args are what's *enforced*; the frontmatter documents them.
 ## Verify
 
 1. `ruff check tools/` — lint.
-2. `lesysbot --provider cli`, then `/help` (listed? gated tools show
+2. `lesysbot chat`, then `/help` (listed? gated tools show
    "⚠ unavailable here") and `/<name> args` — runs without any LLM.
 3. Iterate freely: hot reload applies every save (watch
    `logs/lesysbot.log` for "Tool files changed — reloading...").
@@ -134,7 +135,7 @@ Any public repo containing the package shape is installable by anyone —
 nothing to register or publish:
 
 ```bash
-lesysbot tools install you/lesysbot-gpu-temp
+lesysbot install you/lesysbot-gpu-temp
 ```
 
 - **Single-tool repo:** the repo root *is* the package (README.md + tool.py +
@@ -149,9 +150,9 @@ lesysbot tools install you/lesysbot-gpu-temp
   Bump `version:` in the frontmatter with each release.
 
 Checklist before sharing: imports = stdlib + declared `requirements.txt` deps
-with `ImportError` handled; destructive actions have `confirm=`; `requires`
-declared for every program the tool shells out to; frontmatter filled in;
-tested via `lesysbot tools install you/repo@your-branch` or a local copy.
+with `ImportError` handled; destructive actions have `confirm=`;
+`platforms`/`requires` declared where not universal; frontmatter filled in;
+tested via `lesysbot install you/repo@your-branch` or a local copy.
 
 ## Related
 
