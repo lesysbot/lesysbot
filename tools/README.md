@@ -9,8 +9,13 @@ These packages can also be installed straight from this repo, so instead of copy
 folders you can install them by name:
 
 ```bash
-lesysbot install lesysbot/lesysbot/tools/gpu-temp
+lesysbot install lesysbot/lesysbot/tools/temperature   # one package
+lesysbot install lesysbot/lesysbot/tools               # all of them
 ```
+
+They already ship in the wheel and `lesysbot setup` seeds them, so this is for
+pulling a copy newer than your installed release rather than for getting them
+in the first place.
 
 See [docs/installing-tools.md](../docs/installing-tools.md).
 
@@ -31,10 +36,14 @@ A tool whose required binary isn't on PATH still appears in `/help`, but calling
 it returns a one-line explanation instead of failing — so the "Needs" column
 above is a guide, not a hard wall.
 
-More packages live in the official companion repo:
+There is no companion package repo. There used to be
+(`lesysbot-packages-official`), but going Linux-only folded its tools into the
+table above and its dashboards into [`dashboards/`](../dashboards/), leaving it
+a duplicate of what already ships — so it was retired rather than kept in sync.
+Dashboards install the same way:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official   # battery, extra dashboards
+lesysbot install lesysbot/lesysbot/dashboards/gpu-detail
 ```
 
 ## Package layout

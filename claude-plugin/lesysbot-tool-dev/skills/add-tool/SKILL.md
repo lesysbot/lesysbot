@@ -16,7 +16,7 @@ instance is registered and becomes both an LLM-callable function and a
 
 Pick by the repo you're in:
 
-- **Package-collection repo** (e.g. `lesysbot-packages-official`): each tool
+- **Package-collection repo** (several tools in one repo): each tool
   package is a subdirectory of the repo's `tools/` folder —
   `<repo>/tools/<tool-name>/` (dashboard packages go under `dashboards/`).
   Add a row to the catalog table in the repo's root `README.md` if it has one.

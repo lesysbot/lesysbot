@@ -238,8 +238,8 @@ Set `LESYSBOT_SKIP_DASHBOARD=1` before running setup to skip this step entirely
 the shipped scripts, dashboards and compose files in `~/.lesysbot/dashboard`
 whenever they've changed upstream, while leaving the two things you own alone
 forever: `.env` (ports, Grafana login) and `prometheus/` (any scrape targets you
-added). Re-run your OS's start script afterwards so the dashboard is rebuilt with
-the new code.
+added). Re-run `~/.lesysbot/dashboard/scripts/start.sh` afterwards so the dashboard is
+rebuilt with the new code.
 
 </details>
 
@@ -335,10 +335,14 @@ Day-to-day guide: **[Everyday use](usage.md)**.
 
 ## Give it more to do
 
-**Install the ready-made official collection** — one repo, every OS:
+**You already have the official collection.** It ships inside LeSysBot and
+`lesysbot setup` seeded it — network checks, temperature, speedtest, system info,
+power, web fetch, and the Grafana dashboards. `/help` lists the lot.
+
+To add more, point `lesysbot install` at any GitHub repo holding tool packages:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, dashboards
+lesysbot install acme/lesysbot-tools
 ```
 
 More in [Install tools](installing-tools.md).

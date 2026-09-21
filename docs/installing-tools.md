@@ -4,7 +4,7 @@ Any GitHub repo holding a tool package installs with one command. There's no
 registry to search and nothing to sign up for — the link *is* the package name.
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official
+lesysbot install acme/lesysbot-tools
 ```
 
 LeSysBot downloads the repo, shows you what it found — package names, versions,
@@ -15,18 +15,27 @@ running bot picks the new tools up straight away, no restart.
 
 ## The official collection
 
-One repo covers every OS — each package carries its per-OS variants, so there
-is nothing to match to your machine:
+The official packages are **already installed**. They ship inside LeSysBot and
+`lesysbot setup` seeds them into `~/.lesysbot/` — network (ping, DNS,
+traceroute), temperature, speedtest, system info, date/time, power, web fetch,
+dashboard sharing, plus the System Overview, Network Traffic and GPU Detail
+dashboards. There is nothing to fetch to get started.
+
+They live in the main repo, so installing one pulls the current copy from
+GitHub — useful when the repo is ahead of the release you have:
 
 ```bash
-lesysbot install lesysbot/lesysbot-packages-official
-# network (ping, DNS, traceroute), temperature, battery, speedtest,
-# plus the network-traffic and gpu-detail dashboards
+lesysbot install lesysbot/lesysbot/tools                        # every tool
+lesysbot install lesysbot/lesysbot/tools/temperature            # just one
+lesysbot install lesysbot/lesysbot/dashboards/gpu-detail        # a dashboard
 ```
 
-Packages that can't run on this machine are skipped and named with the reason
-(`battery` on a desktop with no battery, say); `--all` installs them anyway, and
-`--only NAME` picks out one package.
+Packages that can't run on this machine are skipped and named with the reason;
+`--all` installs them anyway, and `--only NAME` picks out one package.
+
+> Earlier releases pointed at a separate `lesysbot-packages-official` repo. Going
+> Linux-only folded its contents into the main repo and it was retired — if a
+> script of yours still installs from it, the three commands above replace it.
 
 ---
 

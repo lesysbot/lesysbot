@@ -155,11 +155,13 @@ async def hello(name: str) -> str:
 Save the file and it's live — usable as `/hello name=Ada` **and** by the model
 when you say "say hi to Ada". Guide: [Writing tools](docs/writing-tools.md).
 
-The ready-made official collection — one install, every OS:
+The official collection ships inside LeSysBot and `lesysbot setup` seeds it, so
+there is nothing to fetch first. To browse it, or to pull a copy newer than your
+release:
 
 ```bash
 lesysbot search                      # browse everything available
-lesysbot install official            # network, temperature, battery, speedtest + dashboards
+lesysbot install official            # re-fetch the bundled tools from the repo
 
 # …or straight from any GitHub link, for tools and dashboards alike
 lesysbot install owner/repo
