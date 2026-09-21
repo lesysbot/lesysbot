@@ -163,7 +163,7 @@ mv ~/.lesysbot/config.yaml ~/.lesysbot/config.yaml.bak && lesysbot setup  # rese
 rm ~/.lesysbot/tool_state.json                                             # turn every tool back on
 ```
 
-To remove everything, see [Uninstall](getting-started.md#uninstall).
+To remove everything, see [Uninstall](install.md#uninstall).
 
 ---
 

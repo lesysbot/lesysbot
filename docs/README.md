@@ -4,7 +4,8 @@ New here? Start with **[Getting started](getting-started.md)**.
 
 ## Start here
 
-- [Getting started](getting-started.md) — install, say hello, open the control panel
+- [Getting started](getting-started.md) — install, chat, open the control panel
+- [Install & uninstall](install.md) — installer options, other ways to install, upgrading
 - [Choosing a model](models.md) — which model fits your GPU
 
 ## Use it
