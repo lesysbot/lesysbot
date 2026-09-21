@@ -55,7 +55,7 @@ grep -i "tools loaded" "$S/bot.log"
 ```
 
 To drive slash commands instead of holding the session open, pipe them in:
-`printf '/help\n/cpu_temp\nexit\n' | lesysbot --provider cli`. Config values can
+`printf '/help\n/temperature\nexit\n' | lesysbot --provider cli`. Config values can
 be overridden from the environment with the `LESYSBOT_<SECTION>__<FIELD>`
 pattern (e.g. `LESYSBOT_MCP__HOT_RELOAD=false`).
 

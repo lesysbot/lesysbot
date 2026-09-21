@@ -82,15 +82,15 @@ lesysbot/            the package
 ├─ __main__.py       entry point: flags, logging, adapter wiring
 ├─ core/             Agent (the tool-calling loop), config, paths, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
-├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
+├─ mcp/              tool registry, @tool decorator, CLITool, requirement gating
 ├─ messaging/        CLI / Telegram / Discord adapters + the base interface
 └─ install/          `lesysbot tools install` — fetch tool packages from GitHub
 tools/             bundled tool packages (the catalog users get seeded with)
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
-scripts/           install/uninstall wizards (bash + PowerShell), exe build
+scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config
-packaging/         PyInstaller spec for the Windows .exe
+monitoring/        the Prometheus + Grafana stack `lesysbot setup` seeds
 ```
 
 The full walkthrough of how these interact is
@@ -106,13 +106,13 @@ fine for private local tools, but bundled tools are packages):
 
 ```
 tools/my-tool/
-├─ README.md          # frontmatter: name, description, platforms, requires
+├─ README.md          # frontmatter: name, description, requires
 └─ tool.py            # @tool functions and/or CLITool instances
 ```
 
 Follow [docs/writing-tools.md](docs/writing-tools.md) for everything that goes
 in `tool.py` — type hints (they become the LLM-facing schema), `confirm=` for
-anything destructive, `platforms=`/`requires=` when it isn't universal.
+anything destructive, `requires=` for every program it shells out to.
 
 **Step 2 — Test it live.** Run `lesysbot --provider cli`, then:
 
@@ -193,11 +193,11 @@ ruff check lesysbot/
 [CLAUDE.md](CLAUDE.md) for architecture changes, the relevant guide in
 `docs/` for behaviour changes.
 
-**A note on the install scripts:** `scripts/install.sh` and
-`scripts/install.ps1` are the same wizard twice and must stay in sync — change
-both. The PowerShell one can't run in CI, so verify it by careful inspection
-(and say so in the PR). In `install.sh`, mind `set -euo pipefail`: use
-`i=$((i+1))`, never `((i++))` (which aborts the script when the result is 0).
+**A note on the install scripts:** `scripts/install.sh` and `scripts/uninstall.sh` are
+bootstrap only — they check Python, pip-install, and hand off to
+`lesysbot setup`. Keep logic in the Python wizard, not in bash. Mind
+`set -euo pipefail`: use `i=$((i+1))`, never `((i++))` (which aborts the script
+when the result is 0). `shellcheck --severity=error` runs on them in CI.
 
 ---
 
@@ -227,8 +227,8 @@ editing:
 - **Don't number headings** on the user-facing pages (`getting-started`,
   `usage`, `configuration`, `writing-tools`, `installing-tools`, `service`,
   `management-ui`, `troubleshooting`) — make them the question the reader is
-  asking. The reference pages (`adapters`, `architecture`, `building-windows-exe`)
-  keep their numbering, and cross-links to them use those anchors.
+  asking. The reference pages (`adapters`, `architecture`) keep their
+  numbering, and cross-links to them use those anchors.
 - **Symptoms and fixes go in [troubleshooting.md](docs/troubleshooting.md)**,
   not in a per-page table. Link to it instead.
 - **Cross-link rather than repeat** — each fact should have exactly one home.
@@ -260,8 +260,8 @@ docs: explain trace file rotation
 ```
 
 **Step 3 — Push and open the PR.** Explain *what* and *why*, note anything you
-couldn't test automatically (PowerShell, a live platform), and link related
-issues. Small focused PRs get reviewed fastest.
+couldn't test automatically (a live Telegram/Discord bot, for instance), and
+link related issues. Small focused PRs get reviewed fastest.
 
 CI runs automatically on the PR. What has to be green before it can merge is
 [§9](#9-how-main-is-protected).
@@ -283,33 +283,32 @@ Nothing else blocks you — reviews are set to **0 required approvals**, so a
 maintainer can merge their own PR once CI is green.
 
 <details>
-<summary><b>Why one <code>CI OK</code> check instead of the twelve real ones</b></summary>
+<summary><b>Why one <code>CI OK</code> check instead of the five real ones</b></summary>
 
-`.github/workflows/ci.yml` produces twelve checks — nine from the
-`{ubuntu, macos, windows} × {3.11, 3.12, 3.13}` matrix, plus
-`Base install (no extras)`, `PowerShell script analysis` and
+`.github/workflows/ci.yml` produces five checks — three from the
+`{3.11, 3.12, 3.13}` matrix, plus `Base install (no extras)` and
 `Shell script analysis`.
 
 Requiring those by name is a trap: the moment the matrix changes — a dropped
 Python version, a renamed runner — the required check name never reports again,
 and **every open PR hangs on "Expected — waiting for status"** with no way out
 but an admin bypass. So the ruleset requires only `ci-ok`, an aggregation job
-that `needs:` all four:
+that `needs:` all three:
 
 ```yaml
   ci-ok:
     name: CI OK
     if: always()
-    needs: [test, base-install, powershell-lint, shell-lint]
+    needs: [test, base-install, shell-lint]
 ```
 
 `if: always()` is load-bearing. Without it GitHub *skips* the job when a
 dependency fails, and a skipped required check reports as success — a green
 gate over a red matrix. With it, the job runs and explicitly exits 1.
 
-Expect `CI OK` to sit queued until all twelve upstream checks finish, so a PR
-looks stalled for a few minutes even when everything is green. That's inherent
-to the pattern, not a misconfiguration.
+Expect `CI OK` to sit queued until all five upstream checks finish, so a PR
+looks stalled for a minute even when everything is green. That's inherent to
+the pattern, not a misconfiguration.
 
 </details>
 

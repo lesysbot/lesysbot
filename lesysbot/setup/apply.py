@@ -1,8 +1,8 @@
 """Applying wizard answers: config.yaml, bundled tools, background service.
 
-Nothing here runs until the summary's Apply. Service management shells out
-(systemctl / launchctl / PowerShell's ScheduledTask cmdlets); the *runner*
-parameter exists so tests can record invocations instead of touching the host.
+Nothing here runs until the summary's Apply. Service management shells out to
+``systemctl --user``; the *runner* parameter exists so tests can record
+invocations instead of touching the host.
 No sudo, ever — the wizard must stay password-free. That now holds for tools
 too: none of them may require root either, so there is no privileged setup step
 to hand off to (see docs/writing-tools.md §6).
@@ -263,7 +263,7 @@ def _docker_running(runner=subprocess.run) -> bool:
 
 def _run_bundled_stack(ui, mon: Path, start: Path, finish_cmd: str, runner,
                        user: str, url: str) -> bool:
-    """Run the bundled Docker stack (Linux ``start.sh up``) and report."""
+    """Run the bundled Docker stack (``start.sh up``) and report."""
     ui.say("\n  Starting the Grafana monitoring dashboard "
            "(first run pulls images — may take a few minutes)…\n")
     try:
@@ -288,30 +288,10 @@ def _persist_grafana(ui, data_dir: Path, mon: Path, url: str, user: str, passwor
     ui.ok(f"Grafana login saved to {env_path} — LeSysBot uses it to reach the dashboard")
 
 
-def _grafana_manual_instructions(ui, data_dir: Path, mon: Path, finish_cmd: str, runner) -> bool:
-    """macOS/Windows: warn, instruct a native Grafana install, then ask the login
-    LeSysBot should use. We deliberately don't require Docker Desktop here —
-    Grafana ships a native package for both OSes. Returns False (nothing started)."""
-    ui.warn("On macOS/Windows the Grafana dashboard is set up by hand — a quick one-time step:")
-    ui.note(f"1. Install Grafana (native package for your OS):  {GRAFANA_DOWNLOAD}")
-    ui.note("2. Start Grafana and open  http://localhost:3000  (first login admin / admin).")
-    ui.note("3. On the default port 3000 LeSysBot detects Grafana automatically (status")
-    ui.note("   screen + 'share dashboard'); on another host/port set LESYSBOT_GRAFANA_URL.")
-    ui.note("   The metrics feed (Prometheus + exporters) is in monitoring/README.md.")
-    if _docker_running(runner):
-        ui.note(f"Shortcut: Docker is running, so you can instead bring up the whole "
-                f"bundled stack in one step:  {finish_cmd}")
-    url, user, password = ask_grafana_credentials(ui, data_dir)
-    _persist_grafana(ui, data_dir, mon, url, user, password)
-    ui.note(f"Set that same login ({user} / the password you entered) as Grafana's admin "
-            "when you first open it, so LeSysBot can connect.")
-    return False
-
-
 def _grafana_linux(ui, data_dir: Path, mon: Path, start: Path, finish_cmd: str, runner) -> bool:
-    """Linux: ask *how* to set the dashboard up first (auto-start vs. manual when
-    Docker is running; otherwise how to get Docker ready — no sudo from us), then
-    ask the Grafana login and save it."""
+    """Ask *how* to set the dashboard up first (auto-start vs. manual when Docker
+    is running; otherwise how to get Docker ready — no sudo from us), then ask the
+    Grafana login and save it."""
     if _docker_running(runner):
         auto = True
         if getattr(ui, "interactive", False):
@@ -334,7 +314,7 @@ def _grafana_linux(ui, data_dir: Path, mon: Path, start: Path, finish_cmd: str, 
 
     # Docker isn't ready — tell the user precisely how to fix it, no sudo from us.
     if shutil.which("docker") is None:
-        ui.warn("The Grafana dashboard uses Docker on Linux, which isn't installed.")
+        ui.warn("The Grafana dashboard uses Docker, which isn't installed.")
         ui.note("Install Docker Engine:  https://docs.docker.com/engine/install/")
     elif not _compose_ok(runner):
         ui.warn("Docker is installed but Compose v2 ('docker compose') is missing.")
@@ -353,17 +333,11 @@ def _grafana_linux(ui, data_dir: Path, mon: Path, start: Path, finish_cmd: str, 
 def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
     """Set up the Grafana dashboard as part of install — default, not optional.
 
-    Each OS flow asks *how* to set it up first, then the Grafana username/password
-    LeSysBot should use, and saves that to ``~/.lesysbot/grafana.env`` (read back
-    at bot startup). It never fails the install:
-
-    * **Linux** — Docker is the path. If Docker is already running, ask whether to
-      **auto-start** the bundled stack now or **set it up manually** later; if it
-      isn't running, print the exact (no-sudo) steps to get it ready.
-    * **macOS/Windows** — don't force Docker Desktop: **warn and instruct** a
-      native Grafana install (``grafana.com/grafana/download``) and how to connect
-      it to LeSysBot. If Docker happens to be running, mention the one-command
-      bundled stack as a shortcut.
+    Docker is the path. If Docker is already running, ask whether to **auto-start**
+    the bundled stack now or **set it up manually** later; if it isn't running,
+    print the exact (no-sudo) steps to get it ready. Then ask the Grafana
+    username/password LeSysBot should use and save it to ``~/.lesysbot/grafana.env``
+    (read back at bot startup). It never fails the install.
 
     Set ``LESYSBOT_SKIP_MONITORING`` to skip this entirely (unattended installs).
     Returns True only when the bundled stack was actually started.
@@ -371,21 +345,16 @@ def start_monitoring(ui, data_dir: Path, runner=subprocess.run) -> bool:
     mon = monitoring_dir(data_dir)
     if not mon.is_dir():
         return False
-    win = sys.platform == "win32"
-    start = mon / "scripts" / ("start.ps1" if win else "start.sh")
-    finish_cmd = (
-        f"powershell -ExecutionPolicy Bypass -File {start}" if win else str(start)
-    )
+    start = mon / "scripts" / "start.sh"
+    finish_cmd = str(start)
 
     if os.environ.get("LESYSBOT_SKIP_MONITORING"):
         ui.warn("Skipping the Grafana dashboard (LESYSBOT_SKIP_MONITORING set).")
         ui.note(f"Set it up anytime — see monitoring/README.md ({GRAFANA_DOWNLOAD}).")
         return False
 
-    # Each flow asks *how* to set the dashboard up first, then the Grafana login,
-    # then persists it (grafana.env + the bundled monitoring/.env).
-    if win or sys.platform == "darwin":
-        return _grafana_manual_instructions(ui, data_dir, mon, finish_cmd, runner)
+    # Ask *how* to set the dashboard up first, then the Grafana login, then
+    # persist it (grafana.env + the bundled monitoring/.env).
     return _grafana_linux(ui, data_dir, mon, start, finish_cmd, runner)
 
 
@@ -461,15 +430,13 @@ def read_provider(config_file: Path) -> str:
 
 def lesysbot_binary() -> str:
     """The executable the service should run."""
-    if getattr(sys, "frozen", False):
-        return sys.executable
     argv0 = Path(sys.argv[0])
     if argv0.name.startswith("lesysbot") and argv0.exists():
         return str(argv0.resolve())
     return shutil.which("lesysbot") or "lesysbot"
 
 
-# ── Linux (systemd --user) ────────────────────────────────────────────────────
+# ── Background service (systemd --user) ──────────────────────────────────────
 _UNIT_TEMPLATE = """\
 [Unit]
 Description=LeSysBot — local AI assistant with tools (control panel + bot)
@@ -531,148 +498,9 @@ def setup_service_linux(ui, st: WizardState, data_dir: Path, runner=subprocess.r
     ui.note("journalctl --user -u lesysbot -f")
 
 
-# ── macOS (launchd) ───────────────────────────────────────────────────────────
-_PLIST_TEMPLATE = """\
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.lesysbot.lesysbot</string>
-
-    <key>ProgramArguments</key>
-    <array>
-        <string>{lesysbot_bin}</string>
-        <string>run</string>
-    </array>
-
-    <key>WorkingDirectory</key>
-    <string>{data_dir}</string>
-
-    <key>RunAtLoad</key>
-    {run_at_load}
-
-    <key>KeepAlive</key>
-    <true/>
-
-    <key>StandardOutPath</key>
-    <string>{log_dir}/stdout.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>{log_dir}/stderr.log</string>
-</dict>
-</plist>
-"""
-
-
-def _plist_path() -> Path:
-    return Path.home() / "Library" / "LaunchAgents" / "com.lesysbot.lesysbot.plist"
-
-
-def setup_service_macos(ui, st: WizardState, data_dir: Path, runner=subprocess.run) -> None:
-    plist = _plist_path()
-    log_dir = Path.home() / "Library" / "Logs" / "lesysbot"
-    plist.parent.mkdir(parents=True, exist_ok=True)
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    if plist.exists():
-        ui.warn("Existing LeSysBot LaunchAgent found — stopping and replacing it…")
-    runner(["launchctl", "unload", "-w", str(plist)], capture_output=True)
-
-    plist.write_text(
-        _PLIST_TEMPLATE.format(
-            lesysbot_bin=lesysbot_binary(),
-            data_dir=data_dir,
-            run_at_load="<true/>" if st.auto_start else "<false/>",
-            log_dir=log_dir,
-        ),
-        encoding="utf-8",
-    )
-    runner(["launchctl", "load", "-w", str(plist)], capture_output=True)
-    ui.ok("LaunchAgent installed and started")
-    if st.auto_start:
-        ui.ok("Auto-starts at login")
-
-    ui.say("\n  Manage:")
-    ui.note("launchctl stop  com.lesysbot.lesysbot")
-    ui.note("launchctl start com.lesysbot.lesysbot")
-    ui.note(f"tail -f {log_dir}/stdout.log")
-
-
-# ── Windows (Task Scheduler, via PowerShell cmdlets) ──────────────────────────
-def _powershell(script: str, runner=subprocess.run) -> subprocess.CompletedProcess:
-    return runner(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True,
-        text=True,
-    )
-
-
-def _task_exists(runner=subprocess.run) -> bool:
-    return _powershell(
-        "if (Get-ScheduledTask -TaskName 'LeSysBot' -ErrorAction SilentlyContinue) "
-        "{ exit 0 } else { exit 1 }",
-        runner,
-    ).returncode == 0
-
-
-def setup_service_windows(ui, st: WizardState, data_dir: Path, runner=subprocess.run) -> None:
-    if _task_exists(runner):
-        ui.warn("Existing LeSysBot task found — stopping and replacing it…")
-        _powershell(
-            "Stop-ScheduledTask -TaskName 'LeSysBot' -ErrorAction SilentlyContinue; "
-            "Unregister-ScheduledTask -TaskName 'LeSysBot' -Confirm:$false",
-            runner,
-        )
-
-    trigger = (
-        "$trigger = New-ScheduledTaskTrigger -AtLogon -User $env:USERNAME; "
-        if st.auto_start
-        else ""
-    )
-    register = (
-        "Register-ScheduledTask -TaskName 'LeSysBot' -Action $action "
-        + ("-Trigger $trigger " if st.auto_start else "")
-        + "-Settings $settings -Principal $principal -Force | Out-Null"
-    )
-    script = (
-        f"$action = New-ScheduledTaskAction -Execute '{lesysbot_binary()}' "
-        f"-Argument 'run' -WorkingDirectory '{data_dir}'; "
-        "$settings = New-ScheduledTaskSettingsSet -RestartCount 3 "
-        "-RestartInterval (New-TimeSpan -Minutes 1) "
-        "-ExecutionTimeLimit ([System.TimeSpan]::Zero) "
-        "-MultipleInstances IgnoreNew -StartWhenAvailable $true; "
-        "$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest; "
-        f"{trigger}{register}; "
-        "Start-ScheduledTask -TaskName 'LeSysBot'"
-    )
-    result = _powershell(script, runner)
-    if result.returncode != 0:
-        ui.warn(f"Task Scheduler setup failed: {result.stderr.strip()}")
-        return
-    if st.auto_start:
-        ui.ok("Task Scheduler entry created — starts at login")
-    else:
-        ui.ok("Task Scheduler entry created (no auto-start trigger)")
-    ui.ok("LeSysBot started")
-
-    ui.say("\n  Manage:")
-    ui.note("Get-ScheduledTask  -TaskName 'LeSysBot' | Select-Object State")
-    ui.note("Stop-ScheduledTask  -TaskName 'LeSysBot'")
-    ui.note("Start-ScheduledTask -TaskName 'LeSysBot'")
-    ui.note("Or open Task Scheduler (taskschd.msc) and find 'LeSysBot'.")
-
-
 def setup_service(ui, st: WizardState, data_dir: Path, runner=subprocess.run) -> None:
-    if sys.platform.startswith("linux"):
-        setup_service_linux(ui, st, data_dir, runner=runner)
-    elif sys.platform == "darwin":
-        setup_service_macos(ui, st, data_dir, runner=runner)
-    elif sys.platform == "win32":
-        setup_service_windows(ui, st, data_dir, runner=runner)
-    else:
-        ui.warn(f"Unsupported OS: {sys.platform} — see docs/service.md for manual setup.")
+    """Install the systemd --user service (the only service backend)."""
+    setup_service_linux(ui, st, data_dir, runner=runner)
 
 
 # ── Epilogue ──────────────────────────────────────────────────────────────────
@@ -724,10 +552,7 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
            f"[bold]{data_dir}/config.yaml[/bold])")
     if needs_service:
         ui.say("\n  [green][bold]LeSysBot is running.[/bold][/green]")
-        restart = {
-            "darwin": "launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot",
-            "win32": "Stop-ScheduledTask -TaskName 'LeSysBot'; Start-ScheduledTask -TaskName 'LeSysBot'",
-        }.get(sys.platform, "systemctl --user restart lesysbot")
-        ui.say(f"  After config edits, restart to apply:  [bold]{restart}[/bold]\n")
+        ui.say("  After config edits, restart to apply:  "
+               "[bold]systemctl --user restart lesysbot[/bold]\n")
     else:
         ui.say("\n  [green][bold]LeSysBot is ready.[/bold][/green]\n")

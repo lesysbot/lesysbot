@@ -231,15 +231,16 @@ directory:
 With `mcp.hot_reload: true` (the default), a `watchfiles` watcher re-runs this
 whenever a `.py` under `tools/` changes — save a file and the tool is live.
 
-### 5.3 Cross-platform gating
+### 5.3 Requirement gating
 
-Tools can declare `platforms=["linux", …]` and `requires=["nvidia-smi", …]`
-(PATH binaries, checked with `shutil.which` in
-[lesysbot/mcp/platform.py](../lesysbot/mcp/platform.py)). A tool that can't run on
-the current machine is **still registered** — it shows up in `/help` and to
-the LLM — but calling it returns a one-line explanation instead of a cryptic
-failure. Pip dependencies are *not* `requires` entries; tools import them and
-handle `ImportError` themselves.
+Tools can declare `requires=["nvidia-smi", …]` (PATH binaries, checked with
+`shutil.which` in
+[lesysbot/mcp/requirements.py](../lesysbot/mcp/requirements.py)). A tool that
+can't run on the current machine is **still registered** — it shows up in
+`/help` and to the LLM — but calling it returns a one-line explanation instead
+of a cryptic failure. Pip dependencies are *not* `requires` entries; tools
+import them and handle `ImportError` themselves. There is no OS gating:
+LeSysBot targets Linux only, so every tool that installs is a tool that runs.
 
 ### 5.4 Enable/disable
 
@@ -295,21 +296,21 @@ Two modules decide *which settings apply* and *where files live*:
 
 **[lesysbot/core/config.py](../lesysbot/core/config.py)** — `Settings.load()`
 searches, in order: the `-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml`
-(what the installer writes) → `config.yaml` next to a frozen `.exe` →
-`config/default.yaml` → built-in defaults. Every field can also be overridden
+(what the installer writes) → the bundled `config/default.yaml` → built-in
+defaults. Every field can also be overridden
 by a `LESYSBOT_` environment variable (`LESYSBOT_LLM__MODEL=…`, `__` = nesting)
 and by CLI flags, in that order of increasing precedence. The loaded file's
 directory is remembered as `config_dir`.
 
 **[lesysbot/core/paths.py](../lesysbot/core/paths.py)** — relative paths in the
 config (`./tools`, `logs/lesysbot.log`) are anchored to that `config_dir`. This
-one rule makes all three deployment shapes work unchanged:
+one rule makes every deployment shape work unchanged:
 
 | Setup | Active config | `./tools` resolves to |
 |---|---|---|
 | Installed (wizard) | `~/.lesysbot/config.yaml` | `~/.lesysbot/tools/` |
 | Dev checkout | `./config.yaml` in the repo | the repo's `tools/` |
-| Frozen `.exe` | `config.yaml` next to the exe | `tools\` next to the exe |
+| No config at all | built-in defaults | `tools/` under the working directory |
 
 `~/.lesysbot/` is the stable per-user home (override with `LESYSBOT_HOME`); the
 full reference is in [Configuration](configuration.md).
@@ -357,7 +358,7 @@ The one network listener in the project is the control panel in
 `Host` header isn't loopback. It has no authentication because the trust
 boundary is having a shell on the machine — the same access as editing
 `config.yaml`. The whole single-page UI is inlined as a Python string so it
-survives a PyInstaller build, and it adds no dependencies.
+always ships with the package, and it adds no dependencies.
 
 **It runs inside the service.** `lesysbot run` calls `serve_background()`, which
 binds the configured port and serves from a daemon thread sharing the bot's own
@@ -409,7 +410,7 @@ PID must not read as "running".
 | Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — one cross-platform Python implementation; `scripts/install.{sh,ps1}` only bootstrap into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Change the setup wizard | [lesysbot/setup/](../lesysbot/setup/) — the Python wizard; `scripts/install.sh` only bootstraps into it | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the control panel | [lesysbot/webui/](../lesysbot/webui/) | this page, [§10](#10-the-control-panel-and-cli-dispatch) |
 
 ---

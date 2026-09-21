@@ -81,14 +81,13 @@ def test_disabled_tools_are_not_offered():
 def test_tools_unavailable_on_this_host_are_not_offered():
     reg = ToolRegistry()
     reg.register_callable(
-        CLITool(name="winonly", description="Windows only",
-                command={"windows": "ver"}, params={})
+        CLITool(name="needs_missing_bin", description="Needs an absent binary",
+                command="definitely-not-installed", params={},
+                requires=["definitely-not-installed"])
     )
-    # Registered but gated off every non-Windows host, so it must not be offered
-    # as a command whose only possible reply is "unavailable here".
-    offered = [s.name for s in commands.tool_commands(reg)]
-    import sys
-    assert ("winonly" in offered) == sys.platform.startswith("win")
+    # Registered but gated off this host, so it must not be offered as a command
+    # whose only possible reply is "unavailable here".
+    assert "needs_missing_bin" not in [s.name for s in commands.tool_commands(reg)]
 
 
 def test_illegal_command_names_are_skipped_not_renamed(caplog):

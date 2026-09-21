@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LeSysBot uninstall script — Linux & macOS
+# LeSysBot uninstall script — Linux
 # Usage: bash scripts/uninstall.sh
 set -euo pipefail
 
@@ -20,15 +20,13 @@ logo() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
-OS="$(uname -s)"
-
 logo
 hr
 printf "  LeSysBot Uninstaller\n"
 hr
 
-# ── 1. Remove platform service ────────────────────────────────────────────────
-remove_linux() {
+# ── 1. Remove the systemd --user service ──────────────────────────────────────
+remove_service() {
     local stopped=false disabled=false removed=false
 
     if systemctl --user is-active --quiet lesysbot 2>/dev/null; then
@@ -62,22 +60,7 @@ remove_linux() {
     fi
 }
 
-remove_macos() {
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.lesysbot.lesysbot.plist"
-    if [[ -f "$PLIST_FILE" ]]; then
-        launchctl unload -w "$PLIST_FILE" 2>/dev/null || true
-        rm "$PLIST_FILE"
-        ok "LaunchAgent removed"
-    else
-        warn "No LaunchAgent plist found — skipping"
-    fi
-}
-
-case "$OS" in
-    Linux*)  remove_linux  ;;
-    Darwin*) remove_macos  ;;
-    *)       warn "Unknown OS — skipping service removal" ;;
-esac
+remove_service
 
 # ── 1b. Legacy sudoers rules ──────────────────────────────────────────────────
 # Nothing LeSysBot ships needs root any more, so uninstall stays password-free:
@@ -137,5 +120,4 @@ fi
 hr
 ok "LeSysBot has been uninstalled."
 printf "\n  Optional cleanup:\n"
-printf "    rm -rf %s          # config, tools and logs\n" "$DATA_DIR"
-printf "    rm -rf ~/Library/Logs/lesysbot   # macOS stdout/stderr logs\n\n"
+printf "    rm -rf %s          # config, tools and logs\n\n" "$DATA_DIR"

@@ -5,9 +5,16 @@ build-backend = "hatchling.build"
 [project]
 name = "lesysbot"
 version = "0.1.0"
-description = "A pluggable bot framework: local LLM + MCP tools + Telegram/Discord messaging"
+description = "A pluggable Linux bot framework: local LLM + MCP tools + Telegram/Discord messaging"
 readme = "README.md"
 requires-python = ">=3.11"
+# Linux only: the service is a systemd --user unit, the single-instance lock is
+# fcntl, and the bundled tools read /sys and /proc.
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+]
 # The CLI provider, the tool registry and `lesysbot tools`/`lesysbot setup` need
 # only these. Chat platforms are extras: `__main__` imports each adapter lazily,
 # so an install without them is fully functional.
@@ -31,8 +38,8 @@ telegram = [
 discord = [
     "discord.py>=2.4",
 ]
-# Everything a user-facing install can offer — what scripts/install.{sh,ps1}
-# install, so every option the setup wizard presents actually works.
+# Everything a user-facing install can offer — what scripts/install.sh
+# installs, so every option the setup wizard presents actually works.
 all = [
     "lesysbot[telegram,discord]",
 ]

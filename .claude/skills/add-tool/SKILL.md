@@ -1,6 +1,6 @@
 ---
 name: add-tool
-description: Scaffold a new LeSysBot tool package in tools/ following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and cross-platform gating. Use when asked to "add a tool", "write a tool", "create a command", "make LeSysBot able to <do X>", or expose a new capability/slash command.
+description: Scaffold a new LeSysBot tool package in tools/ following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and requirement gating. Use when asked to "add a tool", "write a tool", "create a command", "make LeSysBot able to <do X>", or expose a new capability/slash command.
 ---
 
 # Add a LeSysBot tool
@@ -40,14 +40,11 @@ dropped straight in `tools/` also still works for quick local tools.)
    )
    ```
 
-3. **Declare cross-platform support** when a tool isn't universal:
-   - `platforms=["linux", "macos"]` — OSes from `{"linux","macos","windows"}`; omit = all.
+3. **Declare required executables.** LeSysBot targets **Linux only**, so a tool
+   never declares an OS — only what it needs on `PATH`:
    - `requires=["nvidia-smi"]` — executables that must be on `PATH`; omit = none.
-   Both work on `@tool` and `CLITool`. On an unsupported OS / missing binary the
-   tool still registers but returns a one-line explanation instead of running.
-   A `CLITool` whose syntax differs per OS can take `command` as a dict keyed by
-   OS name (`command={"linux": "ping -c 3 {host}", "windows": "ping -n 3 {host}"}`);
-   the current OS's variant runs, and `platforms` defaults to the dict's keys.
+   Works on `@tool` and `CLITool`. With a missing binary the tool still registers
+   but returns a one-line explanation instead of running.
    Pip deps are **not** `requires` (those are PATH binaries) — import them in the
    tool, handle `ImportError`, and list them in the package's `requirements.txt`.
 
@@ -59,12 +56,11 @@ dropped straight in `tools/` also still works for quick local tools.)
    ---
    name: find-files
    description: Search files by pattern
-   platforms: all
    requires: []
    version: "1.0.0"        # optional; shown/recorded by `lesysbot tools …`
    ---
    # find-files
-   **Runs on:** Linux · macOS · Windows · **Needs:** nothing
+   **Needs:** nothing
    - `/find_files <pattern> [directory]` — recursive glob.
    ```
 

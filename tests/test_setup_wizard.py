@@ -7,7 +7,6 @@ monkeypatching like the rest of the suite.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -287,7 +286,6 @@ def _fake_monitoring(data_dir: Path) -> Path:
     mon = data_dir / "monitoring"
     (mon / "scripts").mkdir(parents=True)
     (mon / "scripts" / "start.sh").write_text("#!/usr/bin/env bash\n")
-    (mon / "scripts" / "start.ps1").write_text("")
     return mon
 
 
@@ -488,44 +486,6 @@ def test_start_monitoring_linux_daemon_down(tmp_path, monkeypatch):
     assert _said(ui, "daemon isn't reachable")
 
 
-# ── macOS / Windows: warn + instruct native Grafana ───────────────────────────
-def test_start_monitoring_macos_instructs_native_grafana(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_monitoring(tmp_path)
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([*CREDS])  # never asks a menu on macOS/Windows
-    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
-    assert not _ran_stack(runner)
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)          # how to install Grafana
-    assert _said(ui, "LESYSBOT_GRAFANA_URL")              # how to connect it
-
-
-def test_start_monitoring_macos_with_docker_mentions_shortcut(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: "/usr/local/bin/docker")
-    monkeypatch.setattr(apply_mod.sys, "platform", "darwin")
-    _fake_monitoring(tmp_path)
-    runner = DockerRunner(daemon_up=True)  # Docker running → mention the shortcut
-    ui = FakeUI([*CREDS])
-    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
-    assert not _ran_stack(runner)  # still doesn't auto-run on macOS/Windows
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)
-    assert _said(ui, "start.sh")   # the bundled-stack shortcut command
-
-
-def test_start_monitoring_windows_instructs(tmp_path, monkeypatch):
-    monkeypatch.delenv("LESYSBOT_SKIP_MONITORING", raising=False)
-    monkeypatch.setattr(apply_mod.shutil, "which", lambda _: None)
-    monkeypatch.setattr(apply_mod.sys, "platform", "win32")
-    _fake_monitoring(tmp_path)
-    runner = DockerRunner(daemon_up=False)
-    ui = FakeUI([*CREDS])
-    assert apply_mod.start_monitoring(ui, tmp_path, runner=runner) is False
-    assert _said(ui, apply_mod.GRAFANA_DOWNLOAD)
-
-
 class Recorder:
     def __init__(self, returncode=0):
         self.calls = []
@@ -538,12 +498,7 @@ class Recorder:
         return subprocess.CompletedProcess(cmd, self.returncode, stdout="", stderr="")
 
 
-@pytest.mark.skipif(
-    os.name == "nt",
-    reason="systemd --user is Linux-only; on Windows Path.home() keys off USERPROFILE "
-           "(not the patched HOME) and the POSIX /data path renders as \\data",
-)
-def test_setup_service_linux_writes_unit_and_enables(tmp_path, monkeypatch):
+def test_setup_service_writes_unit_and_enables(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     st = WizardState(auto_start=True)
     runner = Recorder()
@@ -558,7 +513,7 @@ def test_setup_service_linux_writes_unit_and_enables(tmp_path, monkeypatch):
 
 
 def _no_real_service(monkeypatch) -> list:
-    """Record service setup instead of touching systemd/launchd/Task Scheduler."""
+    """Record service setup instead of touching the host's systemd."""
     installed: list = []
     monkeypatch.setattr(apply_mod, "setup_service",
                         lambda ui, st, data_dir, **_kw: installed.append((st.msg_provider,

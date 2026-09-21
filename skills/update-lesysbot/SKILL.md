@@ -24,8 +24,7 @@ nothing in `~/.lesysbot` depends on the old checkout.)
 **Re-run the wizard** (simplest; handles the service for you):
 
 ```bash
-bash scripts/install.sh          # Linux/macOS
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1   # Windows
+bash scripts/install.sh
 ```
 
 At *"~/.lesysbot/config.yaml already exists — overwrite?"* answer **`n`** to keep
@@ -40,13 +39,8 @@ pip install ".[all]"              # same extras the install scripts use
 # — or, for a development checkout —
 pip install -e ".[dev]"
 
-# restart the service (Telegram/Discord installs only):
-systemctl --user restart lesysbot                          # Linux
-launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot    # macOS
-```
-
-```powershell
-Stop-ScheduledTask -TaskName LeSysBot; Start-ScheduledTask -TaskName LeSysBot  # Windows
+# restart the service so the new code is live:
+systemctl --user restart lesysbot
 ```
 
 CLI-only setups need no restart — the next `lesysbot` launch uses the new code.

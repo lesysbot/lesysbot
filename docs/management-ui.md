@@ -31,7 +31,7 @@ lesysbot
     LLM backend  reachable · 42 ms
     Backend URL  http://localhost:11434/v1
        Provider  cli · model qwen3.5:4b
-          Tools  12/13 enabled
+          Tools  14/15 enabled
         Service  running (PID 12934)
   Control panel  online · http://127.0.0.1:8700
         Grafana  http://localhost:3001 · v11.5.1

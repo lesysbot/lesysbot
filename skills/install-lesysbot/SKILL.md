@@ -1,6 +1,6 @@
 ---
 name: install-lesysbot
-description: Install LeSysBot from scratch on Linux, macOS, or Windows — prerequisites (Python, Ollama), the guided install wizard with every prompt explained, or a fully scripted manual install. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
+description: Install LeSysBot from scratch on Linux — prerequisites (Python, Ollama), the guided install wizard with every prompt explained, or a fully scripted manual install. Use when asked to "install lesysbot", "set up lesysbot", "get lesysbot running", or to onboard a new machine.
 ---
 
 # Install LeSysBot
@@ -12,20 +12,20 @@ that serves the control panel (and any Telegram/Discord bot).
 
 ## 1. Prerequisites
 
+LeSysBot runs on **Linux only** — it installs a `systemd --user` service and its
+bundled tools read `/sys` and `/proc`.
+
 | Requirement | Version | Notes |
 |---|---|---|
-| Python | 3.11+ | `python --version` (try `python3` on Linux/macOS). On Windows tick "Add Python to PATH". |
+| Linux + systemd | any current distro | the background service is a `systemd --user` unit |
+| Python | 3.11+ | `python3 --version` |
 | pip | any | bundled with Python |
 | Ollama *(optional)* | latest | Only for a local LLM. Skip if using OpenAI or another remote backend. |
 
 **Install Ollama and pull a model** (skip for remote backends):
 
 ```bash
-# Linux
 curl -fsSL https://ollama.com/install.sh | sh
-# macOS
-brew install ollama
-# Windows: installer from https://ollama.com/download
 
 ollama pull qwen3.5:4b        # small, capable starting point
 curl http://localhost:11434/  # → "Ollama is running"
@@ -41,20 +41,13 @@ cd lesysbot
 ## 3. Path A — guided wizard (recommended for most people)
 
 ```bash
-# Linux / macOS
 bash scripts/install.sh
 ```
 
-```powershell
-# Windows — if PowerShell blocks it, use the second form
-.\scripts\install.ps1
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
-```
-
 The script bootstraps (Python check + pip install) and hands off to
-**`lesysbot setup`** — the wizard is part of LeSysBot (Rich panels, one
-cross-platform implementation in `lesysbot/setup/`), so **re-run `lesysbot setup`
-anytime to reconfigure without reinstalling**.
+**`lesysbot setup`** — the wizard is part of LeSysBot (Rich panels, in
+`lesysbot/setup/`), so **re-run `lesysbot setup` anytime to reconfigure without
+reinstalling**.
 
 Menus accept ↑/↓ + Enter (or →) or the option's number; without an
 interactive terminal (piped input) they fall back to plain "type a number"
@@ -81,10 +74,10 @@ The prompts, in order:
    the bot needs MESSAGE CONTENT INTENT enabled in the developer portal),
    `4) ← Back` (re-pick the LLM backend).
    The terminal always works regardless: `lesysbot --provider cli`.
-4. **"Service"** — asked for **every** provider (systemd / launchd / Task
-   Scheduler), because the service also serves the always-on control panel:
-   `1) Start now and automatically after reboot` (default; "at login" on
-   Windows), `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
+4. **"Service"** — asked for **every** provider (a `systemd --user` unit),
+   because the service also serves the always-on control panel:
+   `1) Start now and automatically after reboot` (default),
+   `2) Start now only`, `3) ← Back` (re-pick how to reach LeSysBot).
    On the kept-config path this is a plain
    **"Start LeSysBot automatically after reboot?" `[Y/n]`** instead.
 5. **Summary menu** — `1) Apply these settings` (default; only now is
@@ -112,15 +105,9 @@ sets it up — a standard part of LeSysBot. It first **asks for the Grafana user
 and password** LeSysBot should use (defaults `admin`/`admin`), saving them to
 **`~/.lesysbot/grafana.env`** (loaded into the bot's environment at startup, so
 `share_dashboard`/status authenticate automatically). Then, OS-specific and never
-fatal:
-- **Linux** — if Docker is running, it **asks** whether to auto-start the bundled
-  stack now or set it up manually; if Docker isn't ready it prints the exact
-  no-`sudo` steps to get it going (or run Grafana natively).
-- **macOS/Windows** — it does **not** require Docker Desktop; it warns and
-  instructs a native Grafana install from `https://grafana.com/grafana/download`
-  and how to connect it (auto-detected on `localhost:3000`, else
-  `LESYSBOT_GRAFANA_URL`), mentioning the one-command Docker stack only as a
-  shortcut when Docker is already running.
+fatal: if Docker is running, it **asks** whether to auto-start the bundled stack
+now or set it up manually; if Docker isn't ready it prints the exact no-`sudo`
+steps to get it going (or the link to run Grafana natively).
 
 Set `LESYSBOT_SKIP_MONITORING=1` to skip this step on an unattended install.
 

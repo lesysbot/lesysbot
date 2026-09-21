@@ -283,8 +283,8 @@ def write_package_module(repo_root: Path) -> Path | None:
     """Emit the sprites into the package so the CLI and web UI can draw them.
 
     `assets/` sits outside the package on purpose (it must not bloat the wheel),
-    so an installed or PyInstaller-frozen copy can't read it. Same fix the web UI
-    uses in `webui/page.py`: inline the asset as Python. Only the grids go in —
+    so an installed copy can't read it. Same fix the web UI uses in
+    `webui/page.py`: inline the asset as Python. Only the grids go in —
     `core/banner.py` renders `MARK` (16px) through Rich, and `webui/page.py`
     renders `MARK_32` to SVG for the management-UI header, each from the same
     sprite so the copies can't drift.

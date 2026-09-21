@@ -32,24 +32,6 @@ ACCENT = "cyan"
 _CSI_PARTIAL = re.compile(r"\[[0-9;]*\Z")
 
 
-def _read_key_windows() -> str:
-    import msvcrt
-
-    ch = msvcrt.getwch()
-    if ch in ("\x00", "\xe0"):  # extended key prefix
-        code = msvcrt.getwch()
-        return {"H": "up", "P": "down", "K": "left", "M": "right"}.get(code, "ignore")
-    if ch in ("\r", "\n"):
-        return "enter"
-    if ch == "\x1b":
-        return "esc"
-    if ch in ("\x08", "\x7f"):
-        return "backspace"
-    if ch == "\x03":
-        raise KeyboardInterrupt
-    return ch
-
-
 def _read_byte(fd: int) -> str:
     """One keyboard character via os.read — NOT sys.stdin, whose readahead
     buffers bytes where select() can't see them and desyncs escape parsing."""
@@ -75,9 +57,6 @@ def raw_mode():
     are lost on the switch back — fast typing (or paste) would keep only the
     first character. cbreak (not full raw) keeps Ctrl-C delivering SIGINT.
     """
-    if os.name == "nt":
-        yield
-        return
     import termios
     import tty
 
@@ -90,7 +69,8 @@ def raw_mode():
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
-def _read_key_posix() -> str:
+def read_key() -> str:
+    """Blocking read of one keypress (inside :func:`raw_mode`)."""
     import select
 
     fd = sys.stdin.fileno()
@@ -120,13 +100,6 @@ def _read_key_posix() -> str:
     if seq == "":
         return "esc"
     return "ignore"
-
-
-def read_key() -> str:
-    """Blocking read of one keypress (inside :func:`raw_mode` on POSIX)."""
-    if os.name == "nt":
-        return _read_key_windows()
-    return _read_key_posix()
 
 
 def _back_index(options: list[str]) -> int | None:

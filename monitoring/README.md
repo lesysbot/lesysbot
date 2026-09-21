@@ -2,7 +2,7 @@
 
 The monitoring stack that records your machine's **CPU, memory, disk,
 network (Ethernet & Wifi) and GPU** as time series and shows them on a
-ready-made Grafana dashboard. Runs on **Linux, macOS and Windows**.
+ready-made Grafana dashboard.
 
 **This ships as a standard part of LeSysBot, not an add-on.** `lesysbot setup`
 (run by the installer) seeds this stack into `~/.lesysbot/monitoring` and starts
@@ -14,12 +14,12 @@ job. The steps here are for starting/stopping and reconfiguring it by hand.
 It is **separate from LeSysBot itself** — it runs as its own containers, and
 LeSysBot's only listener is its localhost control panel. Everything this stack
 exposes is bound to **`127.0.0.1` only** (nothing on your LAN) and needs **no
-sudo/admin**.
+sudo**.
 
 ```mermaid
 flowchart LR
     subgraph host["your machine"]
-      ne["node_exporter / windows_exporter<br>CPU · mem · disk · Ethernet · Wifi"]
+      ne["node_exporter<br>CPU · mem · disk · Ethernet · Wifi"]
       gpu["nvidia_gpu_exporter<br>GPU util · mem · temp · power"]
     end
     prom["Prometheus<br>(scrapes every 15s, stores TSDB)"]
@@ -31,9 +31,9 @@ flowchart LR
 ```
 
 - **Prometheus** scrapes the exporters every 15 s and stores the time series.
-- **Grafana** auto-loads the datasource and the dashboards — no manual import.
+- **Grafana** auto-loads the datasource and the dashboard — no manual import.
 - **Exporters** are the standard Prometheus ones (`node_exporter`,
-  `windows_exporter`, `nvidia_gpu_exporter`); nothing custom to trust.
+  `nvidia_gpu_exporter`); nothing custom to trust.
 
 ---
 
@@ -46,33 +46,28 @@ have it:
 docker compose version      # should print "Docker Compose version v2.x"
 ```
 
-If that fails, install it — pick your OS:
+If that fails, install [Docker Engine](https://docs.docker.com/engine/install/)
+for your distro, then add yourself to the group so you never need sudo:
 
-| OS | Install |
-|---|---|
-| **Windows** | [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/) — the installer includes Compose. |
-| **macOS** | [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/) (Intel or Apple Silicon). Or `brew install --cask docker`. |
-| **Linux** | [Docker Engine](https://docs.docker.com/engine/install/) for your distro, then add yourself to the group: `sudo usermod -aG docker $USER` and log back in. Or [Docker Desktop for Linux](https://docs.docker.com/desktop/install/linux-install/). |
+```bash
+sudo usermod -aG docker $USER     # then log out and back in
+```
 
 That's the whole install. Everything else below downloads automatically the
 first time you start the stack — **no manual Prometheus/Grafana/exporter setup,
 no config to write.**
 
 <details>
-<summary><b>macOS / Windows without Docker — install Grafana natively</b></summary>
-
-`lesysbot setup` doesn't force Docker Desktop on macOS/Windows. If you'd rather
-not run Docker, install Grafana as a native package instead:
+<summary><b>Prefer not to run Docker? Install Grafana natively</b></summary>
 
 1. **Install Grafana:** [grafana.com/grafana/download](https://grafana.com/grafana/download)
-   (pick your OS — `.dmg`/`brew` on macOS, installer/`.zip` on Windows). Start it
-   and open **http://localhost:3000** (login `admin` / `admin`).
-2. **Give it data.** Grafana only draws graphs — it still needs Prometheus + the
-   host exporters underneath. The easy way is the native exporters this repo ships
-   plus a local Prometheus; the turnkey way is the Docker stack below. Point
-   Grafana at Prometheus (`http://localhost:9090`) as a data source and import
-   `grafana/dashboards/system-overview-linux-macos.json` (macOS) or
-   `…-windows.json` (Windows).
+   (packages for Debian/Ubuntu, RHEL/Fedora, and a plain tarball). Start it and
+   open **http://localhost:3000** (login `admin` / `admin`).
+2. **Give it data.** Grafana only draws graphs — it still needs Prometheus and
+   the host exporters underneath. Run `./scripts/run-exporters.sh` for the
+   exporters, install Prometheus with `prometheus/prometheus.yml` as its config,
+   then point Grafana at Prometheus (`http://localhost:9090`) as a data source
+   and import `grafana/dashboards/system-overview.json`.
 3. **Connect it to LeSysBot.** On the default port **3000**, LeSysBot finds
    Grafana automatically (the status screen links to it and the `share_dashboard`
    tool works). `lesysbot setup` asks for the Grafana **username and password** and
@@ -82,8 +77,7 @@ not run Docker, install Grafana as a native package instead:
    (edit the file or export the variable).
 
 The Docker stack below is still the least-effort option — it wires the data
-source and dashboard up for you. Native Grafana is here for people who'd rather
-not install Docker Desktop.
+source and dashboard up for you.
 
 </details>
 
@@ -102,10 +96,6 @@ The `monitoring/` folder is self-contained — copying just it is enough.
 ---
 
 ## Quick start
-
-Open a terminal in this `monitoring/` folder and run the one command for your OS.
-
-### Linux
 
 ```bash
 cd monitoring
@@ -126,92 +116,42 @@ bound to localhost. Open **http://localhost:3000** — login `admin` / `admin`.
 You don't choose; the script detects `nvidia-smi` and the Docker NVIDIA runtime
 for you.
 
-### macOS
-
-```bash
-cd monitoring
-./scripts/start.sh          # starts native exporters, then Prometheus + Grafana
-```
-
-Open **http://localhost:3000**. (`node_exporter` runs natively because Docker
-Desktop can't see the real host from inside its VM.)
-
-### Windows (PowerShell)
-
-```powershell
-cd monitoring
-.\scripts\start.ps1         # starts windows_exporter, then Prometheus + Grafana
-```
-
-Open **http://localhost:3000**. Run PowerShell **as Administrator** the first
-time only if Windows blocks `windows_exporter` from binding its port.
-
 ### Stop it
 
 ```bash
-./scripts/start.sh down          # Linux / macOS
-.\scripts\start.ps1 down         # Windows
+./scripts/start.sh down
 ```
 
 ---
 
 ## What you get
 
-**One dashboard** lands in the **LeSysBot** folder in Grafana — the one that
-matches the OS you started (the start script/compose file provisions only that
-one, so you never see an empty dashboard for another OS):
-
-| You started on… | Dashboard provisioned | Source |
-|---|---|---|
-| **Linux** or **macOS** | **System Overview — Linux / macOS** | `node_exporter` |
-| **Windows** | **System Overview — Windows** | `windows_exporter` |
-
-> Running the bridge compose by hand on Windows (`docker compose up -d` instead
-> of `start.ps1`)? Set `DASH_JSON=system-overview-windows.json` first, or just use
-> `start.ps1`. Both dashboard files always exist under `grafana/dashboards/`;
-> only the selected one is mounted into Grafana.
-
-It shows these categories:
+**One dashboard** — **System Overview** — lands in the **LeSysBot** folder in
+Grafana, fed by `node_exporter` plus `nvidia_gpu_exporter`. It shows:
 
 - **CPU** — busy %, per-mode usage, load average, core count
-- **Memory** — used / cached / available, swap (or commit on Windows)
+- **Memory** — used / cached / available, swap
 - **Disk** — filesystem used % per mount, read/write throughput
 - **Network** — receive/transmit **per interface**; the interface name tells
-  Ethernet from Wifi (`eno1`/`eth0` vs `wlp*`/`wlan0` on Linux, `en0` vs `en1`
-  on macOS, the adapter name on Windows)
+  Ethernet (`eno1`/`eth0`) from Wifi (`wlp*`/`wlan0`)
 - **Temperatures** — CPU (package + per-core), disk (NVMe/SATA), GPU, and other
-  sensors (ACPI zone, chipset, Wifi radio). See the caveats below.
+  sensors (ACPI zone, chipset, Wifi radio)
 - **GPU (NVIDIA)** — utilization, memory used, temperature, power draw
 
 Use the **Host** dropdown at the top to filter when more than one machine reports.
 
-The dashboard **adapts to the OS**: the CPU, memory, disk-usage and network
-panels use metric names that work on both Linux and macOS (memory falls back to
-macOS's `active`/`wired`/`compressed` counters automatically). A few readings are
-Linux-only where macOS doesn't expose them — **swap**, **disk I/O throughput**,
-and most **temperatures** (see below); those panels simply stay empty on macOS.
-
 ### Temperature sensor coverage
 
-What's available depends on the OS — the exporters only surface what the kernel
-exposes, and no sudo is used:
+The exporters surface what the kernel exposes, and no sudo is used:
 
-| Sensor | Linux | macOS | Windows |
-|---|---|---|---|
-| **GPU** (NVIDIA) | ✅ | ✅ | ✅ |
-| **CPU** (package + cores) | ✅ `coretemp`/`k10temp` | ❌ | ⚠️ only if ACPI reports it |
-| **Disk** (NVMe/SATA) | ✅ `nvme`/`drivetemp` | ❌ | ❌ |
-| **ACPI / chipset / Wifi radio** | ✅ thermal zones | ❌ | ⚠️ ACPI thermal zone, often empty on desktops |
+| Sensor | Source | Notes |
+|---|---|---|
+| **CPU** (package + cores) | `hwmon` — `coretemp` (Intel) / `k10temp` (AMD) | works out of the box |
+| **Disk** (NVMe/SATA) | `hwmon` — `nvme` / `drivetemp` | SATA may need `sudo modprobe drivetemp` once; NVMe needs nothing |
+| **ACPI / chipset / Wifi radio** | `thermal_zone` | `x86_pkg_temp`, `acpitz`, `iwlwifi`, … |
+| **GPU** (NVIDIA) | `nvidia_gpu_exporter` | needs an NVIDIA card + driver |
 
-- **Linux** gives the fullest picture — CPU, disk and chassis/Wifi sensors all
-  come through `node_exporter`'s `hwmon`/`thermal_zone` collectors (a
-  `drivetemp` disk reading may need `sudo modprobe drivetemp` once; NVMe needs
-  nothing). Panels for sensors your hardware doesn't have simply stay empty.
-- **macOS** exposes no component temps through `node_exporter` (only GPU, via
-  `nvidia-smi`, which most Macs don't have). Those panels stay empty.
-- **Windows** shows ACPI thermal-zone temps when the firmware provides them
-  (common on laptops, rare on desktops). Per-component CPU/disk temps need a
-  helper like **LibreHardwareMonitor** — not bundled here.
+Panels for sensors your hardware doesn't have simply stay empty.
 
 ---
 
@@ -252,7 +192,7 @@ Everything binds to loopback; nothing is reachable from your network.
 |---|---|---|
 | Grafana | `127.0.0.1:3000` | login `admin` / `admin` — **change it** in `.env` |
 | Prometheus | `127.0.0.1:9090` | `/targets` shows exporter health |
-| node / windows exporter | `127.0.0.1:9100` / `:9182` | host metrics |
+| node_exporter | `127.0.0.1:9100` | host metrics |
 | nvidia_gpu_exporter | `127.0.0.1:9835` | GPU metrics |
 
 **Change the Grafana password** before exposing it anywhere: copy `.env.example`
@@ -279,18 +219,17 @@ looks for Grafana, so a stack moved to 3001 is still found by the status screen 
 by *"share me the dashboard"* — no extra configuration.
 
 - **Add another machine or exporter:** add its `host:port` to the relevant job in
-  `prometheus/prometheus.yml` (macOS/Windows) or `prometheus/prometheus.linux.yml`
-  (Linux), then `curl -X POST http://localhost:9090/-/reload`.
+  `prometheus/prometheus.yml`, then `curl -X POST http://localhost:9090/-/reload`.
 - **Longer history:** raise `PROM_RETENTION` (data lives in the
   `prometheus-data` Docker volume).
 
 ---
 
-## Editing the dashboards
+## Editing the dashboard
 
-The two JSON files under `grafana/dashboards/` are generated — the source of
-truth is [`scripts/gen-dashboards.py`](scripts/gen-dashboards.py). Change a panel
-there and regenerate so both dashboards stay consistent:
+`grafana/dashboards/system-overview.json` is generated — the source of truth is
+[`scripts/gen-dashboards.py`](scripts/gen-dashboards.py). Change a panel there
+and regenerate:
 
 ```bash
 python3 scripts/gen-dashboards.py     # stdlib only, no deps
@@ -303,33 +242,29 @@ Grafana UI to experiment; re-run the generator to make a change permanent.
 
 ## Troubleshooting
 
-**A target is `down` on http://localhost:9090/targets.** That's normal for the
-ones you're not running — `windows` is down on Linux/macOS, `nvidia_gpu` is down
-without an NVIDIA card, and the native `node` target is down when you use the
-containerised one (and vice-versa). Only the exporter for *your* OS needs to be
-`up`.
+**A target is `down` on http://localhost:9090/targets.** Normal for the ones
+you're not running — `nvidia_gpu` is down without an NVIDIA card, and the native
+`node` target is down when you use the containerised one (and vice-versa).
 
-**GPU row is empty.** You have no NVIDIA card, or `nvidia-smi` isn't on `PATH`,
-or (Linux) you started without `--profile gpu` and didn't run the native GPU
-exporter. On Linux without the nvidia-container-toolkit, use the native fallback
-shown in *Quick start → Linux*.
+**GPU row is empty.** You have no NVIDIA card, `nvidia-smi` isn't on `PATH`, or
+you started without `--profile gpu` and didn't run the native GPU exporter. Use
+`./scripts/start.sh`, which picks the right path for you.
 
 **Grafana won't start / "address already in use".** Something else holds 3000
 (or 9090). Set `GRAFANA_PORT` / `PROM_PORT` in `.env` and start again.
 
-**Linux: metrics missing even though a native exporter is running.** Containers
-can't reach a host port when `ufw`/firewall blocks the Docker bridge — that's
-exactly why the Linux stack runs on the **host network** instead. Use
-`./scripts/start.sh` (or `docker-compose.linux.yml`), not the bridge
-`docker-compose.yml`.
+**Metrics missing even though a native exporter is running.** Containers can't
+reach a host port when `ufw`/firewall blocks the Docker bridge — that's exactly
+why this stack runs on the **host network** instead. Start it with
+`./scripts/start.sh` (or plain `docker compose up -d` in this folder), not a
+bridge network of your own.
 
 **Don't mix paths.** Running both the containerised GPU exporter (`--profile
 gpu`) and the native one (`run-exporters.sh`) fights over port 9835. Pick one.
 
 **Reset everything (including stored history):**
 ```bash
-docker compose -f docker-compose.linux.yml --profile gpu down -v   # Linux (-v wipes volumes)
-docker compose down -v                                             # macOS/Windows
+docker compose --profile gpu down -v     # -v wipes the volumes
 ```
 
 ---
@@ -338,17 +273,15 @@ docker compose down -v                                             # macOS/Windo
 
 ```
 monitoring/
-├── docker-compose.yml            # macOS / Windows stack (bridge + host.docker.internal)
-├── docker-compose.linux.yml      # Linux stack (host network, localhost-bound)
+├── docker-compose.yml            # the stack (host network, localhost-bound)
 ├── .env.example                  # ports, retention, Grafana login
 ├── prometheus/
-│   ├── prometheus.yml            # scrape config — macOS / Windows
-│   └── prometheus.linux.yml      # scrape config — Linux
+│   └── prometheus.yml            # scrape config
 ├── grafana/
 │   ├── provisioning/             # datasource + dashboard auto-load
-│   └── dashboards/*.json         # generated dashboards (see gen-dashboards.py)
+│   └── dashboards/               # generated dashboard (see gen-dashboards.py)
 └── scripts/
-    ├── start.sh / start.ps1      # one-command start/stop, OS-aware
-    ├── run-exporters.sh / .ps1   # native host exporters (macOS / Windows / Linux fallback)
-    └── gen-dashboards.py         # regenerate the dashboards
+    ├── start.sh                  # one-command start/stop
+    ├── run-exporters.sh          # native host exporters (no-toolkit GPU fallback)
+    └── gen-dashboards.py         # regenerate the dashboard
 ```

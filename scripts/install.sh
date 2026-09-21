@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# LeSysBot install script — Linux & macOS
+# LeSysBot install script — Linux
 # Usage: bash scripts/install.sh
 #
 # Bootstrap only: check Python, pip-install the package, then hand off to the
-# Python setup wizard (`lesysbot setup` — one cross-platform implementation with
-# arrow-key/Esc navigation; see lesysbot/setup/). Re-run `lesysbot setup` directly
-# anytime to reconfigure without reinstalling.
+# Python setup wizard (`lesysbot setup` — arrow-key/Esc navigation; see
+# lesysbot/setup/). Re-run `lesysbot setup` directly anytime to reconfigure
+# without reinstalling.
 set -euo pipefail
 
 # ── colour helpers ────────────────────────────────────────────────────────────
@@ -50,9 +50,10 @@ done
 
 if [[ -z "$PYTHON" ]]; then
     die "Python 3.11+ is required but was not found.
-       Install it from https://python.org or via your package manager:
+       Install it with your package manager, e.g.:
          Ubuntu/Debian : sudo apt install python3
-         macOS         : brew install python"
+         Fedora/RHEL   : sudo dnf install python3
+         Arch          : sudo pacman -S python"
 fi
 ok "Python $($PYTHON --version | cut -d' ' -f2)"
 

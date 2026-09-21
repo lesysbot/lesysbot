@@ -64,3 +64,15 @@ async def test_sync_function_wrapped_async() -> None:
 
     # wrapper is always async, even for sync source functions
     assert await add.__tool_meta__["fn"](a=1, b=2) == 3
+
+
+def test_legacy_platforms_argument_is_accepted_and_ignored():
+    """Tool packages predating the Linux-only move must still import."""
+    from lesysbot.mcp import tool
+
+    @tool(description="x", platforms=["linux", "windows"])
+    async def legacy() -> str:
+        return "ran"
+
+    assert "platforms" not in legacy.__tool_meta__
+    assert legacy.__tool_meta__["requires"] is None

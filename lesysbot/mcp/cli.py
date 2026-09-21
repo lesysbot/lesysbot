@@ -221,7 +221,6 @@ def _info(registry: ToolRegistry, settings: Settings, console: Console, name: st
         ("description", row["description"]),
         ("enabled", row["enabled"]),
         ("available", True if row["available"] else f"no — {row['unavailable_reason']}"),
-        ("platforms", ", ".join(row["platforms"]) if row["platforms"] else None),
         ("requires", ", ".join(row["requires"]) if row["requires"] else None),
         ("confirm", row["confirm"] or None),
         ("params", params or None),

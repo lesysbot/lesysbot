@@ -62,9 +62,9 @@ lesysbot/
 └─ install/        `lesysbot tools install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
-scripts/           install/uninstall wizards (bash + PowerShell), exe build
+scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config
-packaging/         PyInstaller spec for the Windows .exe
+monitoring/        the Prometheus + Grafana stack `lesysbot setup` seeds
 docs/              user & contributor guides
 ```
 
@@ -78,7 +78,7 @@ docs/              user & contributor guides
 | Change tool-calling loop / history / confirmations | `lesysbot/core/agent.py` |
 | Change tool discovery / gating / hot reload | `lesysbot/mcp/registry.py` |
 | Add a config setting | `lesysbot/core/config.py` + `config/default.yaml` + `docs/configuration.md` |
-| Change the install wizard | `scripts/install.sh` **and** `scripts/install.ps1` — kept in sync |
+| Change the install wizard | `lesysbot/setup/` — `scripts/install.sh` only bootstraps into it |
 
 ## Tests
 
@@ -116,10 +116,11 @@ Conventions (keep new tests the same):
 
 ## Install-script rules
 
-`scripts/install.sh` and `scripts/install.ps1` are the **same wizard twice —
-change both**. PowerShell can't run in CI here; verify it by inspection and
-say so in the PR. `install.sh` runs under `set -euo pipefail`: use
-`i=$((i+1))`, never `((i++))` (exit status 1 on zero result aborts the script).
+`scripts/install.sh` and `scripts/uninstall.sh` are **bootstrap only** — Python
+check, pip install, hand off to `lesysbot setup`. Keep logic in the Python
+wizard. `install.sh` runs under `set -euo pipefail`: use `i=$((i+1))`, never
+`((i++))` (exit status 1 on zero result aborts the script). CI runs
+`shellcheck --severity=error` on them.
 
 ## Docs conventions
 
@@ -129,13 +130,6 @@ Top-down (overview → detail), step-by-step, one job per page. Each fact has
 Behaviour changes update the guide that documents them (and `CLAUDE.md` for
 architecture changes; the `skills/` folder mirrors the docs — update the
 matching skill too).
-
-## Windows .exe (shipping to non-technical users)
-
-`.\scripts\build-exe.ps1` on Windows (PyInstaller is not a cross-compiler;
-Python 3.11+, ~1.5 GB disk). Produces a relocatable `LeSysBot\` folder + zip:
-`lesysbot.exe` reads `config.yaml` and `tools\` from its own directory, so users
-edit the YAML and double-click — no Python needed. Spec lives in `packaging/`.
 
 ## PR checklist
 

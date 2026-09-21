@@ -1,14 +1,13 @@
 ---
 name: web
 description: Fetch the text content of a URL
-platforms: all
 requires: []
 ---
 # web
 
-Fetch a URL and return its text. Cross-platform.
+Fetch a URL and return its text.
 
-**Runs on:** Linux · macOS · Windows  ·  **Needs:** the `httpx` pip package
+**Needs:** the `httpx` pip package
 
 `httpx` is a Python dependency (not a PATH binary), so it isn't a `requires:`
 entry. If it's missing, `/fetch_url` tells you to `pip install httpx`. See

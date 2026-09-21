@@ -126,7 +126,7 @@ typing the command out by hand keeps working.
 
 > **The menu is built when the bot starts.** Install a tool (or run
 > `lesysbot tools enable`) and it works as a typed command immediately, but it
-> joins the menu on the next restart — the platforms rate-limit command updates,
+> joins the menu on the next restart — Telegram and Discord rate-limit command updates,
 > so LeSysBot registers once rather than on every change. Tools that are
 > disabled, or unavailable on this machine, are left out of the menu.
 
@@ -201,10 +201,10 @@ From any terminal, whether or not the bot is running:
 
 ```bash
 lesysbot tools list                # everything installed, with its status
-lesysbot tools info gpu_temp       # what it takes, where it came from
-lesysbot tools disable gpu_temp    # hide it from the model; /gpu_temp refuses too
-lesysbot tools enable gpu_temp     # back on
-lesysbot tools remove gpu_temp     # delete it (asks first)
+lesysbot tools info temperature    # what it takes, where it came from
+lesysbot tools disable temperature # hide it from the model; /temperature refuses too
+lesysbot tools enable temperature  # back on
+lesysbot tools remove temperature  # delete it (asks first)
 lesysbot tools install owner/repo  # add tools from GitHub
 ```
 

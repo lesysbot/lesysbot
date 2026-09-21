@@ -29,8 +29,8 @@ curl http://localhost:11434/         # Ollama → "Ollama is running"
 ollama list                          # is your configured model here?
 ```
 
-- Ollama not running → start it (`ollama serve`, or launch the app on
-  macOS/Windows).
+- Ollama not running → start it (`ollama serve`, or
+  `systemctl --user start ollama`).
 - Model not in the list → `ollama pull <name>`, or fix `llm.model` in
   `~/.lesysbot/config.yaml`.
 - Using a remote backend → check `llm.base_url` ends in `/v1` and the key is
@@ -86,18 +86,18 @@ for it.
 ### A tool is listed but refuses to run
 
 ```
-'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
+'traceroute' is unavailable on this machine — requires 'traceroute' on PATH (not found).
 ```
 
-That's by design: tools declare which OSes and programs they need, and say so
-rather than failing cryptically. Install the missing program, or use a tool that
-fits this machine.
+That's by design: a tool declares the programs it needs and says so rather than
+failing cryptically. Install the missing program (here, your distro's
+`traceroute` package) and it starts working — no restart.
 
 ```
-'gpu_temp' is disabled.
+'traceroute' is disabled.
 ```
 
-Turn it back on: `lesysbot tools enable gpu_temp`.
+Turn it back on: `lesysbot tools enable traceroute`.
 
 ### `lesysbot tools install` fails
 
@@ -120,14 +120,6 @@ pip put the command somewhere that isn't on your `PATH`:
 python -m site --user-scripts     # e.g. /home/you/.local/bin
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
-```
-
-On Windows, re-run the Python installer and tick **Add Python to PATH**.
-
-### PowerShell refuses to run the install script
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
 
 ### `bash: scripts/install.sh: Permission denied`
@@ -155,11 +147,8 @@ If that doesn't point at your repo, re-run `pip install -e .`.
 Read the real error first:
 
 ```bash
-journalctl --user -u lesysbot -n 50            # Linux
-tail -n 50 ~/Library/Logs/lesysbot/stderr.log  # macOS
+journalctl --user -u lesysbot -n 50
 ```
-
-Windows: Task Scheduler history, or Event Viewer → Windows Logs → Application.
 
 Common causes:
 
@@ -175,7 +164,7 @@ both otherwise), so LeSysBot takes a lock and refuses the second, naming the PID
 that holds it. Stop the service first:
 
 ```bash
-systemctl --user stop lesysbot          # Linux
+systemctl --user stop lesysbot
 ```
 
 A terminal chat (`lesysbot --provider cli`) doesn't poll, so it always runs fine
@@ -186,9 +175,7 @@ alongside the service.
 Most settings are read at startup. Restart the service:
 
 ```bash
-systemctl --user restart lesysbot                                 # Linux
-launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot         # macOS
-Stop-ScheduledTask -TaskName LeSysBot; Start-ScheduledTask -TaskName LeSysBot   # Windows
+systemctl --user restart lesysbot
 ```
 
 Enabling and disabling *tools* is the exception — that applies within a second,
@@ -208,7 +195,7 @@ no restart needed.
 | Discord: `Discord rejected the bot token` | Wrong or revoked token. **Bot → Reset Token**, then update `config.yaml`. |
 | Discord: replies `Unauthorized.` | Your user ID isn't in `allowed_user_ids`. Re-copy it with Developer Mode on. |
 | Discord: no answer in a channel | The bot only answers channel messages that **@-mention** it. DMs need no mention. |
-| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled and platform-unavailable tools are left out on purpose. |
+| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled tools, and tools whose required binary is missing, are left out on purpose. |
 | A tool never appears in the `/` menu | Its name must be lowercase letters, digits or `_` (both platforms' rule); the log names any tool skipped for this. It still works typed out. |
 | Discord: can't open a DM with the bot | You don't share a server with it — re-run the OAuth2 invite URL. |
 
@@ -221,7 +208,7 @@ Full setup for both: [Telegram & Discord](adapters.md).
 | Symptom | Fix |
 |---|---|
 | `lesysbot` prints status when you wanted a chat | Use `lesysbot --provider cli`. Bare `lesysbot` is the health view; the panel and the bot run in the background service. |
-| The panel says **offline** | The service isn't running — start it (`systemctl --user start lesysbot`, `launchctl start com.lesysbot.lesysbot`, `Start-ScheduledTask -TaskName 'LeSysBot'`). To use it without a service: `lesysbot manage`. |
+| The panel says **offline** | The service isn't running — start it with `systemctl --user start lesysbot`. To use it without a service: `lesysbot manage`. |
 | The log says `Control panel not started — port … already in use` | Something else owns `webui.port` (often a second LeSysBot). Change the port in `config.yaml` and restart the service; the bot keeps running either way. |
 | The UI port is taken | `lesysbot manage --port 9000`, or change `webui.port`. |
 | The UI isn't reachable from another machine | Correct — it binds `127.0.0.1` only, deliberately, and rejects non-localhost `Host` headers. Use SSH port forwarding if you need remote access. |

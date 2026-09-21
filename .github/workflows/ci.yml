@@ -6,13 +6,13 @@ on:
   pull_request:
 
 jobs:
+  # LeSysBot targets Linux only, so the matrix is Python versions on Ubuntu.
   test:
-    name: ${{ matrix.os }} / py${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
+    name: py${{ matrix.python }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
@@ -54,24 +54,13 @@ jobs:
           lesysbot --help
           lesysbot tools list
 
-  powershell-lint:
-    name: PowerShell script analysis
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: PSScriptAnalyzer
-        shell: pwsh
-        run: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          Invoke-ScriptAnalyzer -Path scripts/ -Severity Error -EnableExit
-
   shell-lint:
     name: Shell script analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck --severity=error scripts/*.sh
+        run: shellcheck --severity=error scripts/*.sh monitoring/scripts/*.sh
 
   # The single check `main`'s branch ruleset requires. Requiring the matrix jobs
   # by name instead would wedge every PR on "Expected — waiting for status" the
@@ -81,7 +70,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()   # must still run — and fail — when a dependency failed
-    needs: [test, base-install, powershell-lint, shell-lint]
+    needs: [test, base-install, shell-lint]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed

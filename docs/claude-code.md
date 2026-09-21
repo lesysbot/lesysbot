@@ -2,11 +2,11 @@
 
 LeSysBot ships a [Claude Code](https://code.claude.com/docs) plugin —
 **`lesysbot-tool-dev`** — so an AI assistant can scaffold correct tool packages
-for you in *any* repo: the official tool collections, your own tools repo, or
+for you in *any* repo: the core LeSysBot checkout, your own tools repo, or
 a folder destined for `~/.lesysbot/tools/`. The plugin carries an `add-tool`
 skill that encodes the package conventions (README frontmatter, `@tool` /
-`CLITool`, typing, confirmation, cross-platform gating) so Claude gets them
-right without you pasting docs into the chat.
+`CLITool`, typing, confirmation, requirement gating) so Claude gets them right
+without you pasting docs into the chat.
 
 This repo is also the plugin **marketplace**: the catalog lives in
 [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) and the
@@ -14,15 +14,13 @@ plugin itself in [`claude-plugin/lesysbot-tool-dev/`](../claude-plugin/lesysbot-
 Improve the skill here, push, and every installed copy can pull the update —
 one source of truth, no per-repo drift.
 
-## 1. Official tool repos — zero setup
+## 1. A tools repo with zero setup
 
-The official tool-collection repos (e.g.
-[lesysbot-linux-tools-official](https://github.com/lesysbot/lesysbot-linux-tools-official))
-commit a `.claude/settings.json` that references this marketplace. Clone one,
-open Claude Code inside it, and trust the folder when asked — Claude Code then
-prompts you to install the `lesysbot` marketplace and enables `lesysbot-tool-dev`
-automatically. After that, just ask: *"add a tool that checks whether a
-systemd unit is running"*.
+A repo that holds tool packages can commit a `.claude/settings.json` referencing
+this marketplace. Clone it, open Claude Code inside it, and trust the folder when
+asked — Claude Code then prompts you to install the `lesysbot` marketplace and
+enables `lesysbot-tool-dev` automatically. After that, just ask: *"add a tool
+that checks whether a systemd unit is running"*.
 
 ## 2. Manual install — any project
 

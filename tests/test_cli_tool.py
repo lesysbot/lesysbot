@@ -1,9 +1,8 @@
-"""CLITool behavior — per-OS command variants and platform derivation."""
+"""CLITool behavior — command interpolation and requirement gating."""
 from __future__ import annotations
 
 import asyncio
 
-from lesysbot.mcp import cli_tool
 from lesysbot.mcp.cli_tool import CLITool
 
 
@@ -11,43 +10,50 @@ def run(coro):
     return asyncio.run(coro)
 
 
-def test_string_command_leaves_platforms_unset():
+def test_meta_shape():
     t = CLITool(name="echo", description="e", command="echo {msg}", params={"msg": "m"})
-    assert t.__tool_meta__["platforms"] is None
+    meta = t.__tool_meta__
+    assert meta["name"] == "echo"
+    assert meta["requires"] is None
+    assert meta["parameters"]["required"] == ["msg"]
 
 
-def test_dict_command_derives_platforms():
+def test_requires_is_carried_into_meta():
     t = CLITool(
-        name="ping", description="p",
-        command={"linux": "ping -c 3 {h}", "windows": "ping -n 3 {h}"},
-        params={"h": "host"},
+        name="mtr", description="trace", command="mtr {h}",
+        params={"h": "host"}, requires=["mtr"],
     )
-    assert t.__tool_meta__["platforms"] == ["linux", "windows"]
+    assert t.__tool_meta__["requires"] == ["mtr"]
 
 
-def test_explicit_platforms_beat_dict_keys():
-    t = CLITool(
-        name="ping", description="p",
-        command={"linux": "ping -c 3 {h}"}, params={"h": "host"},
-        platforms=["linux", "macos"],
-    )
-    assert t.__tool_meta__["platforms"] == ["linux", "macos"]
+def test_command_is_interpolated_and_run():
+    t = CLITool(name="say", description="s", command="echo hi-{msg}", params={"msg": "m"})
+    assert run(t._run(msg="there")) == "hi-there"
 
 
-def test_dict_command_runs_current_os_variant(monkeypatch):
-    monkeypatch.setattr(cli_tool, "current_os", lambda: "windows")
-    t = CLITool(
-        name="say", description="s",
-        command={"windows": "echo win-{msg}", "linux": "echo linux-{msg}"},
-        params={"msg": "m"},
-    )
-    assert run(t._run(msg="hi")) == "win-hi"
+def test_missing_parameter_explains():
+    t = CLITool(name="say", description="s", command="echo {msg}", params={"msg": "m"})
+    assert "missing parameter" in run(t._run())
 
 
-def test_dict_command_missing_os_explains(monkeypatch):
-    monkeypatch.setattr(cli_tool, "current_os", lambda: "macos")
-    t = CLITool(name="say", description="s", command={"windows": "echo {msg}"},
-                params={"msg": "m"})
-    out = run(t._run(msg="hi"))
-    assert "no command for this OS" in out
-    assert "macos" in out
+# ── legacy API kept loading (see lesysbot/mcp/_legacy.py) ──────────────────
+
+
+def test_legacy_platforms_is_accepted_and_ignored():
+    """A package written before LeSysBot went Linux-only must still load."""
+    t = CLITool(name="say", description="s", command="echo hi", params={},
+                platforms=["linux", "macos"])
+    assert "platforms" not in t.__tool_meta__
+    assert run(t._run()) == "hi"
+
+
+def test_legacy_os_keyed_command_runs_the_linux_entry():
+    t = CLITool(name="say", description="s", params={"msg": "m"},
+                command={"linux": "echo linux-{msg}", "windows": "echo win-{msg}"})
+    assert run(t._run(msg="hi")) == "linux-hi"
+
+
+def test_legacy_command_dict_without_linux_explains():
+    t = CLITool(name="say", description="s", params={},
+                command={"windows": "ver"})
+    assert "no command for Linux" in run(t._run())

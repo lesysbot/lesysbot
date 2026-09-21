@@ -140,44 +140,6 @@ async def test_helper_hot_reload(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_platform_gating(tmp_path: Path) -> None:
-    """A tool not supported on the current OS registers but stubs its call;
-    a tool that allows the current OS runs normally."""
-    from lesysbot.mcp.platform import current_os
-
-    here = current_os()
-    other = "windows" if here != "windows" else "linux"
-    tools_dir = _write_tools(
-        tmp_path,
-        **{
-            "t.py": f"""
-                from lesysbot.mcp import tool
-
-                @tool(platforms=["{other}"])
-                async def only_other() -> str:
-                    return "ran"
-
-                @tool(platforms=["{here}"])
-                async def runs_here() -> str:
-                    return "ran"
-            """
-        },
-    )
-    registry = ToolRegistry()
-    registry.load_directory(tools_dir)
-
-    # Both are visible (in /help and to the LLM)...
-    assert {"only_other", "runs_here"} <= set(registry.names)
-    assert registry.get_tool_meta("only_other")["available"] is False
-    assert registry.get_tool_meta("runs_here")["available"] is True
-
-    # ...but the unsupported one explains itself instead of running.
-    gated = await registry.call("only_other", {})
-    assert "unavailable" in gated.lower()
-    assert await registry.call("runs_here", {}) == "ran"
-
-
-@pytest.mark.asyncio
 async def test_missing_bin_stub(tmp_path: Path) -> None:
     """A tool requiring an absent executable is gated to an explaining stub."""
     tools_dir = _write_tools(

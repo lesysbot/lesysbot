@@ -329,10 +329,7 @@ def _print_status(settings: Settings) -> dict:
 
 
 def _service_start_hint() -> str:
-    return {
-        "darwin": "`launchctl start com.lesysbot.lesysbot`",
-        "win32": "`Start-ScheduledTask -TaskName 'LeSysBot'`",
-    }.get(sys.platform, "`systemctl --user start lesysbot`")
+    return "`systemctl --user start lesysbot`"
 
 
 def _manage(settings: Settings, port: int | None, open_browser: bool) -> None:
@@ -374,34 +371,7 @@ def _runs_the_bot(command, args) -> bool:
     return command == "run" or bool(getattr(args, "provider", None))
 
 
-def _reconfigure_utf8(stream) -> None:
-    """Switch a text stream to UTF-8, permissively; no-op if it can't be."""
-    reconfigure = getattr(stream, "reconfigure", None)
-    if reconfigure is None:  # replaced streams (e.g. pytest capture) lack it
-        return
-    try:
-        reconfigure(encoding="utf-8", errors="backslashreplace")
-    except (OSError, ValueError):
-        pass
-
-
-def _force_utf8_io() -> None:
-    """Make stdout/stderr UTF-8 on Windows so Unicode output can't crash.
-
-    On a Windows console (CI included) ``sys.stdout`` is a cp1252 TextIOWrapper,
-    so Rich writing a glyph like ``⚠`` — which the tool list, the banner and the
-    setup wizard all emit — raises ``UnicodeEncodeError`` mid-render and takes the
-    whole command down. POSIX is already UTF-8, so this only touches Windows;
-    ``errors="backslashreplace"`` keeps an undisplayable glyph from ever raising.
-    """
-    if os.name != "nt":
-        return
-    _reconfigure_utf8(sys.stdout)
-    _reconfigure_utf8(sys.stderr)
-
-
 def main() -> None:
-    _force_utf8_io()
     args = build_parser().parse_args()
 
     command = getattr(args, "command", None)
@@ -453,10 +423,9 @@ def main() -> None:
             print(
                 f"Another LeSysBot instance for this {settings.messaging.provider} "
                 f"configuration is already running{who} — most likely the background "
-                "service.\nStop it first (Linux: systemctl --user stop lesysbot; "
-                "macOS: launchctl stop com.lesysbot.lesysbot; Windows: Task Scheduler), "
-                "or use `lesysbot --provider cli` for an interactive session, "
-                "which runs fine alongside the service.",
+                "service.\nStop it first (`systemctl --user stop lesysbot`), or use "
+                "`lesysbot --provider cli` for an interactive session, which runs "
+                "fine alongside the service.",
                 file=sys.stderr,
             )
             sys.exit(1)

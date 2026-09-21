@@ -71,8 +71,8 @@ resampled.
 | Apple touch icon | `…/src/assets/apple-touch-icon.png` | `lesysbot-mark-256.png` |
 | Social preview | `…/src/assets/og-image.png` | `lesysbot-wordmark.png` |
 | Status screen | `lesysbot` / `lesysbot manage` | drawn live — see below |
-| Install splash | `scripts/install.sh`, `scripts/install.ps1` | `banner.txt` |
-| Uninstall header | `scripts/uninstall.sh`, `scripts/uninstall.ps1` | `banner-small.txt` |
+| Install splash | `scripts/install.sh` | `banner.txt` |
+| Uninstall header | `scripts/uninstall.sh` | `banner-small.txt` |
 
 **The site's copies are copies.** After regenerating, re-copy them:
 
@@ -107,12 +107,9 @@ above its own Python version check. Both gate on the same conditions the Python
 path does (a TTY, no `NO_COLOR`, `TERM` isn't `dumb`, file present) and treat a
 missing file as a no-op, so a partial checkout still installs. The shell reads
 them with `sed`, never `printf`: the file is raw escape codes, which `printf`
-would try to interpret as a format string. PowerShell additionally requires a
-host that processes virtual-terminal sequences (PowerShell 7+ or Windows
-Terminal), or the escapes would print as literal garbage.
+would try to interpret as a format string.
 
-Still unused: `lesysbot-mark-scanline.svg`. `lesysbot.ico` is the natural input
-for `scripts/build-exe.ps1` when that call is made.
+Still unused: `lesysbot-mark-scanline.svg` and `lesysbot.ico`.
 
 Assets live outside the `lesysbot/` package directory on purpose, so hatchling
 never bundles them into the wheel.

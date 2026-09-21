@@ -7,8 +7,9 @@ downloading a model.
 
 ## What you need
 
-- **Python 3.11 or newer.** Check with `python --version` (`python3` on
-  Linux/macOS). On Windows, tick **"Add Python to PATH"** in the installer.
+- **Linux.** LeSysBot targets Linux only — that's where the servers it looks
+  after live. It needs `systemd` for the background service.
+- **Python 3.11 or newer.** Check with `python3 --version`.
 - **A model to talk to.** [Ollama](https://ollama.com) runs one locally and is
   what we'll use below. If you'd rather use OpenAI or another remote service,
   skip step 1 — you'll pick that in the wizard.
@@ -18,13 +19,7 @@ downloading a model.
 ## 1. Get a model running
 
 ```bash
-# Linux
 curl -fsSL https://ollama.com/install.sh | sh
-
-# macOS
-brew install ollama
-
-# Windows — download the installer from https://ollama.com/download
 ```
 
 Then pull a model. `qwen3.5:4b` is small, runs on almost anything, and is
@@ -54,14 +49,8 @@ cd lesysbot
 ```
 
 ```bash
-bash scripts/install.sh          # Linux / macOS
+bash scripts/install.sh
 ```
-```powershell
-.\scripts\install.ps1            # Windows (PowerShell)
-```
-
-> **PowerShell blocked the script?** Run
-> `powershell -ExecutionPolicy Bypass -File scripts\install.ps1` instead.
 
 A wizard opens and asks a handful of short questions. **Press Enter through all
 of them** for a working local bot you chat with in your terminal. Nothing is
@@ -151,27 +140,19 @@ writing anything.
 After it writes the config, setup also seeds the
 [monitoring stack](../monitoring/README.md) into `~/.lesysbot/monitoring` and
 gets you to a Grafana dashboard at **http://localhost:3000**. It first asks **how**
-you want it set up (see per-OS below), then the **Grafana username and password**
-LeSysBot should use to reach it (defaults `admin` / `admin`; the password is
-hidden as you type). Those are saved to `~/.lesysbot/grafana.env`, which LeSysBot
-loads at startup — so the `share_dashboard` tool and the status screen
-authenticate automatically. This is a standard part of LeSysBot, not an opt-in —
-and always no-`sudo`, never fatal to the install:
+you want it set up, then the **Grafana username and password** LeSysBot should
+use to reach it (defaults `admin` / `admin`; the password is hidden as you type).
+Those are saved to `~/.lesysbot/grafana.env`, which LeSysBot loads at startup —
+so the `share_dashboard` tool and the status screen authenticate automatically.
+This is a standard part of LeSysBot, not an opt-in — and always no-`sudo`, never
+fatal to the install.
 
-- **Linux** — Docker is the path. If Docker is already running, setup **asks
-  whether to auto-start** the bundled Prometheus + Grafana stack now, or **set it
-  up manually** later. The bundled Grafana boots with the username/password you
-  entered. If Docker isn't ready, it prints the exact steps to get it going
-  (install Docker Engine, start the daemon, or join the `docker` group) — or run
-  Grafana natively instead.
-- **macOS / Windows** — setup **doesn't require Docker Desktop**. It warns and
-  walks you through a native Grafana install from
-  [grafana.com/grafana/download](https://grafana.com/grafana/download): install
-  it, open `http://localhost:3000`, and **set Grafana's admin login to the
-  username/password you entered** so LeSysBot connects (it detects Grafana on
-  port 3000 automatically; set `LESYSBOT_GRAFANA_URL` only if it runs elsewhere).
-  If you *do* have Docker running, it also points out the one-command bundled
-  stack as a shortcut.
+Docker is the path. If Docker is already running, setup **asks whether to
+auto-start** the bundled Prometheus + Grafana stack now, or **set it up
+manually** later. The bundled Grafana boots with the username/password you
+entered. If Docker isn't ready, it prints the exact steps to get it going
+(install Docker Engine, start the daemon, or join the `docker` group) — or run
+[Grafana natively](https://grafana.com/grafana/download) instead.
 
 Set `LESYSBOT_SKIP_MONITORING=1` before running setup to skip this step entirely
 (e.g. an unattended install that shouldn't pull images or prompt).
@@ -269,16 +250,14 @@ Day-to-day guide: **[Everyday use](usage.md)**.
 
 ## 4. Give it more to do
 
-**Install a ready-made collection for your OS:**
+**Install one from GitHub.** Any repo holding a tool package works — the link
+*is* the package name, and a running bot picks it up immediately:
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, temps
+lesysbot tools install owner/repo
 ```
 
-A running bot picks them up immediately. More in
-[Install tools](installing-tools.md).
+More in [Install tools](installing-tools.md).
 
 **Or write one.** Create `~/.lesysbot/tools/hello/tool.py`:
 
@@ -339,16 +318,13 @@ prints health and metrics — backend, tools, service, panel, Grafana — and ex
 From the cloned repository:
 
 ```bash
-bash scripts/uninstall.sh          # Linux / macOS
-```
-```powershell
-.\scripts\uninstall.ps1            # Windows (PowerShell)
+bash scripts/uninstall.sh
 ```
 
 It works backwards through what the installer did:
 
-1. **Stops and removes the background service**, if you had one. On Linux it
-   also offers to undo `loginctl` linger.
+1. **Stops and removes the background service**, if you had one. It also offers
+   to undo `loginctl` linger.
 2. **Reports any leftover sudoers rule** from an older version and prints the
    command to delete it — it won't delete it itself, since that would mean
    asking for your password. Current LeSysBot needs no root, so this usually

@@ -1,8 +1,8 @@
 <img src="assets/brand/lesysbot-wordmark.svg" alt="LeSysBot" width="380">
 
-**Chat with your own machine.** Ask it a question in plain language — from your
-terminal, from Telegram on your phone, or from Discord — and it answers, using
-tools that can read and control that machine.
+**Chat with your own Linux machine.** Ask it a question in plain language — from
+your terminal, from Telegram on your phone, or from Discord — and it answers,
+using tools that can read and control that machine.
 
 ```
 You: how hot is it running right now?
@@ -41,13 +41,14 @@ stay with you. No account, no cloud service, nothing to sign up for.
 
 ## Get started
 
-**You need:** Python 3.11+ and a model runner — [Ollama](https://ollama.com) is
-the easy one (you can point it at OpenAI instead, in the wizard).
+**You need:** Linux with `systemd`, Python 3.11+, and a model runner —
+[Ollama](https://ollama.com) is the easy one (you can point it at OpenAI
+instead, in the wizard).
 
 **1. Get a model running**
 
 ```bash
-# install Ollama — https://ollama.com/download has Linux, macOS and Windows
+curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3.5:4b
 ```
 
@@ -57,8 +58,7 @@ ollama pull qwen3.5:4b
 git clone https://github.com/lesysbot/lesysbot
 cd lesysbot
 
-bash scripts/install.sh      # Linux & macOS
-.\scripts\install.ps1        # Windows (PowerShell)
+bash scripts/install.sh
 ```
 
 A short wizard asks a few questions. **Press Enter through all of them** and you
@@ -122,14 +122,6 @@ async def hello(name: str) -> str:
 Save the file and it's live — usable as `/hello name=Ada` **and** by the model
 when you say "say hi to Ada". Guide: [Writing tools](docs/writing-tools.md).
 
-Ready-made collections for your OS:
-
-```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, temps
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, temps
-```
-
 ---
 
 <details>
@@ -168,8 +160,8 @@ logging — is in **[How it works](docs/architecture.md)**.
   even when no model is running. Every tool is registered as a real slash command
   in Telegram's `/` menu and Discord's command picker, so you can pick one from a
   list instead of remembering its name
-- **Cross-platform aware** — tools declare which OSes and binaries they need and
-  explain themselves instead of failing
+- **Honest about what's missing** — a tool declares the binaries it needs and
+  explains itself instead of failing
 - **Confirmation prompts** — destructive tools wait for your approval
 - **Terminal tool management** — `lesysbot tools list/enable/disable/remove`,
   applied to a running bot within a second
@@ -178,8 +170,8 @@ logging — is in **[How it works](docs/architecture.md)**.
   `http://127.0.0.1:8700`
 - **Boot notification** — a Telegram/Discord bot pings you with a system report
   when the machine comes up
-- **Prometheus + Grafana stack** — set up by the installer on all three OSes,
-  plus `share_dashboard` to publish an expiring public snapshot link
+- **Prometheus + Grafana stack** — set up by the installer, plus
+  `share_dashboard` to publish an expiring public snapshot link
 - **Structured traces** — every request logged to `logs/traces.jsonl`
 - **Secrets redacted** — tokens never reach a log file
 

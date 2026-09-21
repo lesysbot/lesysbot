@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the host metric exporters natively on Linux or macOS.
+# Run the host metric exporters natively, outside Docker.
 #
 #   ./run-exporters.sh [start|stop|status|restart]   (default: start)
 #
@@ -8,11 +8,13 @@
 #   * nvidia_gpu_exporter  :9835  — GPU (only if `nvidia-smi` is on PATH)
 #
 # Binaries are downloaded once into monitoring/bin/. PIDs and logs live in
-# monitoring/run/. Prometheus (in Docker) scrapes these via host.docker.internal.
+# monitoring/run/. Prometheus runs on the host network, so it scrapes these on
+# 127.0.0.1 — which also keeps them off the LAN.
 #
-# Linux note: if you started the containerised node-exporter with
-# `docker compose --profile linux up -d`, port 9100 is already served — this
-# script detects that and skips its own node_exporter.
+# The bundled stack already runs node-exporter in a container, so port 9100 is
+# normally taken — this script detects that and starts only the GPU exporter.
+# That is exactly the case `start.sh` uses it for: an NVIDIA box without the
+# nvidia-container-toolkit.
 set -euo pipefail
 
 NODE_VERSION="1.8.2"
@@ -24,17 +26,16 @@ BIN="$ROOT/bin"
 RUN="$ROOT/run"
 mkdir -p "$BIN" "$RUN"
 
-case "$(uname -s)" in
-  # macOS runs Prometheus in the Docker Desktop VM, which reaches the host via
-  # host.docker.internal — the exporter must listen on all interfaces (0.0.0.0).
-  # Linux runs Prometheus on the host network, so localhost is enough and keeps
-  # the exporter off the LAN.
-  Linux)  OS=linux;  NODE_OS=linux;  NV_OS=linux;  BIND=127.0.0.1 ;;
-  Darwin) OS=darwin; NODE_OS=darwin; NV_OS=darwin; BIND=0.0.0.0 ;;
-  *) echo "Unsupported OS $(uname -s). On Windows use run-exporters.ps1." >&2; exit 1 ;;
-esac
-NODE_ADDR="$BIND:9100"
-NVIDIA_ADDR="$BIND:9835"
+if [ "$(uname -s)" != "Linux" ]; then
+  echo "LeSysBot supports Linux only (this is $(uname -s))." >&2
+  exit 1
+fi
+# Prometheus runs on the host network, so localhost is enough — and it keeps the
+# exporters off the LAN.
+NODE_OS=linux
+NV_OS=linux
+NODE_ADDR="127.0.0.1:9100"
+NVIDIA_ADDR="127.0.0.1:9835"
 case "$(uname -m)" in
   x86_64|amd64)  NODE_ARCH=amd64; NV_ARCH=x86_64 ;;
   arm64|aarch64) NODE_ARCH=arm64; NV_ARCH=arm64 ;;
@@ -116,7 +117,7 @@ cmd_start() {
     warn "nvidia-smi not found — skipping GPU exporter (the GPU dashboard row will be empty)"
   fi
   echo
-  log "done. Prometheus scrapes these at host.docker.internal:9100 / :9835"
+  log "done. Prometheus scrapes these at 127.0.0.1:9100 / :9835"
   log "verify:  curl -s localhost:9100/metrics | head   (and :9835 for GPU)"
 }
 

@@ -1,6 +1,6 @@
 {
   "uid": "lesysbot-node",
-  "title": "System Overview \u2014 Linux / macOS",
+  "title": "System Overview",
   "tags": [
     "lesysbot",
     "system-overview"
@@ -25,7 +25,7 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(up{job=~\"node|windows\"}, instance)",
+          "query": "label_values(up{job=\"node\"}, instance)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -142,7 +142,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})) * 100 or (node_memory_active_bytes{instance=~\"$instance\"} + node_memory_wired_bytes{instance=~\"$instance\"} + node_memory_compressed_bytes{instance=~\"$instance\"}) / node_memory_total_bytes{instance=~\"$instance\"} * 100",
+          "expr": "(1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})) * 100",
           "legendFormat": "mem"
         }
       ],
@@ -618,7 +618,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}) or (node_memory_active_bytes{instance=~\"$instance\"} + node_memory_wired_bytes{instance=~\"$instance\"} + node_memory_compressed_bytes{instance=~\"$instance\"})",
+          "expr": "node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}",
           "legendFormat": "used"
         },
         {
@@ -627,8 +627,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "node_memory_Cached_bytes{instance=~\"$instance\"} or node_memory_inactive_bytes{instance=~\"$instance\"}",
-          "legendFormat": "cached / inactive"
+          "expr": "node_memory_Cached_bytes{instance=~\"$instance\"}",
+          "legendFormat": "cached"
         },
         {
           "refId": "C",
@@ -636,8 +636,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "node_memory_MemAvailable_bytes{instance=~\"$instance\"} or node_memory_free_bytes{instance=~\"$instance\"}",
-          "legendFormat": "available / free"
+          "expr": "node_memory_MemAvailable_bytes{instance=~\"$instance\"}",
+          "legendFormat": "available"
         }
       ],
       "options": {
@@ -680,7 +680,7 @@
     {
       "type": "timeseries",
       "title": "Swap Usage",
-      "description": "Linux swap. macOS reports swap differently (swapped-in/out counters) and is not shown here.",
+      "description": "",
       "id": 13,
       "datasource": {
         "type": "prometheus",
@@ -700,7 +700,7 @@
             "uid": "prometheus"
           },
           "expr": "node_memory_SwapTotal_bytes{instance=~\"$instance\"} - node_memory_SwapFree_bytes{instance=~\"$instance\"}",
-          "legendFormat": "used (Linux)"
+          "legendFormat": "used"
         },
         {
           "refId": "B",
@@ -709,7 +709,7 @@
             "uid": "prometheus"
           },
           "expr": "node_memory_SwapFree_bytes{instance=~\"$instance\"}",
-          "legendFormat": "free (Linux)"
+          "legendFormat": "free"
         }
       ],
       "options": {
@@ -1037,7 +1037,7 @@
     },
     {
       "type": "row",
-      "title": "Temperatures \u2014 CPU / Disk / Sensors  (Linux sensors; empty on macOS)",
+      "title": "Temperatures \u2014 CPU / Disk / Sensors",
       "collapsed": false,
       "id": 20,
       "gridPos": {
@@ -1246,7 +1246,7 @@
     {
       "type": "timeseries",
       "title": "CPU Temperature (package & per-core)",
-      "description": "Package and per-core temperatures (Intel coretemp / AMD k10temp / ARM). Linux only.",
+      "description": "Package and per-core temperatures (Intel coretemp / AMD k10temp / ARM).",
       "id": 24,
       "datasource": {
         "type": "prometheus",
@@ -1309,7 +1309,7 @@
     {
       "type": "timeseries",
       "title": "Disk Temperature",
-      "description": "NVMe (nvme) and SATA (drivetemp) drive temperatures. Linux only.",
+      "description": "NVMe (nvme) and SATA (drivetemp) drive temperatures.",
       "id": 25,
       "datasource": {
         "type": "prometheus",
@@ -1372,7 +1372,7 @@
     {
       "type": "timeseries",
       "title": "Other Sensors \u2014 ACPI zone / chipset / Wifi radio",
-      "description": "ACPI thermal zones: CPU package (x86_pkg_temp), chassis (acpitz), Wifi radio (iwlwifi), etc. Linux only.",
+      "description": "ACPI thermal zones: CPU package (x86_pkg_temp), chassis (acpitz), Wifi radio (iwlwifi), etc.",
       "id": 26,
       "datasource": {
         "type": "prometheus",
@@ -1876,69 +1876,6 @@
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "fillOpacity": 5,
-            "gradientMode": "opacity",
-            "spanNulls": false,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisPlacement": "auto"
-          },
-          "min": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "GPU Power Draw",
-      "description": "",
-      "id": 35,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 75
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "nvidia_smi_power_draw_watts",
-          "legendFormat": "{{uuid}}"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "watt",
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "fillOpacity": 10,
             "gradientMode": "opacity",
             "spanNulls": false,
             "showPoints": "never",

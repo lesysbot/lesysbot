@@ -4,35 +4,23 @@ Any GitHub repo holding a tool package installs with one command. There's no
 registry to search and nothing to sign up for — the link *is* the package name.
 
 ```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official
+lesysbot tools install owner/repo
 ```
 
 LeSysBot downloads the repo, shows you what it found — package names, versions,
 the files that will land on your disk — and asks before writing anything. A
 running bot picks the new tools up straight away, no restart.
 
----
-
-## The official collections
-
-Install the one matching your machine:
-
-```bash
-lesysbot tools install lesysbot/lesysbot-linux-tools-official     # ping, DNS, traceroute, CPU/GPU temps
-lesysbot tools install lesysbot/lesysbot-macos-tools-official     # battery, CPU temp
-lesysbot tools install lesysbot/lesysbot-windows-tools-official   # ping, tracert, thermal zones
-```
-
-macOS users: the Linux collection's `network` package works on macOS too, so
-it's worth having both.
+The tools LeSysBot ships with are already there — `lesysbot tools list` shows
+them. This page is about adding more.
 
 ---
 
-## Installing anything else
+## Installing a tool
 
 ```bash
 lesysbot tools install owner/repo                  # everything in the repo
-lesysbot tools install owner/repo/tools/gpu-temp   # just one package from it
+lesysbot tools install owner/repo/tools/disk-temp  # just one package from it
 lesysbot tools install owner/repo@v1.2             # pin to a tag, branch, or commit
 lesysbot tools install https://github.com/owner/repo
 ```
@@ -71,10 +59,10 @@ command rather than running it — you decide.
 
 ```bash
 lesysbot tools list             # everything, with status and where it came from
-lesysbot tools info gpu_temp    # parameters, requirements, provenance
-lesysbot tools disable gpu_temp # keep it, but switch it off
-lesysbot tools enable gpu_temp  # back on
-lesysbot tools remove gpu_temp  # delete it (asks first)
+lesysbot tools info temperature    # parameters, requirements, provenance
+lesysbot tools disable temperature # keep it, but switch it off
+lesysbot tools enable temperature  # back on
+lesysbot tools remove temperature  # delete it (asks first)
 ```
 
 `list` and `info` show `acme/repo@commit` for installed packages and `local` for

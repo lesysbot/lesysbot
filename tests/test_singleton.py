@@ -46,11 +46,7 @@ def test_holder_pid_records_owner(tmp_path, monkeypatch):
     monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
     assert singleton.acquire_instance_lock("testbot")
     try:
-        # Windows byte locks are mandatory: a second handle can't read the PID
-        # through the lock we hold, so holder_pid returns None there by design
-        # (see its docstring and test_is_running below). Elsewhere it names us.
-        expected = None if os.name == "nt" else os.getpid()
-        assert singleton.holder_pid("testbot") == expected
+        assert singleton.holder_pid("testbot") == os.getpid()
     finally:
         singleton.release_instance_lock("testbot")
 
@@ -72,12 +68,7 @@ def test_is_running_ignores_a_stale_lock_file(tmp_path, monkeypatch):
                 break
             time.sleep(0.05)
         assert singleton.is_running("testbot") is True
-        # Windows byte locks are mandatory: holder_pid can't read the PID while
-        # another process holds the lock (see its docstring), so it returns None
-        # there. Only assert the PID off-Windows — the post-exit read below,
-        # once the lock is released, works on every platform.
-        if os.name != "nt":
-            assert singleton.holder_pid("testbot") == child.pid
+        assert singleton.holder_pid("testbot") == child.pid
     finally:
         child.stdin.close()
         child.wait(timeout=10)

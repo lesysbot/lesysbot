@@ -1,14 +1,13 @@
 ---
 name: power
 description: Reboot or power off the machine (scheduled 1 minute out, cancellable)
-platforms: all
 requires: []
 ---
 # power
 
-Power control for the host machine. The right command is chosen per OS
-(`shutdown` everywhere; scheduled via logind/polkit on systemd Linux), so it
-runs everywhere, as your normal user — no sudo setup, nothing to configure.
+Power control for the host machine. It schedules `shutdown`, which on a systemd
+distro goes through logind/polkit, so it runs as your normal user — no sudo
+setup, nothing to configure.
 
 Reboot/power-off are **scheduled 1 minute out**, not immediate: an instant
 poweroff would kill LeSysBot before its reply reaches you, so a remote
@@ -23,7 +22,7 @@ shutdown also cancels that announcement. (Nothing can be sent *after* power
 off — but with the startup notice enabled, a reboot pings you again once the
 machine is back.)
 
-**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing
+**Needs:** nothing
 
 ## Tools (all require confirmation)
 - `/reboot` — restart in 1 minute (cancellable).
@@ -35,7 +34,7 @@ These are destructive and prompt for confirmation when the LLM triggers them.
 ## Power off with automatic wake-up?
 
 Not supported, on purpose. Waking a machine that's fully off means arming the
-motherboard's RTC alarm (`rtcwake`, `pmset`), which needs root — so it only
+motherboard's RTC alarm (`rtcwake`), which needs root — so it only
 ever worked after you hand-installed a sudoers rule. LeSysBot no longer ships
 tools that require that; to have a machine start itself, use your BIOS/UEFI
 "wake on RTC" setting or Wake-on-LAN from another device.

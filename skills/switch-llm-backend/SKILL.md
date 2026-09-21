@@ -39,10 +39,8 @@ llm:
   api_key: "sk-..."        # stored in config.yaml — keep the file private
 ```
 
-Apply: `systemctl --user restart lesysbot` (Linux) /
-`launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot` (macOS) /
-`Stop-ScheduledTask -TaskName LeSysBot; Start-ScheduledTask -TaskName LeSysBot`
-(Windows). CLI sessions pick it up on next launch.
+Apply: `systemctl --user restart lesysbot`. CLI sessions pick it up on next
+launch.
 
 ## Switch for one session (no config edit)
 

@@ -19,9 +19,8 @@ LeSysBot loads the **first** match:
 2. `config.yaml` in the working directory
 3. **`~/.lesysbot/config.yaml`** — the per-user home the installer writes (this
    is the one to edit on an installed setup; `LESYSBOT_HOME` relocates it)
-4. `config.yaml` next to the executable (frozen `.exe` builds)
-5. `config/default.yaml` in the repo
-6. Built-in defaults (no file at all)
+4. `config/default.yaml` shipped with the package
+5. Built-in defaults (no file at all)
 
 Relative paths inside the config (`mcp.tools_dir: ./tools`,
 `logging.file: logs/…`, `mcp.state_file`, `mcp.lock_file`) resolve
@@ -33,12 +32,7 @@ Relative paths inside the config (`mcp.tools_dir: ./tools`,
 
 ```bash
 $EDITOR ~/.lesysbot/config.yaml
-systemctl --user restart lesysbot                          # Linux service
-launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot    # macOS service
-```
-
-```powershell
-Stop-ScheduledTask -TaskName LeSysBot; Start-ScheduledTask -TaskName LeSysBot  # Windows
+systemctl --user restart lesysbot
 ```
 
 CLI sessions just pick up the new config on the next launch.

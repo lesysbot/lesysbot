@@ -19,10 +19,8 @@ that one file and restarting is the whole workflow:
 
 ```bash
 $EDITOR ~/.lesysbot/config.yaml
-systemctl --user restart lesysbot      # Linux — macOS/Windows commands in the service guide
+systemctl --user restart lesysbot
 ```
-
-(The restart command for each OS is in [Run as a service](service.md).)
 
 Not sure which file is active? `lesysbot` prints it on the status screen.
 
@@ -37,17 +35,15 @@ In order, first hit wins:
 1. The path you passed with `-c / --config`
 2. `config.yaml` in the current directory
 3. `~/.lesysbot/config.yaml` — what the installer writes
-4. `config.yaml` next to the executable (for a frozen `.exe` build)
-5. `config/default.yaml` shipped inside the package
-6. Built-in defaults, if there's no file at all
+4. `config/default.yaml` shipped inside the package
+5. Built-in defaults, if there's no file at all
 
-Entries 1–4 are files *you* edit, so relative paths inside them (`./tools`,
+Entries 1–3 are files *you* edit, so relative paths inside them (`./tools`,
 `logs/lesysbot.log`) resolve **next to that file**. That single rule is what
-makes an installed setup use `~/.lesysbot/tools`, a source checkout use the
-repo's own `tools/`, and a Windows `.exe` use the folder it sits in — all from
-the same config text.
+makes an installed setup use `~/.lesysbot/tools` and a source checkout use the
+repo's own `tools/` — all from the same config text.
 
-Entry 5 ships with the package rather than belonging to you, so it supplies
+Entry 4 ships with the package rather than belonging to you, so it supplies
 values but doesn't become the anchor.
 
 Set `LESYSBOT_HOME` to use somewhere other than `~/.lesysbot`.
