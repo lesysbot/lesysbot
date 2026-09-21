@@ -1,7 +1,7 @@
 """`lesysbot setup` — the interactive install/reconfigure wizard.
 
 One cross-platform implementation (Rich panels, arrow-key navigation) shared by
-every OS. ``scripts/install.{sh,ps1}`` only bootstrap — Python check, pip
+every OS. ``scripts/install.sh`` only bootstraps — Python check, pip
 install — then hand off here; running ``lesysbot setup`` directly reconfigures an
 existing install at any time.
 

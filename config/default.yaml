@@ -62,8 +62,8 @@ logging:
   when: midnight                 # midnight | H (hourly) | D | W0..W6 | S
   backup_count: 7                # keep ~7 days of dated files, then delete oldest
 
-webui:
-  # The local management UI: `lesysbot manage`, or just `lesysbot` in a terminal.
+management:
+  # The local control panel, served by the service (`lesysbot run`).
   # Always bound to 127.0.0.1 (loopback) — only the port is configurable, so it
   # can never be exposed on the network.
   port: 8700

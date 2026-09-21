@@ -48,8 +48,8 @@ match. Change a brand token there and this table is what needs to follow.
 | `lesysbot-mark-{16..1024}.png` | — | nearest-neighbour exports; no smoothing anywhere |
 | `lesysbot-wordmark.png` | — | 8× export of the wordmark |
 | `lesysbot.ico` | — | 16/32/64/128/256, each frame drawn at native scale |
-| `banner.txt` | — | truecolor half-block banner, 16 rows — `install.{sh,ps1}` splash |
-| `banner-small.txt` | — | the same in 8 rows — `uninstall.{sh,ps1}` splash |
+| `banner.txt` | — | truecolor half-block banner, 16 rows — `install.sh` splash |
+| `banner-small.txt` | — | the same in 8 rows — `uninstall.sh` splash |
 
 **The 16px cut is redrawn, not scaled.** At that size the bevel and the cast
 shadow turn to mud, so `MARK_16` is a separate sprite: two colours only — ink

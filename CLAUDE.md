@@ -158,7 +158,7 @@ Installer rules: y/N confirmation before install (`--yes` skips; packages are ar
 
 ### Prerequisites (`lesysbot/prereq/`)
 
-What a package needs, whether this machine has it, and the fix. `Requirement(type, value, optional)` → `Result(satisfied, detail, fix, auto_fixable)`; checkers cover `os arch binary python pip gpu docker service metric port`. Surfaces: the preflight block before an install, `lesysbot doctor`, `/api/prereq`, and `mcp/platform.availability()` — which is now a thin wrapper over this, so registry gating is unchanged but shares one implementation.
+What a package needs, whether this machine has it, and the fix. `Requirement(type, value, optional)` → `Result(satisfied, detail, fix, auto_fixable)`; checkers cover `os arch binary python pip gpu docker service metric port`. Surfaces: the preflight block before an install, `lesysbot doctor`, `/api/prereq`, and `mcp/requirements.availability()` — the registry's binary gating, which checks the same `shutil.which` question this layer asks.
 
 Two rules hold throughout: **nothing here installs anything** (only pip deps and LeSysBot's own packages are auto-fixed, elsewhere), and **nothing here runs sudo** — where the only real fix needs root, the fix is *text*. `_binary_fix` deliberately refuses to guess `brew install <command>`: package names routinely differ from the command they install, and `brew install nvidia-smi` is not a thing. Exact commands only where known correct; otherwise name the binary and let the user pick.
 
@@ -172,7 +172,7 @@ Two rules hold throughout: **nothing here installs anything** (only pip deps and
 
 `render.py` turns an installed dashboard package into the JSON Grafana provisions; `provision.py`'s output directory is `dashboard/grafana/dashboards/generated/`, which the compose **mounts as a directory**, replacing the single-file `DASH_JSON` mount that made a second dashboard structurally impossible. Payload is `dashboard.json` (portable, what Grafana's export button gives you) or `dashboard.py` exposing `build(host, caps, ctx)` (host-adaptive). **An unavailable dashboard is not written** — and a previously rendered copy is *removed* when it stops being available, so a dashboard whose exporter went away doesn't keep serving empty panels. Deliberate asymmetry with tools, which stay visible with an explaining stub.
 
-The bundled System Overview is the first dashboard package (`dashboards/system-overview/`), mapping LeSysBot's host/capability vocabulary onto `gen-dashboards.py`, which stays the single source of truth and standalone-runnable. `tests/test_dashboards.py` pins byte-identical output per host cut.
+The bundled System Overview is the first dashboard package (`dashboards/system-overview/`), mapping LeSysBot's host/capability vocabulary onto `gen-dashboards.py`, which stays the single source of truth and standalone-runnable. `tests/test_dashboards.py` pins byte-identical output per capability cut.
 
 ### Bundled content (`hatch_build.py`, `paths.bundled_dir()`)
 
@@ -188,7 +188,7 @@ A **loopback-only web control panel** for config + tools, **served by the servic
 
 **CLI dispatch** (`__main__.main`): everything that *manages* LeSysBot rather than being it — `install`, `update`, `list`, `info`, `remove`, `enable`, `disable`, `search`, `doctor`, `dashboard`, `setup` — is owned by **`lesysbot/cli/`** and exits before any bot setup. `lesysbot.cli.handles(command)` decides; `dispatch()` imports the verb module lazily, so `lesysbot chat` doesn't pay for the marketplace and a syntax error in a rarely used verb can't stop the bot starting. `CLIContext` (`cli/context.py`) is the one place that turns "the user typed a command" into resolved paths, lock and installer — the panel uses the *same* object, so browser and terminal can't disagree about where things live. Then: `manage` → `_manage()`; `_runs_the_bot(command, args)` (true for `run` or an explicit `--provider`) → `_run()`; **bare `lesysbot`** → `_print_status()` and exit. **`lesysbot chat`** is not a fourth path: `main()` rewrites it to `--provider cli` right after parsing, so every decision downstream — settings, `_runs_the_bot`, interactive logging, the singleton guard — is unchanged and unaware of it.
 
-`core/status.gather_status()` is the shared status snapshot (CLI view + `/api/status`). `detect_panel()` probes `/api/ping` — a body-less, lock-free endpoint that answers `{"service": "lesysbot-webui"}` so a *stranger* on that port reads as offline instead of being advertised as the panel (the server answers its own `/api/status` with `running: True` rather than probing itself). The `daemon` row is now computed for **every** provider (the service exists regardless) via `singleton.is_running()`, which tests the lock on a second open file description: the lock *file* outlives a crash with a stale PID in it, so `holder_pid()` alone would report a dead service as running. It also `detect_grafana()`s the dashboard stack so the status screen links to Grafana: candidates are `grafana_candidates()` — the bundled stack's own `GRAFANA_PORT` (read from `~/.lesysbot/dashboard/.env`) first, then `localhost`/`127.0.0.1` on 3000/3001 — and each is **verified** via `/api/health`. `LESYSBOT_GRAFANA_URL` is honoured but *also* verified, then falls through to probing: a saved URL goes stale the moment the stack moves off 3000 (because something else owns that port), and linking that impostor as "Grafana" is worse than probing. Only if nothing answers is the override returned with `reachable: False`, which both renderers (`_print_status`, `management/page.py`) show as "not answering" rather than a link. LLM health probes go through `status.probe_health()`, which closes the httpx client in-loop (one-shot `asyncio.run` otherwise finalizes it on a closed loop → "Event loop is closed"); `Agent.aclose()` does the same on bot shutdown. Tests: `tests/test_management.py` starts the real server on an ephemeral port (plus `/api/ping`, `detect_panel` vs. a foreign server, `serve_background` refusing a second bind) and `tests/test_singleton.py` covers the stale-lock case. Security posture is documented on the site (`security.md` §4 — the listener is now the always-on localhost panel, not an opt-in one) — keep those in sync.
+`core/status.gather_status()` is the shared status snapshot (CLI view + `/api/status`). `detect_panel()` probes `/api/ping` — a body-less, lock-free endpoint that answers `{"service": "lesysbot-management"}` so a *stranger* on that port reads as offline instead of being advertised as the panel (the server answers its own `/api/status` with `running: True` rather than probing itself). The `daemon` row is now computed for **every** provider (the service exists regardless) via `singleton.is_running()`, which tests the lock on a second open file description: the lock *file* outlives a crash with a stale PID in it, so `holder_pid()` alone would report a dead service as running. It also `detect_grafana()`s the dashboard stack so the status screen links to Grafana: candidates are `grafana_candidates()` — the bundled stack's own `GRAFANA_PORT` (read from `~/.lesysbot/dashboard/.env`) first, then `localhost`/`127.0.0.1` on 3000/3001 — and each is **verified** via `/api/health`. `LESYSBOT_GRAFANA_URL` is honoured but *also* verified, then falls through to probing: a saved URL goes stale the moment the stack moves off 3000 (because something else owns that port), and linking that impostor as "Grafana" is worse than probing. Only if nothing answers is the override returned with `reachable: False`, which both renderers (`_print_status`, `management/page.py`) show as "not answering" rather than a link. LLM health probes go through `status.probe_health()`, which closes the httpx client in-loop (one-shot `asyncio.run` otherwise finalizes it on a closed loop → "Event loop is closed"); `Agent.aclose()` does the same on bot shutdown. Tests: `tests/test_management.py` starts the real server on an ephemeral port (plus `/api/ping`, `detect_panel` vs. a foreign server, `serve_background` refusing a second bind) and `tests/test_singleton.py` covers the stale-lock case. Security posture is documented on the site (`security.md` §4 — the listener is now the always-on localhost panel, not an opt-in one) — keep those in sync.
 
 ## Adding a new tool
 
@@ -215,9 +215,9 @@ All backends accept the same config shape — only `base_url`, `model`, and `api
 
 `tests/` holds the pytest suite. Tests construct registries/agents over temp tool dirs and don't need a running LLM, messaging backend, or network. `test_gen_dashboards.py` and `test_start_detect.py` are the exceptions to the tests-cover-`lesysbot/` rule: they exercise `dashboard/scripts/` by path, because `dashboard/` sits outside the package. `test_gen_dashboards` is pure and pins which panels each cut includes (plus a staleness check that the committed JSON still matches the generator); `test_start_detect` sources `start.sh` and drives `detect_capabilities_linux` against a fixture `/sys` tree, overriding `is_virtual`/`command` for the two facts that aren't in sysfs — so the mapping is verified on a machine that doesn't have those chips. `test_config.py` covers the search order and the `~/.lesysbot` home via a monkeypatched `LESYSBOT_HOME` (`test_load_picks_up_user_dir`) plus `config_dir` tracking and `resolve_paths` anchoring. Installer tests share `tests/install_utils.py`: `make_github_zip()` builds GitHub-shaped zipballs (single `repo-ref/` root + commit SHA in the archive comment) and `FakeFetcher` serves them from a dict while recording requested URLs (used to assert the zipball candidate fallback order); hermeticity comes from the same `LESYSBOT_HOME` monkeypatch. `asyncio_mode = "auto"` means async tests need no decorator.
 
-## Setup wizard (`lesysbot/setup/`) and installers (`scripts/install.{sh,ps1}`)
+## Setup wizard (`lesysbot/setup/`) and the installer (`scripts/install.sh`)
 
-The installers are **self-contained and curl-pipeable** — `curl -fsSL
+The installer is **self-contained and curl-pipeable** — `curl -fsSL
 https://lesysbot.github.io/install.sh | sh` is the documented way to install
 LeSysBot, and the published copy is synced from `scripts/` by the docs site's
 `scripts/import-docs.js` into `content/static/`. They own everything up to a
@@ -225,7 +225,7 @@ working command: find a Python 3.11+ (or fetch one with uv), build a venv at
 `~/.local/share/lesysbot/venv`, install the package, link `~/.local/bin/lesysbot`,
 edit PATH, install Ollama, pull a model — then hand off to `lesysbot setup --yes`.
 They also `--uninstall`, which is why the installer copies itself into the install
-dir. `scripts/uninstall.{sh,ps1}` remain for pre-installer installs.
+dir. `scripts/uninstall.sh` remains for pre-installer installs.
 
 **`install.sh` is POSIX `sh`, not bash** — the advertised pipe is `| sh`, and
 `/bin/sh` is dash on Debian/Ubuntu, where `[[ ]]`, arrays and `BASH_SOURCE` are
@@ -248,7 +248,7 @@ path. The Grafana password is *generated* when none is configured, and falls bac
 would lock LeSysBot out of its own dashboard.
 
 **`LESYSBOT_SKIP_SERVICE=1`** skips service install/removal. It exists because
-the LaunchAgent, systemd unit and scheduled task live at fixed per-user paths that
+the `systemd --user` unit lives at a fixed per-user path that
 `LESYSBOT_HOME` does **not** relocate — without it, a test or CI run pointed at a
 scratch home replaces the real machine's service. Set it whenever running setup
 or the installer against a throwaway home.
@@ -290,5 +290,7 @@ the `PALETTE` in `scripts/gen_logo.py` and re-run it. Details in
 ## Dashboard stack (`dashboard/`)
 
 The bundled Prometheus + Grafana stack — seeded by `lesysbot setup`, **default,
-not optional**, lives outside the Python package (hatchling never bundles it),
-binds `127.0.0.1` only and needs **no sudo**. Details in `dashboard/CLAUDE.md`.
+not optional**, binds `127.0.0.1` only and needs **no sudo**. It lives at the
+repo root rather than inside the package, but `hatch_build.py` stages it into
+`lesysbot/_bundled/` so it still ships in the wheel (see **Bundled content**).
+Details in `dashboard/CLAUDE.md`.
