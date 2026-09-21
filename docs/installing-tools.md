@@ -24,13 +24,13 @@ lesysbot install lesysbot/lesysbot-packages-official
 # plus the network-traffic and gpu-detail dashboards
 ```
 
-Packages that can't run on this machine's OS are skipped and named with the
-reason (`battery` outside macOS, say); `--all` installs them anyway, and
+Packages that can't run on this machine are skipped and named with the reason
+(`battery` on a desktop with no battery, say); `--all` installs them anyway, and
 `--only NAME` picks out one package.
 
 ---
 
-## Installing anything else
+## Installing a tool
 
 ```bash
 lesysbot install owner/repo                  # everything in the repo

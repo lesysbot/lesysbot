@@ -29,8 +29,8 @@ curl http://localhost:11434/         # Ollama → "Ollama is running"
 ollama list                          # is your configured model here?
 ```
 
-- Ollama not running → start it (`ollama serve`, or launch the app on
-  macOS/Windows).
+- Ollama not running → start it (`ollama serve`, or
+  `systemctl --user start ollama`).
 - Model not in the list → `ollama pull <name>`, or fix `llm.model` in
   `~/.lesysbot/config.yaml`.
 - Using a remote backend → check `llm.base_url` ends in `/v1` and the key is
@@ -86,15 +86,15 @@ for it.
 ### A tool is listed but refuses to run
 
 ```
-'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
+'traceroute' is unavailable on this machine — requires 'traceroute' on PATH (not found).
 ```
 
-That's by design: tools declare which OSes and programs they need, and say so
-rather than failing cryptically. Install the missing program, or use a tool that
-fits this machine.
+That's by design: a tool declares the programs it needs and says so rather than
+failing cryptically. Install the missing program (here, your distro's
+`traceroute` package) and it starts working — no restart.
 
 ```
-'gpu_temp' is disabled.
+'traceroute' is disabled.
 ```
 
 Turn it back on: `lesysbot enable gpu_temp`.
@@ -131,16 +131,6 @@ in their own directory:
 python -m site --user-scripts     # e.g. /home/you/.local/bin
 ```
 
-On Windows the PATH entry is set for your user account, so only *new* terminals
-see it. If you installed Python by hand, re-run its installer and tick **Add
-Python to PATH**.
-
-### PowerShell refuses to run the installer
-
-```powershell
-powershell -ExecutionPolicy Bypass -Command "irm https://lesysbot.github.io/install.ps1 | iex"
-```
-
 
 ### Edits to the code or a tool seem to do nothing
 
@@ -161,11 +151,8 @@ If that doesn't point at your repo, re-run `pip install -e .`.
 Read the real error first:
 
 ```bash
-journalctl --user -u lesysbot -n 50            # Linux
-tail -n 50 ~/Library/Logs/lesysbot/stderr.log  # macOS
+journalctl --user -u lesysbot -n 50
 ```
-
-Windows: Task Scheduler history, or Event Viewer → Windows Logs → Application.
 
 Common causes:
 
@@ -181,7 +168,7 @@ both otherwise), so LeSysBot takes a lock and refuses the second, naming the PID
 that holds it. Stop the service first:
 
 ```bash
-systemctl --user stop lesysbot          # Linux
+systemctl --user stop lesysbot
 ```
 
 A terminal chat (`lesysbot chat`) doesn't poll, so it always runs fine
@@ -192,9 +179,7 @@ alongside the service.
 Most settings are read at startup. Restart the service:
 
 ```bash
-systemctl --user restart lesysbot                                 # Linux
-launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot         # macOS
-Stop-ScheduledTask -TaskName LeSysBot; Start-ScheduledTask -TaskName LeSysBot   # Windows
+systemctl --user restart lesysbot
 ```
 
 Enabling and disabling *tools* is the exception — that applies within a second,
@@ -214,7 +199,7 @@ no restart needed.
 | Discord: `Discord rejected the bot token` | Wrong or revoked token. **Bot → Reset Token**, then update `config.yaml`. |
 | Discord: replies `Unauthorized.` | Your user ID isn't in `allowed_user_ids`. Re-copy it with Developer Mode on. |
 | Discord: no answer in a channel | The bot only answers channel messages that **@-mention** it. DMs need no mention. |
-| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled and platform-unavailable tools are left out on purpose. |
+| Tools missing from the `/` menu | Registered at startup only — restart after installing or enabling a tool. On Discord the bot must also have been invited with the **`applications.commands`** scope. Disabled tools, and tools whose required binary is missing, are left out on purpose. |
 | A tool never appears in the `/` menu | Its name must be lowercase letters, digits or `_` (both platforms' rule); the log names any tool skipped for this. It still works typed out. |
 | Discord: can't open a DM with the bot | You don't share a server with it — re-run the OAuth2 invite URL. |
 
@@ -242,35 +227,30 @@ host can actually report, and leaves out panels nothing could fill. So an empty
 panel is meaningful — it means a reading you *should* be getting isn't arriving.
 Work through it in this order.
 
-**1. Are you on the dashboard built for this machine?** Its title names your
-platform — *System Overview — Linux*, *— macOS (Apple Silicon)*, *— Windows*. If
-it says **"Linux / macOS"** you're on the portable fallback, which carries every
-panel for every platform and therefore shows rows your hardware can never fill.
-You get that when the host has no `python3`, or when you started `docker compose`
-by hand. Re-run the start script — it warns when it falls back:
+**1. Are you on the dashboard built for this machine?** The host-specific cut is
+titled *System Overview — Linux*. If it says just **"System Overview"** you're on
+the portable fallback, which carries every sensor panel and therefore shows rows
+your hardware can never fill. You get that when the host has no `python3`, or
+when you started `docker compose` by hand. Re-run the start script — it warns
+when it falls back:
 
 ```bash
-./scripts/install-macos.sh      # macOS
-./scripts/start.sh              # Linux
-.\scripts\start.ps1             # Windows
+./scripts/start.sh
 ```
 
 **2. Is your install up to date?** A fix only reaches `~/.lesysbot/dashboard`
-when you re-run the wizard — `lesysbot setup`, or
-`lesysbot setup`. Then re-run the start script above so the
-dashboard is regenerated. Without that step you keep running the scripts from
-whenever you first installed.
+when you re-run the wizard — `lesysbot setup`. Then re-run the start script above
+so the dashboard is regenerated. Without that step you keep running the scripts
+from whenever you first installed.
 
 **3. Which panels?**
 
 | Empty panel | Meaning |
 |---|---|
-| **CPU / GPU Die Temperature** (macOS) | Expected without a helper. Apple publishes die temperature only through a private framework or root-only `powermetrics`, and LeSysBot never uses `sudo`. The installer offers to install one; you can also do it later with `brew install vladkens/tap/macmon` (Apple Silicon) or `brew install narugit/tap/smctemp` (either). It fills in within 15 s, nothing to reconfigure. |
-| **All macOS-specific panels** | The collector stopped. The **Collector Age** tile shows how stale the data is; `./scripts/install-macos.sh status` reports the same, and errors land in `dashboard/run/macos-metrics.log`. |
-| **No Temperatures row at all** (Linux) | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
-| **No Temperatures row** (Windows) | `windows_exporter` served no ACPI thermal zones — normal on desktops. Windows has no per-component CPU or disk sensor of its own; **LibreHardwareMonitor** is the usual answer. |
-| **GPU row** | The exporter isn't answering. GPU metrics need `nvidia-smi` on `PATH` — the exporter shells out to it, so a card with no driver can't be read. AMD GPUs on Linux report temperature through `hwmon` instead and need no exporter. |
-| **Everything, on every panel** | Grafana is up and Prometheus isn't. Check `http://localhost:9090/targets` (or your `PROM_PORT`); on macOS `./scripts/install-macos.sh status` says which service is down. |
+| **No Temperatures row at all** | The host has no sensor drivers bound. In a VM that's the end of it. On bare metal `start.sh` prints the exact `modprobe` — run it, then re-run `start.sh`. Check what the kernel sees with `cat /sys/class/hwmon/*/name`. |
+| **GPU row** | The exporter isn't answering. NVIDIA metrics need `nvidia-smi` on `PATH` — the exporter shells out to it, so a card with no driver can't be read. AMD GPUs report temperature through `hwmon` instead and need no exporter. |
+| **Disk Temperature** | No `nvme` or `drivetemp` hwmon chip. `drivetemp` often needs loading (`sudo modprobe drivetemp`); some drives expose nothing at all. |
+| **Everything, on every panel** | Grafana is up and Prometheus isn't. Check `http://localhost:9090/targets` (or your `PROM_PORT`). |
 
 ---
 

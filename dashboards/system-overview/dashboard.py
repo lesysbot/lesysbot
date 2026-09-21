@@ -21,8 +21,7 @@ import sys
 from pathlib import Path
 
 # LeSysBot's GPU vendor names → the capability flags gen-dashboards.py expects.
-# Only NVIDIA and AMD have their own rows; Apple's GPU row is part of the macOS
-# cut unconditionally, because ioreg is always readable on Apple silicon.
+# NVIDIA needs its exporter; AMD reads straight from hwmon.
 _GPU_CAPS = {"nvidia": "nvidia", "amd": "amd_gpu"}
 
 
@@ -79,8 +78,8 @@ def build(host: str, caps: set[str], ctx: dict) -> dict:
     """The Grafana model for this host. Signature is the dashboard-package API."""
     generator = _generator()
     if host not in generator.CAPABILITIES:
-        # A host the generator has no cut for (BSD, say). The portable
-        # Linux/macOS dashboard is the honest fallback: its `or`-fallbacks cover
-        # the metric names node_exporter actually emits there.
+        # A host the generator has no cut for (BSD, say). The portable dashboard
+        # is the honest fallback: it asks for every sensor family, so whatever
+        # node_exporter does emit there still lands in a panel.
         return generator.build_node()
     return generator.build_for(host, _capabilities(host, caps, generator))

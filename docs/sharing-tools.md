@@ -14,7 +14,7 @@ The simplest shareable unit — the repo *is* the package:
 
 ```
 lesysbot-gpu-temp/
-├── README.md        # frontmatter: name, description, version, platforms, requires
+├── README.md        # frontmatter: name, description, version, requires
 ├── tool.py          # the tools (@tool functions / CLITool instances)
 ├── _helpers.py      # optional, ignored by the loader, importable by tool.py
 └── requirements.txt # optional pip deps (printed, not auto-installed)
@@ -28,7 +28,6 @@ the package without executing any code:
 name: gpu-temp
 description: Read NVIDIA GPU temperature
 version: 1.0.0
-platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
 ```
@@ -55,7 +54,7 @@ lesysbot-tools/
 with `--only gpu-temp` or install a single one directly via
 `you/lesysbot-tools/gpu-temp`. Directories named `tests/`, `docs/`, or starting
 with `.`/`_` are ignored. A repo may also nest the package folders under a
-`tools/` directory (the official collections do) — the installer looks there
+`tools/` directory (LeSysBot's own repo does) — the installer looks there
 first when the root holds no packages.
 
 ## 3. Versioning & refs
@@ -71,7 +70,7 @@ first when the root holds no packages.
 - [ ] `tool.py` imports only stdlib + declared `requirements.txt` deps, and
       handles `ImportError` with a friendly message.
 - [ ] Destructive actions use `confirm=` on the `@tool` decorator.
-- [ ] `platforms=[...]`/`requires=[...]` declared where the tool isn't universal.
+- [ ] `requires=[...]` declared for every program the tool shells out to.
 - [ ] README frontmatter filled in (name, description, version).
 - [ ] Test locally: copy the package into your own tools dir, or
       `lesysbot install you/repo@your-branch`.

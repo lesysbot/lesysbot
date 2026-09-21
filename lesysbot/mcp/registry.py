@@ -12,7 +12,7 @@ from typing import Any, Callable
 
 from lesysbot.core.paths import force_rmtree
 from lesysbot.mcp.cli_tool import CLITool
-from lesysbot.mcp.platform import availability
+from lesysbot.mcp.requirements import availability
 
 logger = logging.getLogger(__name__)
 
@@ -184,10 +184,10 @@ class ToolRegistry:
         name = tool_meta["name"]
         if source is not None:
             tool_meta["source"] = str(source)
-        # Gate on declared platforms / required executables. Unsupported tools are
-        # still registered (visible in /help and to the LLM) but their fn is swapped
-        # for a stub that explains why they can't run here.
-        ok, reason = availability(tool_meta.get("platforms"), tool_meta.get("requires"))
+        # Gate on required executables. Unavailable tools are still registered
+        # (visible in /help and to the LLM) but their fn is swapped for a stub
+        # that explains why they can't run here.
+        ok, reason = availability(tool_meta.get("requires"))
         tool_meta["available"] = ok
         tool_meta["unavailable_reason"] = reason
         if not ok:
@@ -209,7 +209,7 @@ class ToolRegistry:
         """Discover tools in tools_dir.
 
         Two layouts are supported:
-          • folder packages — each subdirectory (e.g. ``gpu-temp/``) is a
+          • folder packages — each subdirectory (e.g. ``temperature/``) is a
             self-contained, copy-paste tool with its own ``README.md`` and
             ``tool.py``. This is the recommended, shareable form.
           • loose ``.py`` files dropped straight in ``tools/`` (quick local tools).
@@ -428,7 +428,6 @@ class ToolRegistry:
                 "enabled": self.is_enabled(meta["name"]),
                 "available": meta.get("available", True),
                 "unavailable_reason": meta.get("unavailable_reason"),
-                "platforms": meta.get("platforms"),
                 "requires": meta.get("requires"),
                 "confirm": bool(meta.get("confirm")),
                 "params": [{"name": p, "required": p in required} for p in params],

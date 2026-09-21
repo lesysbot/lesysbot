@@ -1,5 +1,5 @@
 """The control panel single page, inlined so it always ships with the package
-(no package-data wiring, works in a PyInstaller build too).
+(no package-data wiring needed).
 
 The brand mark and favicon are rendered to SVG here from the sprite in
 ``lesysbot.core._logo`` — the same grid ``core/banner.py`` renders to the
@@ -316,14 +316,13 @@ async function loadTools(){
   const rows=d.tools||[];
   $('#toolsTable').innerHTML='<tr><th>Tool</th><th>State</th><th>Where</th><th></th></tr>'+
     (rows.length?rows.map(t=>{
-      const plat=(t.platforms||[]).map(p=>`<span class="chip">${esc(p)}</span>`).join('')||'<span class="chip">all OS</span>';
       const req=(t.requires||[]).map(p=>`<span class="chip">needs ${esc(p)}</span>`).join('');
       const conf=t.confirm?'<span class="chip">confirm</span>':'';
       const avail=t.available?'':`<div class="err">⚠ ${esc(t.unavailable_reason||'unavailable here')}</div>`;
       return `<tr>
         <td><div class="name">${esc(t.name)}</div><div class="desc">${esc(t.description)}</div>${avail}</td>
         <td><span class="switch ${t.enabled?'on':'off'}" onclick="toggle('${esc(t.name)}',${!t.enabled})">${t.enabled?'enabled':'disabled'}</span></td>
-        <td>${plat}${req}${conf}<div class="muted" style="font-size:11px;margin-top:3px">${t.source_kind?esc(t.source_kind):'built-in'}</div></td>
+        <td>${req}${conf}<div class="muted" style="font-size:11px;margin-top:3px">${t.source_kind?esc(t.source_kind):'built-in'}</div></td>
         <td><button class="btn small danger" onclick="removeTool('${esc(t.name)}')">Remove</button></td>
       </tr>`;
     }).join(''):'<tr><td colspan="4" class="muted">No tools found.</td></tr>');

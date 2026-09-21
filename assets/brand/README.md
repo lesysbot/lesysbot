@@ -107,12 +107,9 @@ above its own Python version check. Both gate on the same conditions the Python
 path does (a TTY, no `NO_COLOR`, `TERM` isn't `dumb`, file present) and treat a
 missing file as a no-op, so a partial checkout still installs. The shell reads
 them with `sed`, never `printf`: the file is raw escape codes, which `printf`
-would try to interpret as a format string. PowerShell additionally requires a
-host that processes virtual-terminal sequences (PowerShell 7+ or Windows
-Terminal), or the escapes would print as literal garbage.
+would try to interpret as a format string.
 
-Still unused: `lesysbot-mark-scanline.svg`. `lesysbot.ico` is the natural input
-for `scripts/build-exe.ps1` when that call is made.
+Still unused: `lesysbot-mark-scanline.svg` and `lesysbot.ico`.
 
 Assets live outside the `lesysbot/` package directory on purpose, so hatchling
 never bundles them into the wheel.

@@ -11,9 +11,9 @@ Installing LeSysBot itself is in [Getting started](getting-started.md).
 
 ## You already have one
 
-The setup wizard installs it for every configuration — systemd on Linux, launchd
-on macOS, Task Scheduler on Windows. It runs from `~/.lesysbot`, restarts itself
-if it crashes, and starts on boot if you asked for that.
+The setup wizard installs it for every configuration — a `systemd --user` unit.
+It runs from `~/.lesysbot`, restarts itself if it crashes, and starts on boot if
+you asked for that.
 
 It's installed even if you picked **Terminal only**: the service is what keeps
 the control panel online. With that provider there's no chat to serve, so the
@@ -27,14 +27,12 @@ The day-to-day rhythm is two commands:
 
 ```bash
 $EDITOR ~/.lesysbot/config.yaml       # change something
-systemctl --user restart lesysbot     # apply it (Linux — see the table below)
+systemctl --user restart lesysbot     # apply it
 ```
 
 ---
 
 ## Controlling it
-
-**Linux (systemd)**
 
 | Action | Command |
 |---|---|
@@ -44,37 +42,18 @@ systemctl --user restart lesysbot     # apply it (Linux — see the table below)
 | Start at login, or not | `systemctl --user enable lesysbot` / `disable lesysbot` |
 | Remove it | `systemctl --user disable lesysbot && rm ~/.config/systemd/user/lesysbot.service && systemctl --user daemon-reload` |
 
-**macOS (launchd)**
-
-| Action | Command |
-|---|---|
-| Is it running? | `launchctl list \| grep lesysbot` |
-| Start / stop | `launchctl start com.lesysbot.lesysbot` / `stop com.lesysbot.lesysbot` |
-| Apply config changes | `launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot` |
-| Remove it | `launchctl unload -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist && rm ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist` |
-
-**Windows (Task Scheduler)**
-
-| Action | Command (PowerShell) |
-|---|---|
-| Is it running? | `Get-ScheduledTask -TaskName 'LeSysBot' \| Select-Object State` |
-| Start / stop | `Start-ScheduledTask -TaskName 'LeSysBot'` / `Stop-ScheduledTask …` |
-| Remove it | `Unregister-ScheduledTask -TaskName 'LeSysBot' -Confirm:$false` |
-
-The graphical Task Scheduler (`taskschd.msc`) works too — the task is called
-**LeSysBot**.
-
 ---
 
 ## Starting at boot
 
-- **Linux** — the service starts when you log in. To start it before anyone logs
-  in (a headless box), run `loginctl enable-linger $USER`. Undo with
-  `disable-linger`.
-- **macOS** — starts at login automatically. For before-login, the plist has to
-  live in `/Library/LaunchDaemons/` and be loaded with `sudo`.
-- **Windows** — starts when you log in. For a headless server,
-  [NSSM](https://nssm.cc) can register it as a true service.
+A `--user` service starts when you log in. To start it before anyone logs in — a
+headless server, which is the usual case — enable lingering:
+
+```bash
+loginctl enable-linger $USER      # undo with: loginctl disable-linger $USER
+```
+
+The setup wizard does this for you when you pick auto-start.
 
 ---
 
@@ -108,11 +87,9 @@ you'd rather the report landed in a channel than in your DMs.
 **What the service itself printed:**
 
 ```bash
-journalctl --user -u lesysbot -f                # Linux, live
-tail -f ~/Library/Logs/lesysbot/stderr.log      # macOS
+journalctl --user -u lesysbot -f           # live
+journalctl --user -u lesysbot -n 100       # the last 100 lines
 ```
-
-Windows: Task Scheduler history, or Event Viewer → Windows Logs → Application.
 
 **What LeSysBot wrote:**
 
@@ -137,7 +114,7 @@ bare `lesysbot` only prints status and exits, so a unit that calls it would come
 straight back down.
 
 <details>
-<summary><b>Linux — systemd user service</b></summary>
+<summary><b>systemd user service</b></summary>
 
 `~/.config/systemd/user/lesysbot.service`:
 
@@ -167,80 +144,11 @@ systemctl --user enable --now lesysbot
 </details>
 
 <details>
-<summary><b>macOS — launchd agent</b></summary>
-
-`~/Library/LaunchAgents/com.lesysbot.lesysbot.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.lesysbot.lesysbot</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/lesysbot</string>
-        <string>run</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/you/.lesysbot</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/Users/you/Library/Logs/lesysbot/stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/you/Library/Logs/lesysbot/stderr.log</string>
-</dict>
-</plist>
-```
-
-Replace the path with `which lesysbot` and `you` with your username, then:
-
-```bash
-mkdir -p ~/Library/Logs/lesysbot
-launchctl load -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist
-```
-
-</details>
-
-<details>
-<summary><b>Windows — Task Scheduler</b></summary>
-
-In PowerShell, as your regular user:
-
-```powershell
-$bin     = (Get-Command lesysbot).Source
-$workdir = Join-Path $HOME ".lesysbot"
-
-$action   = New-ScheduledTaskAction -Execute $bin -Argument 'run' -WorkingDirectory $workdir
-$trigger  = New-ScheduledTaskTrigger -AtLogon -User $env:USERNAME
-$settings = New-ScheduledTaskSettingsSet `
-    -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
-    -ExecutionTimeLimit ([System.TimeSpan]::Zero) `
-    -MultipleInstances IgnoreNew -StartWhenAvailable $true
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-
-Register-ScheduledTask -TaskName "LeSysBot" `
-    -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force
-Start-ScheduledTask -TaskName "LeSysBot"
-```
-
-</details>
-
-<details>
 <summary><b>Just for now — no service at all</b></summary>
 
 ```bash
 nohup lesysbot run > logs/lesysbot-stdout.log 2>&1 &    # stop with: pkill -f lesysbot
 screen -S lesysbot -d -m lesysbot run                   # or tmux
-```
-
-```powershell
-Start-Process lesysbot -ArgumentList run -WindowStyle Hidden   # stop: Stop-Process -Name lesysbot
 ```
 
 </details>

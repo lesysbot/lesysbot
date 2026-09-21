@@ -76,9 +76,9 @@ def _clamp(text: str, limit: int = MAX_DESCRIPTION_LEN) -> str:
 def tool_commands(registry: Any) -> list[CommandSpec]:
     """Specs for every tool that can actually be called right now.
 
-    Disabled tools and tools gated off this OS are left out: the menu answers
-    "what can I run", and offering a command whose only reply is "that's
-    disabled" wastes one of the 100 slots to teach nothing.
+    Disabled tools, and tools gated off by a missing binary, are left out: the
+    menu answers "what can I run", and offering a command whose only reply is
+    "that's disabled" wastes one of the 100 slots to teach nothing.
     """
     specs: list[CommandSpec] = []
     skipped: list[str] = []

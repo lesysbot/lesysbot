@@ -15,11 +15,6 @@ script.
 curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
 
-```powershell
-# Windows
-irm https://lesysbot.github.io/install.ps1 | iex
-```
-
 Here is everything it does, in order:
 
 | | |
@@ -62,11 +57,9 @@ Every flag also has a `LESYSBOT_*` environment variable, because a bare
 
 ### Where does Ollama need a password?
 
-Nowhere that LeSysBot can avoid, and it never asks for one. On **macOS** and
-**Windows** Ollama installs without elevation, so the installer just does it. On
-**Linux** Ollama's own installer needs root — so unless you're already root (or
-have passwordless `sudo`), the installer **skips it** and prints the two lines
-for you to run:
+Nowhere that LeSysBot can avoid, and it never asks for one. Ollama's own
+installer needs root — so unless you're already root (or have passwordless
+`sudo`), the installer **skips it** and prints the two lines for you to run:
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
@@ -224,43 +217,19 @@ writing anything.
 After it writes the config, setup also seeds the
 [dashboard stack](../dashboard/README.md) into `~/.lesysbot/dashboard` and
 gets you to a Grafana dashboard at **http://localhost:3000**. It first asks **how**
-you want it set up (see per-OS below), then the **Grafana username and password**
-LeSysBot should use to reach it (defaults `admin` / `admin`; the password is
-hidden as you type). Those are saved to `~/.lesysbot/grafana.env`, which LeSysBot
-loads at startup — so the `share_dashboard` tool and the status screen
-authenticate automatically. This is a standard part of LeSysBot, not an opt-in —
-and always no-`sudo`, never fatal to the install:
+you want it set up, then the **Grafana username and password** LeSysBot should
+use to reach it (defaults `admin` / `admin`; the password is hidden as you type).
+Those are saved to `~/.lesysbot/grafana.env`, which LeSysBot loads at startup —
+so the `share_dashboard` tool and the status screen authenticate automatically.
+This is a standard part of LeSysBot, not an opt-in — and always no-`sudo`, never
+fatal to the install.
 
-- **Linux** — Docker is the path. If Docker is already running, setup **asks
-  whether to auto-start** the bundled Prometheus + Grafana stack now, or **set it
-  up manually** later. The bundled Grafana boots with the username/password you
-  entered. If Docker isn't ready, it prints the exact steps to get it going
-  (install Docker Engine, start the daemon, or join the `docker` group) — or run
-  Grafana natively instead.
-- **macOS** — Homebrew is the path, and it **doesn't require Docker Desktop**.
-  Setup asks whether to install it now, then `brew install`s Grafana, Prometheus
-  and `node_exporter`, wires the datasource and dashboard up, sets Grafana's
-  admin password to the one you entered, and runs all three under `brew
-  services` so they survive a reboot. Nothing else to do — open
-  `http://localhost:3000`. If Homebrew isn't installed, setup says so and falls
-  back to the manual instructions below.
-
-  It asks **one extra question here**: whether to install a small helper for
-  CPU/GPU **die temperature**. macOS publishes that only through a private
-  framework or root-only `powermetrics`, and LeSysBot never uses `sudo`, so those
-  two tiles need `macmon` (Apple Silicon) or `smctemp` (either chip). The answer
-  **defaults to no**, only the tool that can work on your Mac is offered, and a
-  failed install never fails the setup — every other panel works without it, and
-  you can add one at any time. Answer up front, or skip the prompt entirely on an
-  unattended install, with `LESYSBOT_TEMP_HELPER=macmon|smctemp|none`.
-- **Windows** — setup **doesn't require Docker Desktop**. It warns and walks you
-  through a native Grafana install from
-  [grafana.com/grafana/download](https://grafana.com/grafana/download): install
-  it, open `http://localhost:3000`, and **set Grafana's admin login to the
-  username/password you entered** so LeSysBot connects (it detects Grafana on
-  port 3000 automatically; set `LESYSBOT_GRAFANA_URL` only if it runs elsewhere).
-  If you *do* have Docker running, it also points out the one-command bundled
-  stack as a shortcut.
+Docker is the path. If Docker is already running, setup **asks whether to
+auto-start** the bundled Prometheus + Grafana stack now, or **set it up
+manually** later. The bundled Grafana boots with the username/password you
+entered. If Docker isn't ready, it prints the exact steps to get it going
+(install Docker Engine, start the daemon, or join the `docker` group) — or run
+Grafana natively instead.
 
 Set `LESYSBOT_SKIP_DASHBOARD=1` before running setup to skip this step entirely
 (e.g. an unattended install that shouldn't pull images or prompt).
@@ -372,8 +341,7 @@ Day-to-day guide: **[Everyday use](usage.md)**.
 lesysbot install lesysbot/lesysbot-packages-official   # network, temperature, battery, dashboards
 ```
 
-A running bot picks them up immediately. More in
-[Install tools](installing-tools.md).
+More in [Install tools](installing-tools.md).
 
 **Or write one.** Create `~/.lesysbot/tools/hello/tool.py`:
 
@@ -437,9 +405,6 @@ no checkout:
 ```bash
 ~/.local/share/lesysbot/install.sh --uninstall
 ```
-```powershell
-& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall
-```
 
 It works backwards through what the installer did: stops and removes the
 background service, stops the Grafana stack (without removing its Docker
@@ -448,8 +413,8 @@ command and its environment, and takes its entry back out of your shell startup
 files.
 
 **It keeps `~/.lesysbot`** — your config, tools, dashboards and logs — so a
-later reinstall finds everything as you left it. Add `--purge` (`-Purge` on
-Windows) to delete that too.
+later reinstall finds everything as you left it. Add `--purge` to delete that
+too.
 
 Installed some other way? Then remove it that way — `pipx uninstall lesysbot`,
 or delete the virtualenv you made — and `rm -rf ~/.lesysbot` when you're done

@@ -1,6 +1,6 @@
 ---
 name: manage-service
-description: Operate LeSysBot as a background service — status, start/stop/restart, auto-start on boot, reading logs, and setting a service up by hand on Linux (systemd), macOS (launchd), or Windows (Task Scheduler). Use when asked to "restart the bot", "is lesysbot running", "start on boot", "check the logs", or "set up lesysbot as a daemon".
+description: Operate LeSysBot as a background service on Linux — status, start/stop/restart, auto-start on boot, reading logs, and writing a systemd --user unit by hand. Use when asked to "restart the bot", "is lesysbot running", "start on boot", "check the logs", or "set up lesysbot as a daemon".
 ---
 
 # Run and manage LeSysBot as a service
@@ -26,7 +26,7 @@ bind a port and runs fine alongside the service.
 
 ## Managing the installed service
 
-**Linux (systemd user service):**
+It is a **`systemd --user`** unit (`lesysbot.service`):
 
 | Action | Command |
 |---|---|
@@ -36,41 +36,22 @@ bind a port and runs fine alongside the service.
 | Auto-start on/off | `systemctl --user enable lesysbot` / `disable lesysbot` |
 | Remove | `systemctl --user disable lesysbot && rm ~/.config/systemd/user/lesysbot.service && systemctl --user daemon-reload` |
 
-**macOS (launchd):**
-
-| Action | Command |
-|---|---|
-| Status | `launchctl list \| grep lesysbot` |
-| Start / Stop | `launchctl start com.lesysbot.lesysbot` / `stop com.lesysbot.lesysbot` |
-| Restart | `launchctl kickstart -k gui/$(id -u)/com.lesysbot.lesysbot` |
-| Remove | `launchctl unload -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist && rm ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist` |
-
-**Windows (Task Scheduler, task name `LeSysBot`):**
-
-| Action | Command (PowerShell) |
-|---|---|
-| Status | `Get-ScheduledTask -TaskName 'LeSysBot' \| Select-Object State` |
-| Start / Stop | `Start-ScheduledTask -TaskName 'LeSysBot'` / `Stop-ScheduledTask -TaskName 'LeSysBot'` |
-| Remove | `Unregister-ScheduledTask -TaskName 'LeSysBot' -Confirm:$false` |
-
 Re-running the install wizard stops and replaces an existing service — the
 easiest way to apply a provider/model change end to end.
 
 ## Auto-start on boot
 
-- **Linux** — the user service starts at *login*; for boot-before-login:
-  `loginctl enable-linger $USER` (undo: `disable-linger`).
-- **macOS** — the LaunchAgent (`RunAtLoad`) starts at login. Pre-login: move
-  the plist to `/Library/LaunchDaemons/` and load with `sudo launchctl`.
-- **Windows** — the `AtLogon` trigger fires at login. Headless pre-login:
-  [NSSM](https://nssm.cc) — `nssm install LeSysBot "C:\path\to\lesysbot.exe"`.
+A `--user` service starts at *login*. For a headless box that must come up
+before anyone logs in, enable lingering: `loginctl enable-linger $USER` (undo:
+`loginctl disable-linger $USER`). The install wizard does this when you pick
+auto-start.
 
 ## Setting up a service by hand
 
 Key rule: **the service must run from the directory holding `config.yaml` and
 `tools/`** — `~/.lesysbot` for a standard install.
 
-**Linux** — `~/.config/systemd/user/lesysbot.service` (set `ExecStart` to
+`~/.config/systemd/user/lesysbot.service` (set `ExecStart` to
 `which lesysbot`; `%h` = home):
 
 ```ini
@@ -81,7 +62,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/.lesysbot
-ExecStart=/home/you/.local/bin/lesysbot
+ExecStart=/home/you/.local/bin/lesysbot run
 Restart=on-failure
 RestartSec=5
 
@@ -91,33 +72,21 @@ WantedBy=default.target
 
 Then `systemctl --user daemon-reload && systemctl --user enable --now lesysbot`.
 
-**macOS** — `~/Library/LaunchAgents/com.lesysbot.lesysbot.plist` with
-`ProgramArguments` = `which lesysbot`, `WorkingDirectory` = `/Users/you/.lesysbot`,
-`RunAtLoad` + `KeepAlive` true, and `StandardOutPath`/`StandardErrorPath` under
-`~/Library/Logs/lesysbot/`. Then
-`mkdir -p ~/Library/Logs/lesysbot && launchctl load -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist`.
-
-**Windows** — register a scheduled task whose action runs `(Get-Command
-lesysbot).Source` with `-WorkingDirectory "$HOME\.lesysbot"`, an `-AtLogon`
-trigger, restart-on-failure settings, then `Start-ScheduledTask -TaskName LeSysBot`.
-
 **Throwaway background run (no service):**
 
 ```bash
-nohup lesysbot > logs/lesysbot-stdout.log 2>&1 &     # stop: pkill -f lesysbot
-tmux new-session -d -s lesysbot "lesysbot"           # or screen -S lesysbot -d -m lesysbot
+nohup lesysbot run > logs/lesysbot-stdout.log 2>&1 &   # stop: pkill -f lesysbot
+tmux new-session -d -s lesysbot "lesysbot run"         # or screen -S lesysbot -d -m lesysbot run
 ```
 
 ## Logs
 
 ```bash
-journalctl --user -u lesysbot -f              # Linux service stdout/stderr (live)
-tail -f ~/Library/Logs/lesysbot/stderr.log    # macOS
-tail -f ~/.lesysbot/logs/lesysbot.log           # LeSysBot's own log (any OS)
-tail -f ~/.lesysbot/logs/traces.jsonl         # per-request traces (what the LLM did)
+journalctl --user -u lesysbot -f           # service stdout/stderr (live)
+tail -f ~/.lesysbot/logs/lesysbot.log      # LeSysBot's own log
+tail -f ~/.lesysbot/logs/traces.jsonl      # per-request traces (what the LLM did)
 ```
 
-Windows service output: Task Scheduler history or Event Viewer → Application.
 Both LeSysBot logs rotate daily (configurable; `null` path disables).
 
 ## Service starts but exits immediately?

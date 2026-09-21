@@ -1,5 +1,5 @@
 #!/bin/sh
-# LeSysBot installer — macOS & Linux
+# LeSysBot installer — Linux
 #
 #   curl -fsSL https://lesysbot.github.io/install.sh | sh
 #   curl -fsSL https://lesysbot.github.io/install.sh | sh -s -- --skip-dashboard
@@ -253,7 +253,7 @@ ensure_python() {
      Install Python 3.11 or newer and re-run this command:
        Ubuntu/Debian  sudo apt install python3 python3-venv
        Fedora         sudo dnf install python3
-       macOS          brew install python@3.12
+       Arch           sudo pacman -S python
        Any            https://www.python.org/downloads/"
     fi
     version=$("$PYTHON" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])')
@@ -314,8 +314,8 @@ on_path() {
 
 # Add BIN_DIR to PATH in the user's shell startup files. Deliberately one
 # clearly marked block per file so --uninstall can take it back out exactly, and
-# never ~/.bash_profile: on macOS it shadows ~/.profile, and rewriting it has
-# bitten every installer that tried.
+# never ~/.bash_profile: where it exists it shadows ~/.profile, and rewriting it
+# has bitten every installer that tried.
 ensure_path() {
     # link_shim has already put BIN_DIR on this process's PATH, so the question
     # is whether the *user's shell* would find it — PATH_WAS_SET, sampled first.
@@ -385,30 +385,13 @@ ensure_ollama() {
         okv "Ollama" "already installed"
         return 0
     fi
-    case "$(uname -s)" in
-        Darwin)
-            if have brew; then
-                step "Installing Ollama with Homebrew …"
-                brew install ollama >/dev/null 2>&1 && brew services start ollama >/dev/null 2>&1 || true
-            else
-                step "Installing Ollama …"
-                fetch "$OLLAMA_INSTALLER" | sh >/dev/null 2>&1 || true
-            fi
-            ;;
-        Linux)
-            if [ -n "$WITH_OLLAMA" ] || can_sudo_silently; then
-                step "Installing Ollama …"
-                fetch "$OLLAMA_INSTALLER" | sh >/dev/null 2>&1 || true
-            else
-                ollama_manual_note
-                return 0
-            fi
-            ;;
-        *)
-            warn "Install Ollama for this platform from https://ollama.com/download"
-            return 0
-            ;;
-    esac
+    if [ -n "$WITH_OLLAMA" ] || can_sudo_silently; then
+        step "Installing Ollama …"
+        fetch "$OLLAMA_INSTALLER" | sh >/dev/null 2>&1 || true
+    else
+        ollama_manual_note
+        return 0
+    fi
     if have ollama; then
         ok "Ollama installed"
     else
@@ -507,26 +490,14 @@ remove_service() {
         note "Leaving the background service alone (LESYSBOT_SKIP_SERVICE set)."
         return 0
     fi
-    case "$(uname -s)" in
-        Darwin)
-            plist="$HOME/Library/LaunchAgents/com.lesysbot.lesysbot.plist"
-            if [ -f "$plist" ]; then
-                launchctl unload "$plist" >/dev/null 2>&1 || true
-                rm -f "$plist"
-                ok "LaunchAgent removed"
-            fi
-            ;;
-        Linux)
-            unit="$HOME/.config/systemd/user/lesysbot.service"
-            if [ -f "$unit" ]; then
-                systemctl --user stop lesysbot >/dev/null 2>&1 || true
-                systemctl --user disable lesysbot >/dev/null 2>&1 || true
-                rm -f "$unit"
-                systemctl --user daemon-reload >/dev/null 2>&1 || true
-                ok "systemd user unit removed"
-            fi
-            ;;
-    esac
+    unit="$HOME/.config/systemd/user/lesysbot.service"
+    if [ -f "$unit" ]; then
+        systemctl --user stop lesysbot >/dev/null 2>&1 || true
+        systemctl --user disable lesysbot >/dev/null 2>&1 || true
+        rm -f "$unit"
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        ok "systemd user unit removed"
+    fi
 }
 
 strip_path_block() {

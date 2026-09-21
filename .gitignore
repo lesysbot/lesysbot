@@ -8,12 +8,10 @@ __pycache__/
 # Virtual envs
 .venv/
 venv/
-.build-venv/
 
-# PyInstaller build artifacts
+# Build artifacts
 build/
 dist/
-*.manifest
 
 # Runtime
 logs/

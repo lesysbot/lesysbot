@@ -54,7 +54,6 @@ README = """\
 ---
 name: {name}
 description: {description}
-platforms: all
 requires: []
 version: "1.2.0"
 ---

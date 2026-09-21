@@ -42,7 +42,6 @@ working bot in about five minutes.
 |---|---|
 | [Run as a service](service.md) | Background operation, auto-start on boot, logs |
 | [Dashboards](../dashboard/README.md) | Grafana dashboards of CPU, memory, disk, network, GPU |
-| [Build a Windows .exe](building-windows-exe.md) | Ship a standalone executable to people without Python |
 
 ## Under the hood
 

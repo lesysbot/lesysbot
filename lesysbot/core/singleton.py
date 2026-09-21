@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -9,11 +10,6 @@ from lesysbot.core.paths import user_dir
 
 if TYPE_CHECKING:
     from lesysbot.core.config import Settings
-
-if os.name == "nt":
-    import msvcrt
-else:
-    import fcntl
 
 # Open lock files kept referenced for the life of the process — closing (or
 # garbage-collecting) the handle would release the OS lock.
@@ -56,11 +52,7 @@ def acquire_instance_lock(key: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     fh = open(path, "a+b")
     try:
-        if os.name == "nt":
-            fh.seek(0)
-            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         fh.close()
         return False
@@ -99,19 +91,11 @@ def is_running(key: str) -> bool:
     except OSError:
         return False
     try:
-        if os.name == "nt":
-            fh.seek(0)
-            try:
-                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError:
-                return True
-            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            try:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                return True
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
         return False
     finally:
         fh.close()
@@ -120,9 +104,8 @@ def is_running(key: str) -> bool:
 def holder_pid(key: str) -> int | None:
     """PID recorded in the lock file, best effort.
 
-    Windows byte locks are mandatory, so reading while another process holds
-    the lock can fail — return None and let the caller word its message
-    without a PID.
+    Returns None when the file is missing or hasn't been written yet, so the
+    caller can word its message without a PID.
     """
     try:
         text = _lock_path(key).read_text(encoding="ascii").strip()

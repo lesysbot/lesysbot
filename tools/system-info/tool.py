@@ -1,6 +1,6 @@
 """System info — basic machine details and free disk space.
 
-Pure-Python (stdlib only), so it runs on every OS with no extra dependencies.
+Pure-Python (stdlib only), so it needs no extra dependencies.
 """
 import platform
 import shutil

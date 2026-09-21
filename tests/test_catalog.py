@@ -94,7 +94,7 @@ def test_search_filters_by_kind():
 
 
 def test_search_can_restrict_to_this_machine(monkeypatch):
-    monkeypatch.setattr("lesysbot.mcp.platform.current_os", lambda: "linux")
+    monkeypatch.setattr("lesysbot.core.host.current_os", lambda: "linux")
     ids = [e.id for e in _many().search(here_only=True)]
     assert "linux-tools" in ids and "macos-tools" not in ids
     # An entry that names no platform runs anywhere.

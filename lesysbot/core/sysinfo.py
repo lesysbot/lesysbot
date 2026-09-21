@@ -8,17 +8,15 @@ omits what the host can't answer.
 
 This deliberately doesn't call registered tools: the notice must work
 regardless of what's in the user's tools dir, and tools only run in response
-to user messages. The bundled `cpu-temp`/`gpu-temp`/`speedtest` packages give
-the same readings interactively in chat.
+to user messages. The bundled `temperature`/`speedtest` packages give the same
+readings interactively in chat.
 """
 
 from __future__ import annotations
 
 import asyncio
 import platform
-import re
 import shutil
-import subprocess
 import time
 import urllib.request
 from pathlib import Path
@@ -53,8 +51,8 @@ def _read_millideg(path: Path) -> float | None:
 def cpu_temperature() -> str | None:
     """Hottest CPU sensor reading, e.g. ``"54°C"``, or None if unavailable.
 
-    Reads Linux thermal zones and hwmon devices under /sys; macOS and Windows
-    expose no comparable interface without extra tooling, so they report None.
+    Reads thermal zones and hwmon devices under /sys; a host whose kernel or
+    hardware exposes neither reports None.
     """
     readings: list[tuple[str, float]] = []
     for zone in sorted(_THERMAL_DIR.glob("thermal_zone*")):
@@ -185,44 +183,7 @@ def _format_duration(seconds: float) -> str:
     return f"{secs}s"
 
 
-def _windows_uptime_seconds() -> float | None:
-    """Milliseconds since boot via GetTickCount64 (no WMI, no extra deps)."""
-    try:
-        import ctypes
-
-        return ctypes.windll.kernel32.GetTickCount64() / 1000.0
-    except (ImportError, AttributeError, OSError):
-        return None
-
-
-def _sysctl_boottime() -> str | None:
-    """Raw `sysctl -n kern.boottime` output on macOS/BSD, or None."""
-    try:
-        result = subprocess.run(
-            ["sysctl", "-n", "kern.boottime"],
-            capture_output=True, text=True, timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return result.stdout if result.returncode == 0 else None
-
-
-def _darwin_uptime_seconds() -> float | None:
-    # kern.boottime looks like: { sec = 1752906000, usec = 123456 } Sat Jul 19 …
-    out = _sysctl_boottime()
-    match = re.search(r"sec\s*=\s*(\d+)", out or "")
-    if not match:
-        return None
-    seconds = time.time() - int(match.group(1))
-    return seconds if seconds >= 0 else None
-
-
 def _uptime_seconds() -> float | None:
-    system = platform.system()
-    if system == "Windows":
-        return _windows_uptime_seconds()
-    if system == "Darwin":
-        return _darwin_uptime_seconds()
     try:
         return float(_UPTIME_FILE.read_text().split()[0])
     except (OSError, ValueError, IndexError):
@@ -230,11 +191,7 @@ def _uptime_seconds() -> float | None:
 
 
 def uptime() -> str | None:
-    """How long the machine has been up, or None when the host can't say.
-
-    Linux reads /proc/uptime; Windows asks the kernel via GetTickCount64;
-    macOS derives it from `sysctl kern.boottime`.
-    """
+    """How long the machine has been up (from /proc/uptime), or None."""
     seconds = _uptime_seconds()
     return _format_duration(seconds) if seconds is not None else None
 

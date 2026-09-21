@@ -68,6 +68,5 @@ def check_host() -> Report:
         Requirement("docker", optional=True),
         Requirement("gpu", "nvidia", optional=True),
         Requirement("gpu", "amd", optional=True),
-        Requirement("gpu", "apple", optional=True),
     ]
     return Report(name="this machine", results=check_all(probes))

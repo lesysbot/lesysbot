@@ -214,7 +214,6 @@ class Settings(BaseSettings):
             (config_path, False),
             (Path("config.yaml"), False),
             (user_dir() / "config.yaml", False),   # ~/.lesysbot — installed default
-            (base / "config.yaml", False),         # next to the .exe in a frozen build
             (Path("config/default.yaml"), True),
             (base / "config" / "default.yaml", True),
         ]
@@ -229,9 +228,8 @@ def resolve_paths(settings: Settings) -> None:
     from, so `tools/`, `logs/` and the state files live next to the config the
     user edits — e.g. ~/.lesysbot for an installed setup. When no config file was
     found (built-in defaults), `config_dir` is None and `anchor()` falls back to
-    the app directory: the CWD for a normal run, or the folder containing the
-    frozen .exe. Shared by the bot startup and the artifact CLI so both
-    resolve the exact same tools dir.
+    the app directory (the CWD). Shared by the bot startup and the artifact CLI
+    so both resolve the exact same tools dir.
     """
     from lesysbot.core.paths import anchor
 

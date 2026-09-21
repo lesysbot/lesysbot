@@ -1,7 +1,6 @@
 ---
 name: speedtest
 description: Measure current internet download speed and latency
-platforms: all
 requires: []
 ---
 # speedtest
@@ -10,7 +9,7 @@ Measures your **current internet connection speed** using Cloudflare's public
 speed-test endpoints (`speed.cloudflare.com`) over the standard library — no
 external binary, no pip dependency, just outbound internet.
 
-**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing (outbound HTTPS)
+**Needs:** nothing (outbound HTTPS)
 
 ## Tools
 - `/speedtest [size_mb]` — download throughput (Mbps) and latency (ms). `size_mb`

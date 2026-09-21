@@ -1,7 +1,7 @@
 """Web tools — async HTTP fetch using httpx.
 
-Pure-Python and cross-platform. `httpx` is a pip dependency rather than a system
-executable, so it isn't expressed as `requires=` (those are PATH binaries);
+Pure Python — no system binary to install. `httpx` is a pip dependency, not a
+system executable, so it isn't expressed as `requires=` (those are PATH binaries);
 instead the tool checks for it at call time and tells you how to install it.
 See requirements.txt.
 """

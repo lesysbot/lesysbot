@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# LeSysBot uninstall script — Linux & macOS
+# LeSysBot uninstall script — Linux
 # Usage: bash scripts/uninstall.sh
 set -euo pipefail
 
@@ -10,7 +10,7 @@ warn() { printf "${YELLOW}  !  ${NC}%s\n" "$*"; }
 hr()   { printf '%0.s─' {1..60}; printf '\n'; }
 
 # Answer test for the y/N prompts below. This is a function rather than
-# `[[ "${ans,,}" == y ]]` because `${var,,}` is bash 4 and macOS ships bash 3.2
+# `is_yes` rather than `[[ "${ans,,}" == y ]]`, so the prompt reads the same way
 # as /bin/bash — there it fails at *runtime* ("bad substitution"), which under
 # `set -e` aborted this script half-way through an uninstall. `bash -n` does not
 # catch it; tests/test_shell_portability.py does.
@@ -27,15 +27,13 @@ logo() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
-OS="$(uname -s)"
-
 logo
 hr
 printf "  LeSysBot Uninstaller\n"
 hr
 
-# ── 1. Remove platform service ────────────────────────────────────────────────
-remove_linux() {
+# ── 1. Remove the systemd --user service ──────────────────────────────────────
+remove_service() {
     local stopped=false disabled=false removed=false
 
     if systemctl --user is-active --quiet lesysbot 2>/dev/null; then
@@ -69,22 +67,7 @@ remove_linux() {
     fi
 }
 
-remove_macos() {
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.lesysbot.lesysbot.plist"
-    if [[ -f "$PLIST_FILE" ]]; then
-        launchctl unload -w "$PLIST_FILE" 2>/dev/null || true
-        rm "$PLIST_FILE"
-        ok "LaunchAgent removed"
-    else
-        warn "No LaunchAgent plist found — skipping"
-    fi
-}
-
-case "$OS" in
-    Linux*)  remove_linux  ;;
-    Darwin*) remove_macos  ;;
-    *)       warn "Unknown OS — skipping service removal" ;;
-esac
+remove_service
 
 # ── 1b. Legacy sudoers rules ──────────────────────────────────────────────────
 # Nothing LeSysBot ships needs root any more, so uninstall stays password-free:
@@ -116,41 +99,20 @@ else
 fi
 
 # ── 2b. Dashboard stack (Grafana/Prometheus) ──────────────────────────────────
-# Setup starts this by default, so uninstall offers to take it down. Both paths
-# only *stop* things: `start.sh down` omits -v so history in the Docker volumes
-# survives, and the macOS path stops the brew services without uninstalling the
-# formulae. No sudo — docker and brew both run unprivileged.
+# Setup starts this by default, so uninstall offers to take it down. It only
+# *stops* things: `start.sh down` omits -v so history in the Docker volumes
+# survives. No sudo — docker runs unprivileged.
 DATA_DIR="${LESYSBOT_HOME:-$HOME/.lesysbot}"
 STACK_DIR="$DATA_DIR/dashboard"
 MON_START="$STACK_DIR/scripts/start.sh"
-MON_BREW="$STACK_DIR/scripts/install-macos.sh"
-# macOS can have been set up either way (brew services or Docker Desktop), so ask
-# once and stop whichever is actually there.
-HAS_BREW_STACK=false
-[[ "$(uname -s)" == "Darwin" && -f "$MON_BREW" ]] && command -v brew &>/dev/null \
-    && HAS_BREW_STACK=true
 HAS_DOCKER_STACK=false
 [[ -x "$MON_START" ]] && command -v docker &>/dev/null && HAS_DOCKER_STACK=true
 
-if [[ "$HAS_BREW_STACK" == true || "$HAS_DOCKER_STACK" == true ]]; then
+if [[ "$HAS_DOCKER_STACK" == true ]]; then
     read -r -p "  Stop the Grafana dashboard stack? [y/N] " ans
     if is_yes "$ans"; then
-        if [[ "$HAS_BREW_STACK" == true ]]; then
-            bash "$MON_BREW" down &>/dev/null && ok "Dashboard services stopped" \
-                || warn "Could not stop the dashboard services"
-            # `down` only unloads the metrics collector's agent; drop the plist
-            # too, or launchd keeps firing it every 15s against a script that
-            # step 3 below may be about to delete.
-            METRICS_PLIST="$HOME/Library/LaunchAgents/com.lesysbot.macos-metrics.plist"
-            [[ -f "$METRICS_PLIST" ]] && rm -f "$METRICS_PLIST" \
-                && ok "Metrics collector agent removed"
-            info "Grafana/Prometheus stay installed — remove them yourself with:"
-            info "  brew uninstall grafana prometheus node_exporter"
-        fi
-        if [[ "$HAS_DOCKER_STACK" == true ]]; then
-            "$MON_START" down &>/dev/null && ok "Dashboard containers stopped" \
-                || warn "Could not stop the containers (is Docker running?)"
-        fi
+        "$MON_START" down &>/dev/null && ok "Dashboard containers stopped" \
+            || warn "Could not stop the containers (is Docker running?)"
     else
         info "Left the dashboard stack running"
     fi
@@ -169,5 +131,4 @@ fi
 hr
 ok "LeSysBot has been uninstalled."
 printf "\n  Optional cleanup:\n"
-printf "    rm -rf %s          # config, tools and logs\n" "$DATA_DIR"
-printf "    rm -rf ~/Library/Logs/lesysbot   # macOS stdout/stderr logs\n\n"
+printf "    rm -rf %s          # config, tools and logs\n\n" "$DATA_DIR"

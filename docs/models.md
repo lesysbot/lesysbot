@@ -87,9 +87,8 @@ curl http://localhost:11434/
 # → Ollama is running
 ```
 
-If not, start it: the official Linux installer registers a systemd service
-(`sudo systemctl start ollama`); on macOS/Windows launch the Ollama app; or run
-`ollama serve` in a terminal. For server administration beyond this — bind
+If not, start it: the official installer registers a systemd service
+(`sudo systemctl start ollama`), or run `ollama serve` in a terminal. For server administration beyond this — bind
 address, storage location, keep-alive tuning — see the
 [official Ollama docs](https://github.com/ollama/ollama/tree/main/docs).
 

@@ -1,6 +1,6 @@
 ---
 name: add-tool
-description: Scaffold a new LeSysBot tool package following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and cross-platform gating. Works in any tools repo (standalone, collection, or ~/.lesysbot/tools). Use when asked to "add a tool", "write a tool", "create a command", "make LeSysBot able to <do X>", or expose a new capability/slash command.
+description: Scaffold a new LeSysBot tool package following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and requirement gating. Works in any tools repo (standalone, collection, or ~/.lesysbot/tools). Use when asked to "add a tool", "write a tool", "create a command", "make LeSysBot able to <do X>", or expose a new capability/slash command.
 ---
 
 # Add a LeSysBot tool
@@ -59,14 +59,11 @@ the installer, so a collection repo can keep those alongside packages.
    )
    ```
 
-3. **Declare cross-platform support** when a tool isn't universal:
-   - `platforms=["linux", "macos"]` — OSes from `{"linux","macos","windows"}`; omit = all.
+3. **Declare required executables.** LeSysBot targets **Linux only**, so a tool
+   never declares an OS — only what it needs on `PATH`:
    - `requires=["nvidia-smi"]` — executables that must be on `PATH`; omit = none.
-   Both work on `@tool` and `CLITool`. On an unsupported OS / missing binary the
-   tool still registers but returns a one-line explanation instead of running.
-   A `CLITool` whose syntax differs per OS can take `command` as a dict keyed by
-   OS name (`command={"linux": "ping -c 3 {host}", "windows": "ping -n 3 {host}"}`);
-   the current OS's variant runs, and `platforms` defaults to the dict's keys.
+   Works on `@tool` and `CLITool`. With a missing binary the tool still registers
+   but returns a one-line explanation instead of running.
    Pip deps are **not** `requires` (those are PATH binaries) — import them in the
    tool, handle `ImportError` with a friendly message, and list them in the
    package's `requirements.txt` (printed at install time, not auto-installed).
@@ -79,12 +76,11 @@ the installer, so a collection repo can keep those alongside packages.
    ---
    name: find-files
    description: Search files by pattern
-   platforms: all
    requires: []
    version: "1.0.0"        # shown/recorded by `lesysbot install`/`list`; bump on release
    ---
    # find-files
-   **Runs on:** Linux · macOS · Windows · **Needs:** nothing
+   **Needs:** nothing
    - `/find_files <pattern> [directory]` — recursive glob.
    ```
 
@@ -124,8 +120,6 @@ the installer, so a collection repo can keep those alongside packages.
   LESYSBOT_MCP__TOOLS_DIR="$(dirname "$PWD")" lesysbot --provider cli
   ```
 
-  (PowerShell: `$env:LESYSBOT_MCP__TOOLS_DIR = "$PWD\tools"` — or the repo
-  root for a standalone package's parent — then `lesysbot --provider cli`.)
   Alternatively copy the package folder into `~/.lesysbot/tools/`.
 - In the CLI, check `/help` (tool listed; gated tools show a "⚠ unavailable
   here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up

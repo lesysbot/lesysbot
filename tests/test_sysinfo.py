@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import pytest
 
 from lesysbot.core import sysinfo
 
@@ -75,7 +74,6 @@ async def test_gpu_temperature_none_without_nvidia_smi(monkeypatch):
     assert await sysinfo.gpu_temperature() is None
 
 
-@pytest.mark.skipif(os.name == "nt", reason="fake executable is a shell script")
 async def test_gpu_temperature_parses_nvidia_smi(tmp_path, monkeypatch):
     fake = tmp_path / "nvidia-smi"
     fake.write_text("#!/bin/sh\necho '0, 47'\necho '1, 51'\n")
@@ -207,42 +205,18 @@ def test_format_duration():
     assert sysinfo._format_duration(2 * 86400 + 5 * 3600) == "2d 5h"
 
 
-# ── uptime (per-OS dispatch) ───────────────────────────────────────────────
+# ── uptime ─────────────────────────────────────────────────────────────────
 
 
-def test_uptime_linux_reads_proc(tmp_path, monkeypatch):
+def test_uptime_reads_proc(tmp_path, monkeypatch):
     up = tmp_path / "uptime"
     up.write_text("12345.67 8910.11\n")
     monkeypatch.setattr(sysinfo, "_UPTIME_FILE", up)
-    monkeypatch.setattr(sysinfo.platform, "system", lambda: "Linux")
     assert sysinfo.uptime() == "3h 25m"
 
 
-@pytest.mark.skipif(
-    os.name == "nt",
-    reason="ctypes.windll exists on Windows, so the branch returns a real uptime, not None",
-)
-def test_uptime_windows_branch_degrades_gracefully(monkeypatch):
-    """On a non-Windows host ctypes has no windll — the branch must return None."""
-    monkeypatch.setattr(sysinfo.platform, "system", lambda: "Windows")
-    assert sysinfo._uptime_seconds() is None
+def test_uptime_none_without_proc_uptime(tmp_path, monkeypatch):
+    monkeypatch.setattr(sysinfo, "_UPTIME_FILE", tmp_path / "missing")
+    assert sysinfo.uptime() is None
 
 
-def test_uptime_darwin_parses_boottime(monkeypatch):
-    import time
-
-    monkeypatch.setattr(sysinfo.platform, "system", lambda: "Darwin")
-    boot = int(time.time()) - 3600
-    monkeypatch.setattr(
-        sysinfo, "_sysctl_boottime",
-        lambda: f"{{ sec = {boot}, usec = 0 }} Sat Jul 19 10:00:00 2026",
-    )
-    seconds = sysinfo._uptime_seconds()
-    assert seconds is not None
-    assert 3590 < seconds < 3620
-
-
-def test_uptime_darwin_none_without_sysctl(monkeypatch):
-    monkeypatch.setattr(sysinfo.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(sysinfo, "_sysctl_boottime", lambda: None)
-    assert sysinfo._uptime_seconds() is None

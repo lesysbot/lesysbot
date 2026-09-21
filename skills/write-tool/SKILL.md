@@ -15,7 +15,7 @@ immediately.
 
 ```
 tools/<tool-name>/        # kebab-case folder = the package
-  README.md               # frontmatter (name, description, platforms, requires) + human docs
+  README.md               # frontmatter (name, description, requires) + human docs
   tool.py                 # @tool / CLITool definitions (any non-_ .py is scanned)
   _helpers.py             # OPTIONAL shared helpers (underscore = never scanned as tools)
   requirements.txt        # OPTIONAL pip deps (printed on install, not auto-run)
@@ -43,7 +43,7 @@ anything else falls back to `"string"`. Defaults make a parameter optional.
 string (or something `str()`-able) — it's what the user/LLM sees.
 
 Options: omit `description=` to use the docstring; `name="…"` overrides the
-function name; `confirm=` and `platforms=`/`requires=` below.
+function name; `confirm=` and `requires=` below.
 
 ## Shell tool — `CLITool`
 
@@ -59,8 +59,8 @@ ping = CLITool(
 )
 ```
 
-Also accepts `confirm=`, `platforms=`, `requires=`. Mix `@tool` and `CLITool`
-freely in one file.
+Also accepts `confirm=` and `requires=`. Mix `@tool` and `CLITool` freely in
+one file.
 
 ## Confirmation for destructive tools
 
@@ -74,20 +74,22 @@ async def delete_logs(directory: str) -> str: ...
 (typing the command *is* the confirmation). CLI asks y/n; Telegram shows
 ✅/❌ buttons (120 s timeout); Discord shows the same buttons (300 s timeout).
 
-## Cross-platform gating
+## Requirement gating
+
+LeSysBot targets **Linux only**, so a tool never declares an OS — only the
+executables it needs on PATH:
 
 ```python
 @tool(
     description="Report NVIDIA GPU temperature",
-    platforms=["linux", "windows"],   # from {"linux","macos","windows"}; omit = all
     requires=["nvidia-smi"],          # executables that must be on PATH; omit = none
 )
 async def gpu_temp() -> str: ...
 ```
 
-On an unsupported OS or missing binary the tool is **still registered**
-(visible in `/help` and to the LLM) but calling it returns a one-line
-explanation instead of running. Each tool gates independently.
+With a missing binary the tool is **still registered** (visible in `/help` and
+to the LLM) but calling it returns a one-line explanation instead of running.
+Each tool gates independently.
 
 **Pip dependencies are NOT `requires`** (those are PATH binaries). Import the
 pip package inside the tool, handle `ImportError` with a friendly message, and
@@ -109,11 +111,10 @@ Helper edits hot-reload too.
 name: gpu-temp
 description: Read NVIDIA GPU temperature
 version: "1.0.0"          # optional; shown by `lesysbot list/info`
-platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
 # gpu-temp
-**Runs on:** Linux · Windows · **Needs:** nvidia-smi
+**Needs:** nvidia-smi
 - `/gpu_temp` — current GPU temperature.
 ```
 

@@ -56,19 +56,16 @@ ping = CLITool(
 `{host}` is filled in with whatever the model or the user supplies. Every entry
 in `params` is required.
 
-**Different syntax per OS?** Pass a dict and LeSysBot runs the right one — and
-automatically marks the tool unavailable on any OS you didn't cover:
+**Needs a program that may not be installed?** Name it in `requires` and
+LeSysBot marks the tool unavailable rather than letting the shell fail:
 
 ```python
-ping = CLITool(
-    name="ping",
-    description="Check if a host is reachable",
-    command={
-        "linux":   "ping -c 3 {host}",
-        "macos":   "ping -c 3 {host}",
-        "windows": "ping -n 3 {host}",
-    },
+mtr = CLITool(
+    name="mtr",
+    description="Trace the route to a host",
+    command="mtr --report --report-cycles 5 {host}",
     params={"host": "Hostname or IP address"},
+    requires=["mtr"],
 )
 ```
 
@@ -105,21 +102,20 @@ on `CLITool` the same way.
 
 ---
 
-## Saying where a tool can run
+## Saying what a tool needs
 
-Not everything works everywhere. Declare what a tool needs and LeSysBot handles
-the rest:
+LeSysBot runs on Linux only, so a tool never declares an OS. What it may declare
+is the programs it needs on PATH:
 
 ```python
 @tool(
     description="Report NVIDIA GPU temperature",
-    platforms=["linux", "windows"],   # omit = runs anywhere
     requires=["nvidia-smi"],          # programs that must be on PATH
 )
 async def gpu_temp() -> str: ...
 ```
 
-On a machine that can't satisfy those, the tool still appears in `/help` and the
+On a machine that can't satisfy that, the tool still appears in `/help` and the
 model still knows about it — but calling it returns an explanation instead of a
 confusing error:
 
@@ -127,6 +123,11 @@ confusing error:
 /gpu_temp
 'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
 ```
+
+> **Upgrading an older tool?** LeSysBot used to gate on OS, so a tool might
+> still pass `platforms=[...]` (or give `CLITool` a per-OS `command` dict).
+> Both are accepted and ignored, with a one-line warning naming the tool — it
+> keeps working, but drop them when you next touch the file.
 
 That's deliberate: the bot can tell you *why* something isn't possible here,
 which is more useful than pretending the tool doesn't exist.
@@ -172,7 +173,6 @@ the package without anyone having to run its code:
 name: gpu-temp
 description: Read NVIDIA GPU temperature
 version: 1.0.0
-platforms: [linux, windows]
 requires: [nvidia-smi]
 ---
 ```
@@ -197,7 +197,6 @@ folder to a repo and anyone can install it. See
 | An optional parameter | give it a default: `units: str = "metric"` |
 | A different tool name | `@tool(name="weather")` |
 | Confirmation | `@tool(confirm=True)` or `confirm="your message"` |
-| OS restriction | `@tool(platforms=["linux", "macos"])` |
 | A required program | `@tool(requires=["nvidia-smi"])` |
 
 Type hints map to the schema the model sees: `str` → string, `int` → integer,
@@ -210,11 +209,10 @@ else is treated as a string.
 |---|---|---|
 | `name` | — | The tool name, used in `/commands` and by the model. Keep it to lowercase letters, digits and `_` — Telegram and Discord only accept that in a registered slash command, and a tool named otherwise is left out of their command menus (it still works as typed text). |
 | `description` | — | What it does |
-| `command` | — | Shell command with `{param}` placeholders, or a dict per OS |
+| `command` | — | Shell command with `{param}` placeholders |
 | `params` | `{}` | `param_name → description`; all are required |
 | `timeout` | `30.0` | Seconds before the command is killed |
 | `confirm` | `False` | `True` or a custom message |
-| `platforms` | `None` | e.g. `["linux", "macos"]`; `None` = everywhere |
 | `requires` | `None` | Programs that must be on PATH |
 
 ---

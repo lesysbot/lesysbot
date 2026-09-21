@@ -1,7 +1,8 @@
 """``lesysbot search`` — browse the marketplace from the terminal.
 
 Defaults to showing only what runs on this machine, because a list padded with
-Windows tools on a Mac is a list you stop reading. ``--all`` opts out.
+packages for hardware this host doesn't have is a list you stop reading.
+``--all`` opts out.
 """
 
 from __future__ import annotations

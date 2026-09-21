@@ -6,13 +6,13 @@ on:
   pull_request:
 
 jobs:
+  # LeSysBot targets Linux only, so the matrix is Python versions on Ubuntu.
   test:
-    name: ${{ matrix.os }} / py${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
+    name: py${{ matrix.python }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
@@ -58,17 +58,6 @@ jobs:
           lesysbot setup --help
           lesysbot list
 
-  powershell-lint:
-    name: PowerShell script analysis
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: PSScriptAnalyzer
-        shell: pwsh
-        run: |
-          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          Invoke-ScriptAnalyzer -Path scripts/ -Severity Error -EnableExit
-
   shell-lint:
     name: Shell script analysis
     runs-on: ubuntu-latest
@@ -83,12 +72,8 @@ jobs:
         run: shellcheck --shell=sh --severity=warning scripts/install.sh
 
   installer:
-    name: Installer end-to-end (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+    name: Installer end-to-end
+    runs-on: ubuntu-latest
     env:
       # No Ollama daemon and no multi-gigabyte model pull on a CI runner.
       LESYSBOT_SKIP_OLLAMA: "1"
@@ -147,7 +132,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()   # must still run — and fail — when a dependency failed
-    needs: [test, base-install, powershell-lint, shell-lint, installer]
+    needs: [test, base-install, shell-lint, installer]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed

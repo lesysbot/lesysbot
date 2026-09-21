@@ -1,14 +1,13 @@
 ---
 name: system-info
 description: Basic machine info and free disk space
-platforms: all
 requires: []
 ---
 # system-info
 
-Pure-Python system inspection — works everywhere, no external dependencies.
+Pure-Python system inspection — no external dependencies.
 
-**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing
+**Needs:** nothing
 
 ## Tools
 - `/get_system_info` — OS, Python version, and CPU architecture.

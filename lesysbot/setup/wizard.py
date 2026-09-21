@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -268,12 +267,11 @@ def step_autostart(ui, st: WizardState) -> bool:
     else:
         ui.say("\n  LeSysBot runs in the background as a service so the control panel "
                "(settings, tools, health) stays online.\n")
-    when = "at login" if sys.platform == "win32" else "after reboot"
     choice = ui.menu(
         "Step 3 — Service",
         [
-            f"Start now and automatically {when} (recommended)",
-            f"Start now only — not {when}",
+            "Start now and automatically after reboot (recommended)",
+            "Start now only — not after reboot",
             "← Back — change how to reach LeSysBot",
         ],
         default=st.auto_choice,

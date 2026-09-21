@@ -62,9 +62,9 @@ lesysbot/
 └─ artifacts/      `lesysbot install` engine (zipball fetch, lockfile)
 tools/             bundled tool packages (the seeded catalog)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
-scripts/           install/uninstall wizards (bash + PowerShell), exe build
+scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config
-packaging/         PyInstaller spec for the Windows .exe
+dashboard/         the Prometheus + Grafana stack `lesysbot setup` seeds
 docs/              user & contributor guides
 ```
 
@@ -130,13 +130,6 @@ Top-down (overview → detail), step-by-step, one job per page. Each fact has
 Behaviour changes update the guide that documents them (and `CLAUDE.md` for
 architecture changes; the `skills/` folder mirrors the docs — update the
 matching skill too).
-
-## Windows .exe (shipping to non-technical users)
-
-`.\scripts\build-exe.ps1` on Windows (PyInstaller is not a cross-compiler;
-Python 3.11+, ~1.5 GB disk). Produces a relocatable `LeSysBot\` folder + zip:
-`lesysbot.exe` reads `config.yaml` and `tools\` from its own directory, so users
-edit the YAML and double-click — no Python needed. Spec lives in `packaging/`.
 
 ## PR checklist
 

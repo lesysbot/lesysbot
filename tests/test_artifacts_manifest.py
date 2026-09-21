@@ -3,10 +3,10 @@ from lesysbot.artifacts.manifest import discover_packages, parse_frontmatter
 
 def test_parse_frontmatter_ok():
     fm = parse_frontmatter(
-        "---\nname: gpu-temp\ndescription: GPU temps\nplatforms: [linux]\n---\n# hi\n"
+        "---\nname: gpu-temp\ndescription: GPU temps\nrequires: [nvidia-smi]\n---\n# hi\n"
     )
     assert fm["name"] == "gpu-temp"
-    assert fm["platforms"] == ["linux"]
+    assert fm["requires"] == ["nvidia-smi"]
 
 
 def test_parse_frontmatter_missing_or_bad():

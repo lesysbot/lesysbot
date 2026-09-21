@@ -82,17 +82,18 @@ def test_renders_a_host_adaptive_python_dashboard(ctx):
     render.render_all(ctx)
     model = json.loads((_generated(ctx) / "demo.json").read_text())
 
-    from lesysbot.mcp.platform import current_os
+    from lesysbot.core.host import current_os
 
     assert model["title"] == current_os()
 
 
 def test_context_carries_arch_and_os_version():
-    """A dashboard must be able to tell Apple Silicon from an Intel Mac.
+    """A dashboard must be able to tell an arm64 board from an x86_64 one.
 
-    `host` says "macos" for both, but no unprivileged die temperature exists on
-    M-series — so a temperature row that is right on one renders permanently
-    blank on the other. That distinction lives in `arch`.
+    `host` says "linux" for both, but a Raspberry Pi exposes its CPU sensor as
+    cpu_thermal where a desktop uses coretemp — so a temperature row that is
+    right on one renders permanently blank on the other. That distinction lives
+    in `arch`, and `os_version` carries the distro release for the same reason.
     """
     context = render.host_context()
     assert context["api_version"] == 2
@@ -113,8 +114,8 @@ def test_a_build_written_against_api_v1_still_works(ctx):
 
 def test_a_dashboard_can_branch_on_arch(ctx, monkeypatch):
     monkeypatch.setattr(render, "host_context", lambda: {
-        "api_version": 2, "host": "macos", "caps": [],
-        "arch": "arm64", "os_version": "14.5",
+        "api_version": 2, "host": "linux", "caps": [],
+        "arch": "arm64", "os_version": "24.04",
     })
     _package(ctx, payload="dashboard.py",
              content="def build(host, caps, ctx):\n"
@@ -124,8 +125,8 @@ def test_a_dashboard_can_branch_on_arch(ctx, monkeypatch):
                      "    return {'title': ctx['os_version'], 'panels': panels}\n")
     render.render_all(ctx)
     model = json.loads((_generated(ctx) / "demo.json").read_text())
-    assert model["panels"] == ["cpu"]        # no die-temp panel on Apple Silicon
-    assert model["title"] == "14.5"
+    assert model["panels"] == ["cpu"]        # no die-temp panel on this arm64 board
+    assert model["title"] == "24.04"
 
 
 def test_python_payload_wins_over_json(ctx):
@@ -247,12 +248,9 @@ def bundled_generator(monkeypatch, tmp_path):
     ("linux", set()),
     ("linux", {"nvidia"}),
     ("linux", {"amd"}),
-    ("macos", set()),
-    ("macos", {"nvidia"}),
-    ("windows", set()),
 ])
 def test_system_overview_matches_the_generator_exactly(host, caps, bundled_generator):
-    """Byte-identical output, per host cut. The package is a *mapping* onto
+    """Byte-identical output, per capability cut. The package is a *mapping* onto
     gen-dashboards.py, not a copy of it — if this drifts, converting the bundled
     dashboard into a package silently changed everybody's graphs."""
     build = _load_build()

@@ -6,6 +6,10 @@ the source code. Each subfolder is one skill in the standard Claude Skill
 format: a `SKILL.md` with `name`/`description` frontmatter (used to decide
 relevance) and self-contained, step-by-step instructions with exact commands.
 
+**LeSysBot is Linux-only.** It installs a `systemd --user` service and its
+bundled tools read `/sys` and `/proc`, so every skill here assumes a Linux host
+with Python 3.11+. There is no build for another OS to fall back on.
+
 **The folder is designed to be copied.** Drop it wherever your agent discovers
 skills and it works standalone:
 

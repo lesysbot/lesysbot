@@ -2,11 +2,11 @@
 
 LeSysBot ships a [Claude Code](https://code.claude.com/docs) plugin —
 **`lesysbot-tool-dev`** — so an AI assistant can scaffold correct tool packages
-for you in *any* repo: the official tool collections, your own tools repo, or
+for you in *any* repo: the core LeSysBot checkout, your own tools repo, or
 a folder destined for `~/.lesysbot/tools/`. The plugin carries an `add-tool`
 skill that encodes the package conventions (README frontmatter, `@tool` /
-`CLITool`, typing, confirmation, cross-platform gating) so Claude gets them
-right without you pasting docs into the chat.
+`CLITool`, typing, confirmation, requirement gating) so Claude gets them right
+without you pasting docs into the chat.
 
 This repo is also the plugin **marketplace**: the catalog lives in
 [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) and the

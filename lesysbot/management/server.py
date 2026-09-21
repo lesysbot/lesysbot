@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -79,14 +78,11 @@ class CLIContextProxy:
 
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
-    # SO_REUSEADDR means "rebind a port stuck in TIME_WAIT" on POSIX (so a
-    # restarted service isn't blocked by its own dead socket) — but on Windows
-    # the same flag lets a *second* socket bind a port already in active use,
-    # which would silently defeat the single-panel guarantee `_bind` relies on
-    # (a second copy must fail fast, not quietly serve a duplicate). So enable
-    # it only off-Windows, where Windows' default exclusive binding is exactly
-    # what we want.
-    allow_reuse_address = os.name != "nt"
+    # SO_REUSEADDR rebinds a port stuck in TIME_WAIT, so a restarted service
+    # isn't blocked by its own dead socket. On Linux it still refuses a port
+    # that is actively bound, which is what `_bind` relies on for the
+    # single-panel guarantee (a second copy must fail fast).
+    allow_reuse_address = True
 
     def __init__(self, addr, handler, settings, registry):
         super().__init__(addr, handler)

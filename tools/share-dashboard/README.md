@@ -1,13 +1,12 @@
 ---
 name: share-dashboard
 description: Publish the Grafana system dashboard as a public snapshot on snapshots.raintank.io, with a chosen expiration; list and delete your shares
-platforms: all
 requires: []
 version: "1.1.0"
 ---
 # share-dashboard
 
-**Runs on:** Linux · macOS · Windows · **Needs:** the [dashboard stack](../../dashboard/README.md) running (Grafana + Prometheus)
+**Needs:** the [dashboard stack](../../dashboard/README.md) running (Grafana + Prometheus)
 
 Turn "share me the dashboard" into a link. This publishes a **point-in-time
 snapshot** of your System Overview dashboard — the current graphs baked in as

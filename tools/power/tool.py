@@ -1,11 +1,10 @@
 """Power tools — reboot, power off, or cancel a pending shutdown.
 
 These are destructive, so every action sets ``confirm=`` and the agent must get
-approval through the adapter before the command runs. Commands are chosen per
-platform and deliberately stay unprivileged: on Linux ``shutdown`` schedules
-through logind under the same polkit rules as ``systemctl poweroff``, which a
-local session may invoke without sudo. Nothing here shells out through
-``sudo`` — see ``docs/writing-tools.md`` §6.
+approval through the adapter before the command runs. The commands deliberately
+stay unprivileged: ``shutdown`` schedules through logind under the same polkit
+rules as ``systemctl poweroff``, which a local session may invoke without sudo.
+Nothing here shells out through ``sudo`` — see ``docs/writing-tools.md`` §6.
 
 Reboot/power-off are **scheduled 1 minute out** rather than run immediately:
 an instant poweroff kills this process before the reply can reach the user, so
@@ -20,18 +19,17 @@ the "in 1 minute" acknowledgment. ``cancel_shutdown`` also cancels that
 pending announcement.
 
 There is deliberately no "power off, then wake up later" counterpart: arming
-an RTC wake alarm needs root on every platform, and a tool the user must
-hand-configure a sudoers rule for isn't one they can just install and use.
+an RTC wake alarm needs root, and a tool the user must hand-configure a sudoers
+rule for isn't one they can just install and use.
 """
 from __future__ import annotations
 
 import asyncio
-import platform
 
 from lesysbot.mcp import notify_later, tool
 
-# shutdown fires 60 s after scheduling on every OS here; announce shortly
-# before, leaving enough margin for the message to actually get out.
+# shutdown fires 60 s after scheduling; announce shortly before, leaving
+# enough margin for the message to actually get out.
 _ANNOUNCE_AFTER = 50.0
 
 _pending_announce: asyncio.Task | None = None
@@ -61,28 +59,25 @@ async def _run(cmd: list[str], timeout: float = 15.0) -> tuple[int, str]:
     try:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError:
-        # BSD shutdown may stay in the foreground while it waits for the
-        # scheduled time; don't hang the agent with it — treat as accepted.
+        # A non-systemd shutdown(8) may stay in the foreground while it waits
+        # for the scheduled time; don't hang the agent with it — treat as
+        # accepted.
         return 0, "(command still running — scheduled shutdown assumed accepted)"
     return proc.returncode, stdout.decode(errors="replace").strip()
 
 
+# "+1" (minutes) is the smallest non-immediate delay shutdown accepts; on
+# systemd distros this schedules via logind, elsewhere shutdown handles it.
+_POWER_CMDS = {
+    "reboot": ["shutdown", "-r", "+1"],
+    "poweroff": ["shutdown", "-h", "+1"],
+    "cancel": ["shutdown", "-c"],
+}
+
+
 def _power_cmd(action: str) -> list[str]:
-    """Pick the right command for 'reboot' | 'poweroff' | 'cancel' per OS."""
-    system = platform.system()
-    if system == "Windows":
-        return {
-            "reboot": ["shutdown", "/r", "/t", "60"],
-            "poweroff": ["shutdown", "/s", "/t", "60"],
-            "cancel": ["shutdown", "/a"],
-        }[action]
-    if action == "cancel":
-        # macOS shutdown(8) has no -c; a scheduled shutdown is cancelled by
-        # killing the waiting shutdown process.
-        return ["killall", "shutdown"] if system == "Darwin" else ["shutdown", "-c"]
-    # "+1" (minutes) is the smallest non-immediate delay shutdown accepts; on
-    # systemd distros this schedules via logind, elsewhere shutdown handles it.
-    return {"reboot": ["shutdown", "-r", "+1"], "poweroff": ["shutdown", "-h", "+1"]}[action]
+    """The command for 'reboot' | 'poweroff' | 'cancel'."""
+    return _POWER_CMDS[action]
 
 
 @tool(

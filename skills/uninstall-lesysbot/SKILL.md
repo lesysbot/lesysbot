@@ -11,13 +11,8 @@ The installer leaves a copy of itself in the install directory, so this needs no
 network and no clone:
 
 ```bash
-~/.local/share/lesysbot/install.sh --uninstall            # Linux/macOS
+~/.local/share/lesysbot/install.sh --uninstall            # remove the install
 ~/.local/share/lesysbot/install.sh --uninstall --purge    # …and delete ~/.lesysbot
-```
-
-```powershell
-& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall
-& "$env:USERPROFILE\.local\share\lesysbot\install.ps1" -Uninstall -Purge
 ```
 
 It removes only what the installer created: the service, the `lesysbot` command,
@@ -36,9 +31,9 @@ Still present and still works, for installs that predate the current installer.
 
 It undoes everything the installer set up, in order:
 
-1. **Stops and removes the background service** (systemd / launchd / Task
-   Scheduler) — every install has one, since it serves the control panel. On
-   Linux it also offers to disable `loginctl` linger if the installer enabled it.
+1. **Stops and removes the background service** (the `systemd --user` unit) —
+   every install has one, since it serves the control panel. It also offers to
+   disable `loginctl` linger if the installer enabled it.
 2. **Reports leftover sudoers rules** from older versions
    (`/etc/sudoers.d/lesysbot-rtcwake`, `…-shutdown-wake`) and prints the `rm`
    command — it does *not* delete them, which would make uninstall prompt for a
@@ -64,19 +59,10 @@ skips itself.
 **Stop + remove the service:**
 
 ```bash
-# Linux (systemd user service)
+# the systemd --user service
 systemctl --user disable --now lesysbot
 rm ~/.config/systemd/user/lesysbot.service
 systemctl --user daemon-reload
-
-# macOS (launchd agent)
-launchctl unload -w ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist
-rm ~/Library/LaunchAgents/com.lesysbot.lesysbot.plist
-```
-
-```powershell
-# Windows (Task Scheduler)
-Unregister-ScheduledTask -TaskName 'LeSysBot' -Confirm:$false
 ```
 
 **Uninstall the package, then (optionally) the data:**

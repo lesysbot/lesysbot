@@ -7,21 +7,12 @@ import sys
 from pathlib import Path
 
 
-def is_frozen() -> bool:
-    """True when running from a PyInstaller (or similar) bundle."""
-    return bool(getattr(sys, "frozen", False))
-
-
 def app_dir() -> Path:
     """Base directory the app uses to locate `config.yaml`, `tools/` and `logs/`.
 
-    - Frozen `.exe`: the folder that contains the executable, so an end user can
-      drop `config.yaml` and a `tools/` folder next to `lesysbot.exe` and it just
-      works regardless of the current working directory.
-    - Normal interpreter: the current working directory (unchanged behaviour).
+    The current working directory — the fallback used when no config file was
+    found, so relative defaults like `./tools` resolve where the process runs.
     """
-    if is_frozen():
-        return Path(sys.executable).resolve().parent
     return Path.cwd()
 
 
@@ -119,7 +110,12 @@ def load_grafana_env() -> dict[str, str]:
 
 
 def force_rmtree(path: Path) -> None:
-    """``shutil.rmtree`` that clears read-only bits (Windows) before giving up."""
+    """``shutil.rmtree`` that clears a read-only bit before giving up.
+
+    A tool package extracted from a zipball can carry modes that make its own
+    files or directories undeletable; retry once with write permission restored
+    rather than failing the removal.
+    """
 
     def _retry(func, p, _exc) -> None:
         Path(p).chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
@@ -137,8 +133,8 @@ def anchor(path: str | Path, base: str | Path | None = None) -> str:
     *base* lets the caller anchor relative `tools/`/`logs/` paths to the directory
     the active `config.yaml` was loaded from — e.g. `~/.lesysbot` for an installed
     setup — so they live next to the config the user edits. With `base=None` it
-    falls back to :func:`app_dir` (the CWD, or the `.exe` folder when frozen), so
-    existing relative defaults like `./tools` behave exactly as before.
+    falls back to :func:`app_dir` (the CWD), so existing relative defaults like
+    `./tools` behave exactly as before.
     """
     p = Path(path)
     if p.is_absolute():

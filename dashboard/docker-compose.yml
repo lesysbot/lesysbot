@@ -1,20 +1,22 @@
-# LeSysBot — system-overview stack for macOS & Windows (Docker Desktop).
+# LeSysBot — system-overview stack.
 #
-# Prometheus + Grafana run on a bridge network and reach the host's exporters
-# through `host.docker.internal` (Docker Desktop provides it). Both published
-# ports are bound to 127.0.0.1 only.
+# Everything runs on the HOST network and binds to 127.0.0.1 only. That is what
+# makes this both complete and safe:
+#   * host network namespace  -> node-exporter sees the real NICs (Ethernet/Wifi),
+#     which a bridge container cannot (its /proc/net is its own namespace);
+#   * all-localhost + same namespace -> Prometheus reaches the exporters without
+#     crossing the container->host boundary that ufw/iptables blocks by default;
+#   * nothing is published to the LAN, and nothing needs sudo.
 #
-#   1. Start the host exporters natively:
-#         macOS    ->  ./scripts/run-exporters.sh
-#         Windows  ->  .\scripts\run-exporters.ps1
-#   2. docker compose up -d
-#   3. open http://localhost:3000   (admin / admin)
+#   docker compose up -d                 # CPU/mem/disk/net
+#   docker compose --profile gpu up -d   # + NVIDIA GPU
 #
-#   ...or just run ./scripts/start.sh (macOS) / .\scripts\start.ps1 (Windows).
+#   ...or just run ./scripts/start.sh (auto-detects the GPU).
 #
-# On LINUX use docker-compose.linux.yml instead — it runs everything on the host
-# network so it captures real host NICs (Ethernet/Wifi) and dodges the ufw block
-# that stops containers reaching a host port. See the README.
+# The GPU exporter is a container using the NVIDIA runtime, so it needs the
+# nvidia-container-toolkit. No toolkit? Drop the `--profile gpu` and instead run
+# the GPU exporter natively:  ./scripts/run-exporters.sh  (it starts only the GPU
+# one when node-exporter's port is already served).
 # Deliberately still `lesysbot-monitoring` after the monitoring → dashboard
 # rename: this is the Compose *project* name, and it is how `docker compose
 # down` finds containers it started. Renaming it would strand every already
@@ -26,26 +28,27 @@ services:
     image: prom/prometheus:v3.1.0
     container_name: lesysbot-prometheus
     restart: unless-stopped
+    network_mode: host
+    pid: host
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
+      - --web.listen-address=127.0.0.1:${PROM_PORT:-9090}
       - --web.enable-lifecycle
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    ports:
-      - "127.0.0.1:${PROM_PORT:-9090}:9090"
-    extra_hosts:
-      # No-op on Docker Desktop (already provided); harmless elsewhere.
-      - "host.docker.internal:host-gateway"
 
   grafana:
     image: grafana/grafana:11.5.1
     container_name: lesysbot-grafana
     restart: unless-stopped
+    network_mode: host
     environment:
-      PROM_URL: http://prometheus:9090          # consumed by the datasource file
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: ${GRAFANA_PORT:-3000}
+      PROM_URL: http://127.0.0.1:${PROM_PORT:-9090}   # consumed by the datasource file
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -67,10 +70,40 @@ services:
       # package and re-render.
       - ./grafana/dashboards/generated:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
-    ports:
-      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: lesysbot-node-exporter
+    restart: unless-stopped
+    network_mode: host      # required to read the host's real network interfaces
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --web.listen-address=127.0.0.1:9100
+      - --collector.filesystem.mount-points-exclude=^/(host|dev|proc|sys|run/.+|var/lib/docker/.+)($$|/)
+      - --collector.netdev.device-exclude=^(veth.*|docker.*|br-.*|lo|virbr.*|tap.*)$$
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+
+  # Opt-in (`--profile gpu`): NVIDIA GPU metrics via the container runtime.
+  nvidia-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.3.2
+    container_name: lesysbot-nvidia-exporter
+    profiles: ["gpu"]
+    restart: unless-stopped
+    network_mode: host
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility
+    command:
+      - --web.listen-address=127.0.0.1:9835
 
 volumes:
   prometheus-data:

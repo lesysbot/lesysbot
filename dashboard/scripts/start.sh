@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-# One command to bring up the whole system-overview stack on Linux or macOS.
+# One command to bring up the whole system-overview stack.
 #
-#   ./scripts/start.sh          # start everything the right way for this OS
+#   ./scripts/start.sh          # start everything, detecting what this host has
 #   ./scripts/start.sh down     # stop and remove the stack
 #
-# Linux  : Prometheus + Grafana + node-exporter on the host network. NVIDIA GPU
-#          metrics run as a container when the nvidia-container-toolkit is
-#          present, otherwise as a native exporter — both automatic.
-# macOS  : native host exporters, then Prometheus + Grafana in Docker Desktop.
-# Windows: use scripts\start.ps1 instead.
+# Prometheus + Grafana + node-exporter run on the host network. NVIDIA GPU
+# metrics run as a container when the nvidia-container-toolkit is present,
+# otherwise as a native exporter — both automatic.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -107,17 +105,6 @@ detect_capabilities_linux() {
   fi
 }
 
-# macOS through Docker Desktop. The native path (install-macos.sh) does its own,
-# richer detection; this only has to get the Docker stack's dashboard right.
-detect_capabilities_macos() {
-  [ "$(uname -m)" = "arm64" ] || add_cap intel
-  command -v nvidia-smi >/dev/null 2>&1 && add_cap nvidia
-  add_missing "CPU/GPU die temperature needs a helper on macOS:
-    brew install vladkens/tap/macmon   (Apple Silicon)
-    brew install narugit/tap/smctemp   (Intel or Apple Silicon)
-    Or use ./scripts/install-macos.sh, which offers to install one for you."
-}
-
 # Fill grafana/dashboards/generated/ — the directory the compose mounts. Three
 # routes, best first:
 #
@@ -129,10 +116,10 @@ detect_capabilities_macos() {
 #
 # The directory is created either way: Docker creates a missing bind-mount
 # source as a root-owned directory, which then can't be written without sudo.
-DASH_DEFAULT=system-overview-linux-macos.json
+DASH_DEFAULT=system-overview.json
 GENERATED="$ROOT/grafana/dashboards/generated"
 
-select_dashboard() { # $1 = linux|macos
+select_dashboard() {
   local gen="$HERE/gen-dashboards.py" out="$GENERATED/system-overview.json"
   mkdir -p "$GENERATED"
 
@@ -164,10 +151,8 @@ EOF
 }
 
 down() {
-  case "$(uname -s)" in
-    Linux)  dc -f docker-compose.linux.yml --profile gpu down; "$HERE/run-exporters.sh" stop 2>/dev/null || true ;;
-    Darwin) dc down; "$HERE/run-exporters.sh" stop ;;
-  esac
+  dc --profile gpu down
+  "$HERE/run-exporters.sh" stop 2>/dev/null || true
 }
 
 # Sourcing this file defines the functions above and stops there, so the
@@ -181,37 +166,21 @@ main() {
 preflight
 if [ "${1:-up}" = "down" ]; then down; echo "stack stopped."; exit 0; fi
 
-case "$(uname -s)" in
-  Linux)
-    detect_capabilities_linux
-    select_dashboard linux
-    if command -v nvidia-smi >/dev/null 2>&1; then
-      if has_nvidia_runtime; then
-        echo "==> Linux + NVIDIA (container runtime): full stack on the host network"
-        dc -f docker-compose.linux.yml --profile gpu up -d
-      else
-        echo "==> Linux + NVIDIA (no container toolkit): stack + native GPU exporter"
-        dc -f docker-compose.linux.yml up -d
-        "$HERE/run-exporters.sh" nvidia     # port 9100 is taken by the container
-      fi
-    else
-      echo "==> Linux (no NVIDIA GPU detected): starting stack without GPU"
-      dc -f docker-compose.linux.yml up -d
-    fi
-    ;;
-  Darwin)
-    detect_capabilities_macos
-    select_dashboard macos
-    echo "==> macOS: starting native host exporters"
-    "$HERE/run-exporters.sh" start
-    echo "==> starting Prometheus + Grafana (Docker Desktop)"
+detect_capabilities_linux
+select_dashboard
+if command -v nvidia-smi >/dev/null 2>&1; then
+  if has_nvidia_runtime; then
+    echo "==> NVIDIA (container runtime): full stack on the host network"
+    dc --profile gpu up -d
+  else
+    echo "==> NVIDIA (no container toolkit): stack + native GPU exporter"
     dc up -d
-    ;;
-  *)
-    echo "Unsupported OS $(uname -s). On Windows run: .\\scripts\\start.ps1" >&2
-    exit 1
-    ;;
-esac
+    "$HERE/run-exporters.sh" nvidia     # port 9100 is taken by the container
+  fi
+else
+  echo "==> No NVIDIA GPU detected: starting stack without GPU"
+  dc up -d
+fi
 
 cat <<EOF
 

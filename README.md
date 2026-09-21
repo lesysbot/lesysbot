@@ -1,8 +1,8 @@
 <img src="assets/brand/lesysbot-wordmark.svg" alt="LeSysBot" width="380">
 
-**Chat with your own machine.** Ask it a question in plain language — from your
-terminal, from Telegram on your phone, or from Discord — and it answers, using
-tools that can read and control that machine.
+**Chat with your own Linux machine.** Ask it a question in plain language — from
+your terminal, from Telegram on your phone, or from Discord — and it answers,
+using tools that can read and control that machine.
 
 ```
 You: how hot is it running right now?
@@ -46,14 +46,6 @@ stay with you. No account, no cloud service, nothing to sign up for.
 ```bash
 curl -fsSL https://lesysbot.github.io/install.sh | sh
 ```
-
-<details>
-<summary><b>Windows</b></summary>
-
-```powershell
-irm https://lesysbot.github.io/install.ps1 | iex
-```
-</details>
 
 That gets a Python, installs Ollama and pulls a model, sets everything up and
 starts the background service. It needs no Python, no pipx, no git and no
@@ -211,8 +203,8 @@ logging — is in **[How it works](docs/architecture.md)**.
   even when no model is running. Every tool is registered as a real slash command
   in Telegram's `/` menu and Discord's command picker, so you can pick one from a
   list instead of remembering its name
-- **Cross-platform aware** — tools declare which OSes and binaries they need and
-  explain themselves instead of failing
+- **Honest about what's missing** — a tool declares the binaries it needs and
+  explains itself instead of failing
 - **Confirmation prompts** — destructive tools wait for your approval
 - **Terminal tool management** — `lesysbot list/enable/disable/remove`,
   applied to a running bot within a second
@@ -221,8 +213,8 @@ logging — is in **[How it works](docs/architecture.md)**.
   `http://127.0.0.1:8700`
 - **Boot notification** — a Telegram/Discord bot pings you with a system report
   when the machine comes up
-- **Prometheus + Grafana stack** — set up by the installer on all three OSes,
-  plus `share_dashboard` to publish an expiring public snapshot link
+- **Prometheus + Grafana stack** — set up by the installer, plus
+  `share_dashboard` to publish an expiring public snapshot link
 - **Structured traces** — every request logged to `logs/traces.jsonl`
 - **Secrets redacted** — tokens never reach a log file
 
