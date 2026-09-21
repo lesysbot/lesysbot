@@ -5,10 +5,9 @@
 > modify the code or contribute, then continue to
 > [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-What happens inside LeSysBot, from the moment you send a message to the moment
-you get a reply. It goes top-down: the big picture, then the life of one message
-step by step, then each layer in detail, and finally a map of *where to change
-what*.
+What happens inside LeSysBot, from the message you send to the reply you get —
+top-down: the big picture, one message step by step, each layer in detail, then
+a map of *where to change what*.
 
 ---
 
@@ -47,20 +46,17 @@ dropped into `tools/`.
 
 Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
 
-1. **Parse the command line.** `build_parser()` handles the flags (`-c`, `-v`,
-   `--provider`, `--model`, `--base-url`). If you ran a subcommand
-   (`lesysbot install`, `lesysbot list`, …), it's dispatched to the artifact CLI
-   before any bot setup —
-   the bot never starts.
+1. **Parse the command line.** A subcommand (`lesysbot install`, `list`, …) is
+   dispatched to the artifact CLI and exits — the bot never starts.
 2. **Load settings.** `Settings.load()`
-   ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active config
-   file (see [§7](#7-configuration--paths)), applies `LESYSBOT_*` environment
-   variables, then applies CLI flags on top.
-3. **Resolve paths.** Relative paths in the config (`./tools`, `logs/…`) are
-   anchored to the directory the config file came from — so an installed setup
-   uses `~/.lesysbot/tools`, and a dev checkout uses the repo's `tools/`.
-4. **Set up logging.** A Rich console handler plus a time-rotating file handler
-   on `logs/lesysbot.log` (see [§9](#9-logging--tracing)).
+   ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active
+   config (see [§7](#7-configuration--paths)), then applies `LESYSBOT_*`
+   environment variables and CLI flags on top.
+3. **Resolve paths.** Relative paths (`./tools`, `logs/…`) are anchored to the
+   config file's directory — so an install uses `~/.lesysbot/tools` and a
+   checkout uses the repo's `tools/`.
+4. **Set up logging.** A Rich console handler plus a rotating file handler (see
+   [§9](#9-logging--tracing)).
 5. **Build the Agent.** `Agent.setup()` loads every tool from the tools
    directory and, with `hot_reload: true`, starts a watcher that reloads them
    whenever a `.py` file changes.
@@ -70,20 +66,17 @@ Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
    Telegram and Discord packages are the `telegram`/`discord` extras, and picking a
    provider you haven't installed names the extra to add.
 7. **Wire confirmation.** `agent.set_confirm_fn(adapter.confirm)` connects the
-   adapter's confirmation UI (terminal `y/n`, Telegram buttons) to the agent,
-   so tools marked `confirm=True` can ask before running. The adapter's
-   `send()` is also handed to `lesysbot/core/notify.py`, the out-of-band push
-   channel: a tool can call `notify_later(text, delay)` to message the
-   requesting user *after* its reply — the bundled `power` tool uses it to
-   announce "powering off now" just before a scheduled shutdown fires.
+   adapter's `y/n` prompt or buttons, so `confirm=True` tools can ask first. The
+   adapter's `send()` also goes to [lesysbot/core/notify.py](../lesysbot/core/notify.py),
+   the out-of-band push channel: `notify_later(text, delay)` messages the user
+   *after* a reply — the `power` tool announces "powering off now" with it.
 8. **Run.** `await adapter.start(agent.handle)` blocks for the life of the
-   process. A *background* asyncio task, the **startup notice** (Telegram/Discord
-   only, on by default), waits for the adapter to connect and then pings the
-   configured chat with a short system report — CPU/GPU temperature, disk usage,
-   internet speed — so a service that starts at boot tells you the machine just
-   came up (see [Running as a Service](service.md#the-message-you-get-when-it-starts)). It's
-   cancelled when the adapter stops — that's why typing `exit` in the CLI
-   actually ends the process.
+   process. The **startup notice** runs beside it as a background task
+   (Telegram/Discord only): it waits for the adapter to connect, then sends a
+   short system report, so a service starting at boot tells you the machine came
+   up (see [Background service](service.md#the-startup-message)). It is
+   cancelled when the adapter stops, which is why `exit` really ends the
+   process.
 
 ---
 
@@ -129,17 +122,15 @@ is running, and why slash commands don't appear in conversation history.
 `ConversationHistory`, seeded with the system prompt from the config and
 trimmed to `agent.max_history` messages.
 
-Steps 2–6 run under a **per-user lock**, so one person's conversation only ever
-advances one turn at a time: a message that arrives mid-turn waits for the
-current one to finish. That matters because the remote adapters dispatch
-updates concurrently — Telegram *must*, or the button press answering a
-confirmation would queue behind the very handler waiting for it. Without the
-lock, two turns appended into the same history, each then sent the other's
-messages to the model, and the model read the interleaving as a tool call still
-awaiting its result and **ran the tool a second time**. The lock is per user,
-not global, so a slow model call for one person doesn't stall anyone else — and
-Step 1 stays outside it, because `/cancel_shutdown` has to stay answerable
-*while* the turn that scheduled the reboot is still running.
+Steps 2–6 run under a **per-user lock**, so one conversation advances one turn
+at a time; a message arriving mid-turn waits. This matters because the remote
+adapters dispatch updates concurrently — Telegram *must*, or the button
+answering a confirmation queues behind the handler awaiting it. Without the
+lock, two turns appended into the same history, each sent the other's messages
+to the model, and the model read the interleaving as an unfinished tool call and
+**ran the tool twice**. The lock is per user, so a slow call for one person
+doesn't stall anyone else, and Step 1 stays outside it — `/cancel_shutdown` must
+stay answerable *while* the turn that scheduled the reboot is still running.
 
 **Step 3 — Ask the LLM.** The agent sends the whole history to
 `LLMClient.chat()`, along with a JSON schema for every enabled tool. The model
@@ -205,7 +196,7 @@ A tool is a Python function (or a wrapped shell command) with a name, a
 description, and a JSON schema for its parameters. The LLM sees the schemas
 and picks tools by name; the `/slash` dispatcher uses the same catalog.
 
-Two ways to define one (full guide: [Writing Tools](writing-tools.md)):
+Two ways to define one (full guide: [Write a tool](writing-tools.md)):
 
 - **`@tool`** ([lesysbot/mcp/decorators.py](../lesysbot/mcp/decorators.py)) —
   decorates a Python function and builds the parameter schema from its type
@@ -285,9 +276,42 @@ set of specs in
 commands rebuild the `/name key=value` text and re-enter `Agent._handle_slash`,
 so there is still exactly one place a tool call is dispatched.
 
-Adding a platform means subclassing the base and adding one `elif` in
-`__main__.py` — the step-by-step is in
-[Messaging Adapters §4](adapters.md#4-building-a-custom-adapter).
+### Adding a chat platform
+
+Subclass `MessagingAdapter`, implement `start()` and `send()`, and override
+`confirm()` if the platform can show a yes/no prompt. `split_message()` in the
+same module chunks long replies to the platform's length limit.
+
+```python
+# lesysbot/messaging/myplatform.py
+from lesysbot.messaging.base import MessageHandler, MessagingAdapter
+
+class MyPlatformAdapter(MessagingAdapter):
+    async def start(self, handler: MessageHandler) -> None:
+        async for user_id, text in my_platform.listen():
+            await self.send(user_id, await handler(user_id, text))
+
+    async def send(self, user_id: str, text: str) -> None:
+        await my_platform.send_message(user_id, text)
+
+    async def confirm(self, user_id, tool_name, prompt, args) -> bool:
+        return await my_platform.ask_yes_no(user_id, prompt)
+```
+
+Wire it into the `if/elif` block in `_run()` in `lesysbot/__main__.py` — the
+existing `agent.set_confirm_fn(adapter.confirm)` call then uses your prompt:
+
+```python
+elif provider == "myplatform":
+    from lesysbot.messaging.myplatform import MyPlatformAdapter
+    adapter = MyPlatformAdapter(settings.messaging.myplatform)
+```
+
+For a native command menu, take the registry as a second constructor argument
+and build it from `all_commands(registry)` in `commands.py`; render each
+invocation back with `to_slash_text(name, kwargs)` so it goes through the one
+dispatch path. The PR checklist is in
+[CONTRIBUTING.md §5](../CONTRIBUTING.md#5-contributing-a-messaging-adapter).
 
 ---
 
@@ -321,16 +345,18 @@ full reference is in [Configuration](configuration.md).
 ## 8. The tool installer
 
 `lesysbot install owner/repo` ([lesysbot/artifacts/](../lesysbot/artifacts/))
-downloads a tool folder package from GitHub **into the same tools directory
-the bot loads** — so a running bot picks it up via hot reload. The pipeline,
-one module per stage:
+downloads a package from GitHub **into the same directory the bot loads**, so a
+running bot picks it up via hot reload. One verb installs tools *and*
+dashboards: the manifest decides which, and each lands in its own directory.
+The pipeline, one module per stage:
 
 ```mermaid
 flowchart LR
-    spec["spec.py<br>parse the<br>source spec"] --> fetch["fetch.py<br>download the zipball<br>(HTTPS, no git binary)"] --> archive["archive.py<br>extract with zip-slip/<br>symlink/size guards"] --> meta["meta.py<br>read README frontmatter<br>(no package code imported)"] --> manager["manager.py<br>move into tools/, record<br>provenance in tools.lock.json"]
+    spec["spec.py<br>parse the<br>source spec"] --> fetch["fetch.py<br>download the zipball<br>(HTTPS, no git binary)"] --> archive["archive.py<br>extract with zip-slip/<br>symlink/size guards"] --> manifest["manifest.py<br>read README frontmatter<br>(no package code imported)"] --> installer["installer.py<br>move into place, record<br>provenance in the lock file"]
 ```
 
-User guide: [Installing Tools](installing-tools.md); trust model included.
+User guide: [Install tools](installing-tools.md). Trust model:
+[Security](security.md).
 
 ---
 
@@ -346,29 +372,43 @@ Two independent records of what happened
 - **`logs/traces.jsonl`** ([lesysbot/core/trace.py](../lesysbot/core/trace.py)) —
   one JSON line per user message: every LLM turn, every tool call with its
   arguments and duration, and the final reply. This is the first place to look
-  when you're debugging *what the model decided to do*. Format reference:
-  [Settings](configuration.md#under-the-hood).
+  when you're debugging *what the model decided to do*. `/` commands are not
+  traced; `result` and `reply` are cut at 2000 characters:
+
+  ```json
+  {"ts": "2026-06-21T12:00:00+00:00", "trace_id": "ab29aaf98c9b", "user_id": "cli-user",
+   "input": "what is my disk usage?",
+   "turns": [{"index": 1, "model": "qwen3.5:4b", "response_type": "tool_calls", "ms": 840.0,
+              "tools": [{"name": "disk_usage", "args": {"path": "/"}, "result": "…", "ms": 42.5}]},
+             {"index": 2, "model": "qwen3.5:4b", "response_type": "text", "ms": 620.0, "tools": []}],
+   "reply": "Your disk at / is 80% full with 40 GB free.", "total_ms": 1460.0}
+  ```
+
+  Both files pass through a redacting filter
+  ([lesysbot/core/redact.py](../lesysbot/core/redact.py)): token *shapes*
+  (Telegram, Discord, OpenAI `sk-`) are masked with no configuration, and the
+  exact secrets from the active config are registered at startup. Values under
+  12 characters are left alone, so the default `api_key: ollama` isn't rewritten
+  everywhere.
 
 ---
 
 ## 10. The control panel and CLI dispatch
 
 The one network listener in the project is the control panel in
-[lesysbot/management/](../lesysbot/management/) — a stdlib `ThreadingHTTPServer` bound to
-`127.0.0.1` only, with a DNS-rebinding guard that rejects any request whose
-`Host` header isn't loopback. It has no authentication because the trust
-boundary is having a shell on the machine — the same access as editing
-`config.yaml`. The whole single-page UI is inlined as a Python string so it
-always ships with the package, and it adds no dependencies.
+[lesysbot/management/](../lesysbot/management/) — a stdlib `ThreadingHTTPServer`
+bound to `127.0.0.1` only, with a DNS-rebinding guard that rejects any request
+whose `Host` header isn't loopback. It has no authentication: the trust boundary
+is a shell on the machine, the same access as editing `config.yaml`. The
+single-page UI is inlined as a Python string, so it ships with the package and
+adds no dependencies.
 
 **It runs inside the service.** `lesysbot run` calls `serve_background()`, which
-binds the configured port and serves from a daemon thread sharing the bot's own
-`ToolRegistry` — so the panel is up for exactly as long as LeSysBot is, and a
-toggle in the browser hits the registry the LLM is using. It binds that one port
-exactly (no walking to the next free one), so the panel is always at the address
-people bookmark; a busy port is logged and skipped rather than taking the
-service down with it. `lesysbot manage` is the fallback for when no service is
-running — it serves the panel in the foreground, and steps past a busy port.
+serves from a daemon thread sharing the bot's own `ToolRegistry` — so a toggle
+in the browser hits the registry the LLM is using. It binds the configured port
+exactly, never the next free one, so the panel stays at the address people
+bookmark; a busy port is logged and skipped rather than taking the service down.
+`lesysbot manage` is the fallback when no service is running.
 
 It exposes `GET /api/status`, `/api/tools`, `/api/config` and
 `POST /api/config`, `/api/tools/{toggle,install,remove}`. Config writes are
@@ -393,7 +433,7 @@ poll, so it serves the panel and idles.
 The status snapshot behind both the terminal view and `/api/status` lives in
 [lesysbot/core/status.py](../lesysbot/core/status.py). It probes the panel
 (`/api/ping`, which identifies our server rather than trusting whatever holds the
-port) and the [dashboard stack](../dashboard/README.md), and reports the
+port) and the [dashboard stack](dashboards.md), and reports the
 service by testing the single-instance lock — a leftover lock *file* with a stale
 PID must not read as "running".
 
@@ -404,10 +444,10 @@ PID must not read as "running".
 | I want to… | Touch | Guide |
 |---|---|---|
 | Add a capability (new tool) | a new folder in `tools/` — no core code | [Write a tool](writing-tools.md) |
-| Share a tool with others | a GitHub repo — nothing else | [Share your tools](sharing-tools.md) |
-| Support a new chat platform | new file in [lesysbot/messaging/](../lesysbot/messaging/) + one `elif` in [lesysbot/__main__.py](../lesysbot/__main__.py) | [Adapters §4](adapters.md#4-building-a-custom-adapter) |
-| Change what appears in a platform's `/` menu | [lesysbot/messaging/commands.py](../lesysbot/messaging/commands.py) | [Adapters §2.5](adapters.md#25-the-command-menu), [§3.8](adapters.md#38-running-tools-from-the-command-picker) |
-| Support a new LLM backend | usually nothing — set `llm.base_url` | [Settings](configuration.md#switching-model-backend) |
+| Share a tool with others | a GitHub repo — nothing else | [Write a tool → Share it](writing-tools.md#share-it) |
+| Support a new chat platform | new file in [lesysbot/messaging/](../lesysbot/messaging/) + one `elif` in [lesysbot/__main__.py](../lesysbot/__main__.py) | [§6](#adding-a-chat-platform) |
+| Change what appears in a platform's `/` menu | [lesysbot/messaging/commands.py](../lesysbot/messaging/commands.py) | this page, [§6](#6-the-messaging-layer--adapters) |
+| Support a new LLM backend | usually nothing — set `llm.base_url` | [Settings](configuration.md#use-a-different-backend) |
 | Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
 | Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
 | Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
@@ -420,6 +460,6 @@ PID must not read as "running".
 
 - Ready to make a change? Follow the step-by-step in
   [CONTRIBUTING.md](../CONTRIBUTING.md) — dev setup, tests, lint, PR checklist.
-- Writing a tool is the gentlest entry point: [Writing Tools](writing-tools.md).
+- Writing a tool is the gentlest entry point: [Write a tool](writing-tools.md).
 - The AI-assistant-oriented notes in [CLAUDE.md](../CLAUDE.md) cover the same
   ground at a finer grain (module internals, edge cases) if you need more depth.

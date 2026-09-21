@@ -301,7 +301,7 @@ async function loadStatus(){
        (gf&&gf.reachable)? `<a href="${esc(gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
          : '<span class="dot off"></span>not running',
        (gf&&gf.reachable)? esc(gf.url)+(gf.version?(' · v'+gf.version):'')
-         : (gf? 'not answering at '+esc(gf.url) : 'start dashboard/scripts/start.sh')],
+         : (gf? 'not answering at '+esc(gf.url) : 'start it with: lesysbot dashboard start')],
   ];
   $('#statusCards').innerHTML=cards.map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]||''}</div></div>`).join('');
   const meta=[['Base URL',st.base_url],['Config file',st.config_path||'(built-in defaults)'],

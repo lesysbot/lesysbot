@@ -420,7 +420,7 @@ async def share_dashboard(expiration: str = "1h") -> str:
         uid = cfg["uid"] or _pick_uid(cfg)
         if not uid:
             return ("No LeSysBot dashboard found in Grafana. Is the dashboard stack "
-                    "running? Start it with ./scripts/start.sh (see dashboard/README.md).")
+                    "running? Start it with `lesysbot dashboard start`.")
         model = _grafana(cfg, f"/api/dashboards/uid/{uid}")["dashboard"]
         title = model.get("title", "System Overview")
         _bake(cfg, model)
@@ -435,7 +435,7 @@ async def share_dashboard(expiration: str = "1h") -> str:
         where = f"Grafana at {cfg['grafana']}" if cfg["grafana_explicit"] else \
             "Grafana on the usual ports (" + ", ".join(_PORTS) + ")"
         return (f"Can't reach {where}. Start the dashboard stack first "
-                f"(./scripts/start.sh), or set LESYSBOT_GRAFANA_URL if Grafana runs elsewhere.")
+                f"(`lesysbot dashboard start`), or set LESYSBOT_GRAFANA_URL if Grafana runs elsewhere.")
     except urllib.error.HTTPError as e:
         return (f"Grafana rejected the snapshot request (HTTP {e.code}: {e.reason}). "
                 f"External snapshot publishing may be disabled in Grafana.")
@@ -493,7 +493,7 @@ async def delete_snapshot(which: str) -> str:
     if not items:
         return ("No dashboard snapshots to delete." if gf_ok else
                 "Can't reach Grafana to delete snapshots. Start the dashboard stack first "
-                "(./scripts/start.sh).")
+                "(`lesysbot dashboard start`).")
     sel = which.strip().lower()
     if sel == "all":
         targets = list(items)

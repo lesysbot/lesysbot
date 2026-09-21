@@ -78,7 +78,7 @@ dropped straight in `tools/` also still works for quick local tools.)
   unprivileged route to the same fact (read `/sys` rather than shelling out as
   root; let logind/polkit handle `shutdown`), and when a capability genuinely
   isn't available without root, say so in the reply instead of elevating. See
-  [docs/writing-tools.md](../../../docs/writing-tools.md) §6.
+  [docs/writing-tools.md](../../../docs/writing-tools.md) ("Never require root").
 - Files starting with `_` are ignored by the loader — helpers only.
 - A new tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in `tools/` (e.g. `system-info/`, `speedtest/`).
@@ -86,7 +86,7 @@ dropped straight in `tools/` also still works for quick local tools.)
 - The same folder shape is what `lesysbot install owner/repo` downloads,
   so a package pushed to its own GitHub repo is installable as-is (and the
   bundled ones install via `lesysbot install lesysbot/lesysbot/tools/<name>`)
-  — see [docs/sharing-tools.md](../../../docs/sharing-tools.md).
+  — see [docs/writing-tools.md → Share it](../../../docs/writing-tools.md#share-it).
 
 ## Verify
 

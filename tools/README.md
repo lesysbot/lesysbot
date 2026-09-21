@@ -1,23 +1,16 @@
 # LeSysBot tools
 
-Each folder here is a **self-contained, copy-paste tool package** — like a Claude
-Skill. Drop a folder into your `~/.lesysbot/tools/` (the live tools dir for an
-installed setup) and restart LeSysBot; the tool auto-registers as both a `/slash`
-command and an LLM-callable function. No registration code, no edits elsewhere.
-
-These packages can also be installed straight from this repo, so instead of copying
-folders you can install them by name:
+Each folder here is a **self-contained tool package**. They ship with LeSysBot
+and `lesysbot setup` installs them into `~/.lesysbot/tools/`, so there is nothing
+to fetch. To pull a copy newer than your release:
 
 ```bash
 lesysbot install lesysbot/lesysbot/tools/temperature   # one package
 lesysbot install lesysbot/lesysbot/tools               # all of them
 ```
 
-They already ship in the wheel and `lesysbot setup` seeds them, so this is for
-pulling a copy newer than your installed release rather than for getting them
-in the first place.
-
-See [docs/installing-tools.md](../docs/installing-tools.md).
+See [Install tools](../docs/installing-tools.md) and
+[Write a tool](../docs/writing-tools.md).
 
 ## Catalog
 
@@ -30,21 +23,11 @@ See [docs/installing-tools.md](../docs/installing-tools.md).
 | `network/`     | `dns_lookup`, `ping`, `traceroute`     | `nslookup`, `ping`, `traceroute` |
 | `speedtest/`   | `speedtest`                            | —                             |
 | `web/`         | `fetch_url`                            | `httpx` (pip)                 |
-| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | the [dashboard stack](../dashboard/README.md) running |
+| `share-dashboard/` | `share_dashboard`, `list_snapshots`, `delete_snapshot` | the [dashboard stack](../docs/dashboards.md) running |
 
 A tool whose required binary isn't on PATH still appears in `/help`, but calling
 it returns a one-line explanation instead of failing — so the "Needs" column
 above is a guide, not a hard wall.
-
-There is no companion package repo. There used to be
-(`lesysbot-packages-official`), but going Linux-only folded its tools into the
-table above and its dashboards into [`dashboards/`](../dashboards/), leaving it
-a duplicate of what already ships — so it was retired rather than kept in sync.
-Dashboards install the same way:
-
-```bash
-lesysbot install lesysbot/lesysbot/dashboards/gpu-detail
-```
 
 ## Package layout
 
@@ -53,7 +36,7 @@ lesysbot install lesysbot/lesysbot/dashboards/gpu-detail
   README.md             # frontmatter (name, description, requires) + human docs
   tool.py               # @tool / CLITool definitions  (any non-_ .py is scanned)
   _helpers.py           # OPTIONAL shared helpers (underscore = never scanned)
-  requirements.txt      # OPTIONAL pip deps, for humans / `pip install -r`
+  requirements.txt      # OPTIONAL pip deps, installed by `lesysbot install`
 ```
 
 Only `README.md` + `tool.py` are required. One package may expose several tools.

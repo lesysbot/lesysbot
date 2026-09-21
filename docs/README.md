@@ -1,70 +1,33 @@
 # LeSysBot documentation
 
-Every page here answers one question and starts with the short version. If a
-page has technical detail, it's tucked into a **"Under the hood"** section at
-the end — open it only if you want it.
-
-**New here?** [Getting started](getting-started.md) takes you from nothing to a
-working bot in about five minutes.
-
----
+New here? Start with **[Getting started](getting-started.md)**.
 
 ## Start here
 
-| Guide | What it's for |
-|---|---|
-| [Getting started](getting-started.md) | Install it, chat with it, write your first tool |
-| [Choosing a model](models.md) | Which local model to run on the hardware you have |
+- [Getting started](getting-started.md) — install, say hello, open the control panel
+- [Choosing a model](models.md) — which model fits your GPU
 
-## Everyday use
+## Use it
 
-| Guide | What it's for |
-|---|---|
-| [Everyday use](usage.md) | Chatting, running tools directly, history, confirmations |
-| [Telegram & Discord](adapters.md) | Reach the bot from your phone or your workspace |
-| [Control panel](management-ui.md) | Edit settings and toggle tools from a local web page — always on |
-| [Settings](configuration.md) | Every option, and the three ways to set it |
-| [Troubleshooting](troubleshooting.md) | When something doesn't work |
+- [Everyday use](usage.md) — asking, running tools, confirmations
+- [Telegram & Discord](adapters.md) — chat from your phone
+- [Control panel](management-ui.md) — settings and tools in your browser
+- [Dashboards](dashboards.md) — graphs of your machine in Grafana
+- [Settings](configuration.md) — every option in `config.yaml`
 
-## Give it new abilities
+## Extend it
 
-| Guide | What it's for |
-|---|---|
-| [Install tools](installing-tools.md) | Add tools from GitHub with one command |
-| [Install dashboards](installing-dashboards.md) | Add graphs from GitHub, and write your own |
-| [Write a tool](writing-tools.md) | Turn a Python function or a shell command into an ability |
-| [Share your tools](sharing-tools.md) | Publish yours so other people can install them |
-| [Write tools with Claude Code](claude-code.md) | Let an AI assistant scaffold them for you |
+- [Install tools](installing-tools.md) — add tools and dashboards from GitHub
+- [Write a tool](writing-tools.md) — make your own, share it, or let Claude Code write it
 
-## Keep it running
+## Run it
 
-| Guide | What it's for |
-|---|---|
-| [Run as a service](service.md) | Background operation, auto-start on boot, logs |
-| [Dashboards](../dashboard/README.md) | Grafana dashboards of CPU, memory, disk, network, GPU |
+- [Background service](service.md) — start, stop, logs
+- [Security](security.md) — who can use the bot, and what's exposed
+- [Troubleshooting](troubleshooting.md) — when something doesn't work
 
-## Under the hood
+## For contributors
 
-| Guide | What it's for |
-|---|---|
-| [How it works](architecture.md) | The life of a message, layer by layer — for contributors |
-| [Contributing](../CONTRIBUTING.md) | Dev setup, tests, and the checklist for each kind of change |
-| [Brand assets](../assets/brand/README.md) | The logo, the palette, and how to regenerate them |
-| [CLAUDE.md](../CLAUDE.md) | Fine-grained internals, written for AI coding assistants |
-
----
-
-## Shortcuts
-
-- **"I just want to try it."** → [Getting started](getting-started.md), then press
-  Enter through the wizard.
-- **"I want it to do X."** → [Write a tool](writing-tools.md), or check whether
-  someone already did: [Install tools](installing-tools.md).
-- **"I want more graphs."** → [Install dashboards](installing-dashboards.md).
-- **"I want to message it from my phone."** → [Telegram setup](adapters.md#2-telegram).
-- **"Something's wrong."** → [Troubleshooting](troubleshooting.md).
-- **"I want to change how it behaves."** → [Settings](configuration.md).
-- **"I want to fix or add something in the code."** → [How it works](architecture.md),
-  then [CONTRIBUTING.md](../CONTRIBUTING.md).
-- **"An AI agent is doing this for me."** → [skills/](../skills/README.md) —
-  self-contained instructions per job, no docs or source needed.
+- [How it works](architecture.md) — the code, layer by layer
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — dev setup, tests, checklists
+- [skills/](../skills/README.md) — instructions for AI agents operating LeSysBot
