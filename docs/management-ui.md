@@ -1,120 +1,71 @@
 # Control panel
 
-A small web page for the two things you change most — your **settings** and your
-**tools** — plus a status screen that answers "is it working?" at a glance.
-
-**It is always on.** The LeSysBot background service serves it, so it is there
-whenever your machine is, at the same address every time:
+A web page for your settings and tools, always at:
 
 ```
 http://127.0.0.1:8700
 ```
 
-Bookmark it. It runs on your machine only — nothing about it is reachable from
-your network.
+The [background service](service.md) keeps it online. It's only reachable from
+this machine.
 
----
+## What you can do
 
-## Checking it's up
+| Tab | What it's for |
+|---|---|
+| **Status** | Is the model reachable, is the service running, where is Grafana |
+| **Marketplace** | Browse and install tools and dashboards |
+| **Tools** | Turn tools on or off (applies within a second), or remove them |
+| **Dashboards** | See which Grafana dashboards are ready, and render them |
+| **Doctor** | What's missing on this machine, and how to fix it |
+| **Config** | Edit `config.yaml` — checked before saving; restart the service to apply |
 
-Run `lesysbot` with no arguments. That prints health and metrics and exits — it
-starts nothing, because the panel is already running:
+## It says offline
+
+The service isn't running. Start it:
 
 ```bash
-lesysbot
+systemctl --user start lesysbot
 ```
 
-```
-[the LeSysBot mark, in colour]  LeSysBot
-                                v0.1.0
+Or run the panel from your terminal until you close it:
 
+```bash
+lesysbot manage --open
+```
+
+## Status in the terminal
+
+`lesysbot` on its own prints the same status and exits:
+
+```
     LLM backend  reachable · 42 ms
-    Backend URL  http://localhost:11434/v1
        Provider  cli · model qwen3.5:4b
           Tools  14/15 enabled
         Service  running (PID 12934)
   Control panel  online · http://127.0.0.1:8700
-        Grafana  http://localhost:3001 · v11.5.1
+        Grafana  http://localhost:3000
          Config  /home/you/.lesysbot/config.yaml
 ```
 
-The mark is drawn in colour when your terminal supports it. It disappears on its
-own under `NO_COLOR`, a plain `TERM`, or when you pipe the output somewhere —
-so `lesysbot > status.txt` stays readable.
+## Is it safe?
 
-If the panel says **offline**, the service isn't running — start it the way
-[Background service](service.md) describes, or open the panel by hand for as
-long as your terminal stays open:
+On a machine only you use, yes.
 
-```bash
-lesysbot manage             # serve it here (or just point at the running one)
-lesysbot manage --open      # and open it in your browser
-lesysbot manage --port 9000 # a different port, e.g. for a second checkout
-```
+- It listens on `127.0.0.1` only — never on your network — and rejects requests
+  that don't come from localhost.
+- It has no login. Anyone who can open it on this machine could also edit
+  `config.yaml` directly.
+- It shows your config, tokens included. To hide them, keep tokens in
+  environment variables — see [Settings](configuration.md#keep-secrets-out-of-the-file).
 
-> **Looking for a chat?** None of these are a conversation. Use
-> `lesysbot chat` to chat in your terminal.
+Don't forward the port to other machines.
 
----
-
-## What you can do with it
-
-**Status** — whether your model backend is reachable and how fast it answers,
-which provider and model are active, how many tools are on, whether the
-background bot service is running, a link to your
-[Grafana dashboard](../dashboard/README.md) if the dashboard stack is up, and
-where your config and tools actually live.
-
-**Tools** — every tool with its current state:
-
-- **Enable / disable** with one click, applied to a running bot within a second.
-- **Install** a package from GitHub by pasting `owner/repo`.
-- **Remove** a package, files and all.
-
-**Settings** — your `config.yaml` in an editor. Saving checks it first and
-refuses to write something invalid, so you can't lock yourself out with a typo.
-Most settings take effect the next time the bot starts; tool enable/disable is
-the exception and applies immediately.
-
-The toggle in the top-right switches between light and dark. It follows your
-system setting until you pick one, then remembers your choice.
-
----
-
-## Is this safe to leave running?
-
-Yes, on a machine only you use — that's the assumption it's built on, and it is
-why the panel can stay up permanently.
-
-- **It's localhost-only.** The server binds `127.0.0.1`. The host isn't
-  configurable, only the port, so it can't accidentally end up on your LAN. It
-  also rejects any request whose `Host` header isn't localhost, which blocks a
-  malicious web page from reaching it through your browser.
-- **There's no login.** Anyone who can open `http://127.0.0.1:8700` on the
-  machine can use it — but they could equally just edit `config.yaml`. That's
-  the trust boundary, and it's the same one.
-- **It shows your secrets**, because it shows your real config file. If that
-  bothers you, keep tokens in environment variables and reference them as
-  `${VAR}` — see [Settings](configuration.md).
-
-Don't forward the port or put it behind a reverse proxy unless you add
-authentication and TLS yourself.
-
-The panel lives inside the LeSysBot service process — it is the one listener in
-the project, and it only ever listens on loopback.
-
----
-
-## Settings
-
-Only the port:
+## Change the port
 
 ```yaml
 management:
   port: 8700
 ```
 
-Change it and restart the service; the panel moves with it, and `lesysbot`
-reports the new address. If something else already owns the port when the
-service starts, the panel is skipped (a line in the log says so) and the bot
-keeps running — see [Troubleshooting](troubleshooting.md).
+Restart the service to apply.

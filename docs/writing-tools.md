@@ -1,9 +1,7 @@
 # Write a tool
 
-A tool is the unit of "things LeSysBot can do". Writing one takes about a minute
-and doesn't touch any LeSysBot code — you drop a file in a folder and it's live.
-
----
+A tool is a Python function in a folder. Save the file and it's live — no
+restart, no registration.
 
 ## Your first tool
 
@@ -14,159 +12,92 @@ from lesysbot.mcp import tool
 
 @tool(description="Say hello to someone")
 async def hello(name: str) -> str:
-    return f"Hello, {name}! Nice to meet you."
+    return f"Hello, {name}!"
 ```
 
-Save it. That's the whole process — no registration, no restart:
+Try it:
 
 ```
-You: /hello name=World
-Bot: Hello, World! Nice to meet you.
+You: /hello Ada
+Bot: Hello, Ada!
 
-You: say hi to Alice for me
-Bot: Hello, Alice! Nice to meet you.
+You: say hi to Ada
+Bot: Hello, Ada!
 ```
 
-Both work, because every tool is automatically a `/command` **and** something
-the model can choose to call. LeSysBot builds the parameter description the
-model sees from your type hints.
+Every tool is both a `/command` and something the model can choose. The model
+learns the arguments from your type hints.
 
-> **Where do tools go?** `~/.lesysbot/tools/` for a normal install. Working in a
-> source checkout with its own `config.yaml`? Then the repo's `tools/`. The
-> `lesysbot` status screen prints the path it's really using.
-
----
-
-## Wrapping a shell command
-
-If the thing you want already exists as a command, you don't need Python logic:
+## Wrap a shell command
 
 ```python
 from lesysbot.mcp import CLITool
 
 ping = CLITool(
     name="ping",
-    description="Check if a host is reachable and measure latency",
+    description="Check if a host is reachable",
     command="ping -c 3 {host}",
     params={"host": "Hostname or IP address"},
-    timeout=15.0,
 )
 ```
 
-`{host}` is filled in with whatever the model or the user supplies. Every entry
-in `params` is required.
+`{host}` is filled in from the request. Every entry in `params` is required.
 
-**Needs a program that may not be installed?** Name it in `requires` and
-LeSysBot marks the tool unavailable rather than letting the shell fail:
+## Ask before doing something drastic
 
 ```python
-mtr = CLITool(
-    name="mtr",
-    description="Trace the route to a host",
-    command="mtr --report --report-cycles 5 {host}",
-    params={"host": "Hostname or IP address"},
-    requires=["mtr"],
-)
-```
-
----
-
-## Asking before doing something drastic
-
-Add `confirm` and LeSysBot won't run the tool until you approve:
-
-```python
-@tool(
-    description="Delete all log files in a directory",
-    confirm="This will permanently delete log files — are you sure?",
-)
+@tool(description="Delete old logs", confirm="Delete every .log file in this folder?")
 async def delete_logs(directory: str) -> str:
-    import glob, os
-    files = glob.glob(f"{directory}/*.log")
-    for f in files:
-        os.remove(f)
-    return f"Deleted {len(files)} log file(s)."
+    ...
 ```
 
-`confirm=True` gives a generic prompt; a string gives your own wording. It works
-on `CLITool` the same way.
+When the model picks this tool, the user must approve first. `confirm=True`
+uses a generic question. Typing `/delete_logs …` directly skips the question.
 
-| Where you're chatting | What you see |
-|---|---|
-| Terminal | The tool name, its arguments, your message, and a `y/n` prompt |
-| Telegram | A message with **✅ Yes** / **❌ No** buttons (2-minute timeout) |
-| Discord | A message with **✅ Yes** / **❌ No** buttons (5-minute timeout) |
-
-> The prompt only appears when the **model** decides to call the tool. If *you*
-> type `/delete_logs …`, it runs — typing it was the decision.
-
----
-
-## Saying what a tool needs
-
-LeSysBot runs on Linux only, so a tool never declares an OS. What it may declare
-is the programs it needs on PATH:
+## Say what it needs
 
 ```python
-@tool(
-    description="Report NVIDIA GPU temperature",
-    requires=["nvidia-smi"],          # programs that must be on PATH
-)
-async def gpu_temp() -> str: ...
+@tool(description="Report NVIDIA GPU temperature", requires=["nvidia-smi"])
+async def gpu_temp() -> str:
+    ...
 ```
 
-On a machine that can't satisfy that, the tool still appears in `/help` and the
-model still knows about it — but calling it returns an explanation instead of a
-confusing error:
+If `nvidia-smi` isn't installed, the tool explains that instead of failing.
+`requires` is for programs on your PATH. Put Python packages in a
+`requirements.txt` next to `tool.py`.
 
-```
-/gpu_temp
-'gpu_temp' is unavailable on this machine — requires 'nvidia-smi' on PATH (not found).
-```
+**Never require root.** A tool runs from a chat message and can't type a
+password. Read `/sys` or `/proc` instead of calling `sudo`, and if something
+truly needs root, say so in the reply.
 
-> **Upgrading an older tool?** LeSysBot used to gate on OS, so a tool might
-> still pass `platforms=[...]` (or give `CLITool` a per-OS `command` dict).
-> Both are accepted and ignored, with a one-line warning naming the tool — it
-> keeps working, but drop them when you next touch the file.
+## Options
 
-That's deliberate: the bot can tell you *why* something isn't possible here,
-which is more useful than pretending the tool doesn't exist.
+| You want | Write |
+|---|---|
+| The description from the docstring | leave out `description=` |
+| An optional argument | give it a default: `units: str = "metric"` |
+| A different name | `@tool(name="weather")` |
+| A plain (non-async) function | `def` works too |
+| A shell command to time out sooner | `CLITool(..., timeout=10.0)` (default 30) |
 
-> **Python packages are not `requires`.** That list is for programs on your PATH.
-> For a pip dependency, import it inside the tool, catch `ImportError`, and
-> return a helpful message — then list it in the package's `requirements.txt`.
-
-### Never require root
-
-**Don't write a tool that needs `sudo` or an Administrator prompt.** A tool runs
-from a chat message and the bot has no way to type a password, so a privileged
-tool either fails outright or forces people through a one-time setup ritual
-before it works at all.
-
-In practice: don't shell out through `sudo`, don't ship anything that edits
-`/etc/sudoers.d`, and prefer the unprivileged route to the same fact — read
-`/sys` instead of running a root-only program, let logind handle `shutdown`
-rather than elevating yourself. When something genuinely can't be had without
-root, say so in the reply and stop. An honest "this machine doesn't expose that
-without root" is a better tool than one that half-works.
+Type hints `str`, `int`, `float`, `bool`, `list` and `dict` are understood;
+anything else is treated as text. Keep tool names to lowercase letters, digits
+and `_` so they appear in the Telegram and Discord menus.
 
 ---
 
-## Making it shareable
+## Share it
 
-The examples above are a single file, which is perfect for something personal.
-To share a tool — or install it from GitHub — give it a folder:
+Give the tool a folder with a `README.md`, push it to GitHub, and anyone can
+install it with `lesysbot install you/your-repo`.
 
 ```
-gpu-temp/                 # kebab-case folder name
-  README.md               # what it does, plus frontmatter
-  tool.py                 # your @tool / CLITool definitions
-  _helpers.py             # optional; anything starting with _ is never scanned
-  requirements.txt        # optional pip dependencies
+gpu-temp/
+  README.md          what it does, with the frontmatter below
+  tool.py            your tools (a file can hold several)
+  _helpers.py        optional — files starting with _ aren't scanned
+  requirements.txt   optional Python dependencies
 ```
-
-Only `README.md` and `tool.py` are needed. The README's frontmatter describes
-the package without anyone having to run its code:
 
 ```markdown
 ---
@@ -177,145 +108,63 @@ requires: [nvidia-smi]
 ---
 ```
 
-The decorator arguments are what LeSysBot actually enforces; the frontmatter
-mirrors them for humans and shows up in `lesysbot list`.
+A repo can hold one package at its root, or several in subfolders (or under a
+`tools/` folder). Tag releases (`git tag v1.0.0`) so people can pin one with
+`@v1.0.0`, and bump `version:` each time.
 
-This is the same shape `lesysbot install owner/repo` downloads — push the
-folder to a repo and anyone can install it. See
-[Share your tools](sharing-tools.md).
+Before you share, check:
 
----
+- [ ] Drastic actions use `confirm=`.
+- [ ] Every program the tool runs is in `requires=[...]`.
+- [ ] It works when installed: `lesysbot install you/repo@your-branch`.
 
-## Options reference
+## Let Claude Code write it
 
-**`@tool`**
+The `lesysbot-tool-dev` plugin teaches [Claude Code](https://code.claude.com/docs)
+how LeSysBot tools are built. Install it once:
 
-| You want | Write |
-|---|---|
-| Description from the docstring | omit `description=` |
-| A plain sync function | `def` works — it's wrapped automatically |
-| An optional parameter | give it a default: `units: str = "metric"` |
-| A different tool name | `@tool(name="weather")` |
-| Confirmation | `@tool(confirm=True)` or `confirm="your message"` |
-| A required program | `@tool(requires=["nvidia-smi"])` |
-
-Type hints map to the schema the model sees: `str` → string, `int` → integer,
-`float` → number, `bool` → boolean, `list` → array, `dict` → object. Anything
-else is treated as a string.
-
-**`CLITool`**
-
-| Option | Default | What it is |
-|---|---|---|
-| `name` | — | The tool name, used in `/commands` and by the model. Keep it to lowercase letters, digits and `_` — Telegram and Discord only accept that in a registered slash command, and a tool named otherwise is left out of their command menus (it still works as typed text). |
-| `description` | — | What it does |
-| `command` | — | Shell command with `{param}` placeholders |
-| `params` | `{}` | `param_name → description`; all are required |
-| `timeout` | `30.0` | Seconds before the command is killed |
-| `confirm` | `False` | `True` or a custom message |
-| `requires` | `None` | Programs that must be on PATH |
-
----
-
-## Under the hood
-
-<details>
-<summary><b>Several tools in one file</b></summary>
-
-A file can define as many as you like, mixing both kinds:
-
-```python
-from lesysbot.mcp import tool, CLITool
-import platform, shutil
-
-@tool
-async def get_system_info() -> str:
-    """Return basic information about the current machine."""
-    return (
-        f"OS: {platform.system()} {platform.release()}\n"
-        f"Python: {platform.python_version()}\n"
-        f"Machine: {platform.machine()}"
-    )
-
-@tool(description="Check free disk space at a given path")
-async def disk_usage(path: str) -> str:
-    usage = shutil.disk_usage(path)
-    return (
-        f"Path: {path}\n"
-        f"Total: {usage.total / 1e9:.1f} GB\n"
-        f"Free: {usage.free / 1e9:.1f} GB\n"
-        f"Used: {usage.used / usage.total * 100:.1f}%"
-    )
-
-df = CLITool(
-    name="df",
-    description="Show raw disk usage from the df command",
-    command="df -h {path}",
-    params={"path": "Filesystem path to check"},
-)
+```
+/plugin marketplace add lesysbot/lesysbot
+/plugin install lesysbot-tool-dev@lesysbot
 ```
 
-Every non-`_` `.py` file in a package is scanned, not just `tool.py`.
+Then ask, for example: *"add a tool that checks whether a systemd unit is
+running"*. Update it later with `/plugin marketplace update lesysbot`.
+
+<details>
+<summary><b>Offer the plugin to everyone who clones your tools repo</b></summary>
+
+Commit this as `.claude/settings.json`. Claude Code will offer to install the
+plugin when someone opens the repo:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "lesysbot": { "source": { "source": "github", "repo": "lesysbot/lesysbot" } }
+  },
+  "enabledPlugins": { "lesysbot-tool-dev@lesysbot": true }
+}
+```
 
 </details>
 
 <details>
-<summary><b>Sharing helper code</b></summary>
+<summary><b>Helper files and reloading</b></summary>
 
-Anything whose name starts with `_` is skipped by the loader, which makes it the
-natural home for helpers:
-
-```python
-# gpu-temp/_helpers.py
-def format_bytes(n: int) -> str:
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} PB"
-```
+Put shared code in a file starting with `_` and import it by name:
 
 ```python
 # gpu-temp/tool.py
 from _helpers import format_bytes
 ```
 
-A plain `from _helpers import …` works because each package's own directory is
-on the import path while it loads. Two packages can each ship a `_helpers.py`
-without colliding — but keep those imports at the top of the module, since the
-directory is only on the path during loading. Editing a helper triggers a reload
-just like editing the tool.
+Keep those imports at the top of the file. Each package's own folder is on the
+import path while it loads, so two packages can each have a `_helpers.py`.
 
-</details>
+LeSysBot watches the tools folder and reloads when any `.py` file changes.
+Turn that off with `mcp.hot_reload: false`.
 
-<details>
-<summary><b>How hot reload works</b></summary>
-
-With `mcp.hot_reload: true` (the default), LeSysBot watches your tools directory
-and re-imports everything when any `.py` under it changes:
-
-```
-Tool files changed — reloading...
-Loaded 3 tool(s) from system.py
-```
-
-Cached modules under the tools directory are dropped first, so edits to helpers
-take effect too, and which tools you'd disabled survives the reload. Set
-`hot_reload: false` if you'd rather restart deliberately.
-
-</details>
-
-<details>
-<summary><b>Loose files vs folder packages</b></summary>
-
-Both work, permanently:
-
-- **A loose `.py` in `tools/`** — no metadata, runs on all OSes, requires
-  nothing. Best for something quick and personal.
-- **A folder package** — README, frontmatter, optional helpers and
-  requirements. Best for anything you'll share, install, or come back to.
-
-The folder form is what the installer produces and what the bundled tools use.
-Browse them in [`tools/`](../tools/README.md) for real examples.
+A loose `.py` file dropped straight into `tools/` works too — handy for a quick
+personal tool. Use a folder for anything you'll share.
 
 </details>

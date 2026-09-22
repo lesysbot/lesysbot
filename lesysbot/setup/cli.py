@@ -26,7 +26,7 @@ from lesysbot.core.paths import user_dir
 def register_subcommand(subparsers: argparse._SubParsersAction) -> None:
     setup = subparsers.add_parser(
         "setup",
-        help="Interactive setup wizard — configure LLM, messaging, and the service",
+        help="Change the model, Telegram/Discord, and startup settings",
     )
     setup.add_argument(
         "--repo",

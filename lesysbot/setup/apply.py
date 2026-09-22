@@ -5,7 +5,7 @@ Nothing here runs until the summary's Apply. Service management shells out to
 invocations instead of touching the host.
 No sudo, ever — the wizard must stay password-free. That now holds for tools
 too: none of them may require root either, so there is no privileged setup step
-to hand off to (see docs/writing-tools.md §6).
+to hand off to (see docs/writing-tools.md, "Never require root").
 """
 
 from __future__ import annotations
@@ -290,6 +290,8 @@ def dashboard_dir(data_dir: Path) -> Path:
 
 
 GRAFANA_DOWNLOAD = "https://grafana.com/grafana/download"
+# An installed user has no docs/ folder, so point at the published guides.
+DOCS_URL = "https://lesysbot.github.io/latest"
 
 
 def _grafana_env_path(data_dir: Path) -> Path:
@@ -538,7 +540,7 @@ def start_dashboard(ui, data_dir: Path, runner=subprocess.run) -> bool:
 
     if os.environ.get("LESYSBOT_SKIP_DASHBOARD"):
         ui.warn("Skipping the Grafana dashboard (LESYSBOT_SKIP_DASHBOARD set).")
-        ui.note(f"Set it up anytime — see dashboard/README.md ({GRAFANA_DOWNLOAD}).")
+        ui.note("Start it anytime with `lesysbot dashboard start`.")
         return False
 
     # Ask *how* to set the dashboard up first, then the Grafana login, then
@@ -740,7 +742,7 @@ def print_epilogue(ui, provider: str, needs_service: bool, data_dir: Path) -> No
         ui.say("    • Clear the conversation   [bold]/clear[/bold]")
         ui.say("    • Leave                    type [bold]exit[/bold]")
 
-    ui.say("\n  Full usage guide:  [bold]docs/usage.md[/bold]")
+    ui.say(f"\n  Full usage guide:  [bold]{DOCS_URL}/guides/usage/[/bold]")
     ui.say(f"  Control panel:     [bold]{control_panel_url()}[/bold]  "
            "(settings, tools, health — always on)")
     # Follow the port the stack was actually configured with, like every other

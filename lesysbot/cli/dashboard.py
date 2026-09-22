@@ -19,7 +19,7 @@ from lesysbot.cli.context import CLIContext, config_parent
 def register(subparsers: argparse._SubParsersAction) -> None:
     common = config_parent()
     dashboard = subparsers.add_parser(
-        "dashboard", help="Render dashboards and start/stop the Grafana stack",
+        "dashboard", help="Start or stop Grafana, and update its dashboards",
     )
     sub = dashboard.add_subparsers(dest="dashboard_cmd", metavar="action", required=True)
 
