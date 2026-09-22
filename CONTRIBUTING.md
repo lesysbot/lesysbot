@@ -16,7 +16,7 @@ core at all:
 | You want to… | What you'll write | Core code changed? | Start here |
 |---|---|---|---|
 | Give LeSysBot a new ability | A tool package in `tools/` | No | [§4](#4-contributing-a-tool) |
-| Share a tool under your own GitHub account | Your own tool repo (no PR needed here!) | No | [docs/sharing-tools.md](docs/sharing-tools.md) |
+| Share a tool under your own GitHub account | Your own tool repo (no PR needed here!) | No | [docs/writing-tools.md → Share it](docs/writing-tools.md#share-it) |
 | Support a new chat platform | An adapter in `lesysbot/messaging/` | One `elif` | [§5](#5-contributing-a-messaging-adapter) |
 | Fix a bug / add a core feature | Code in `lesysbot/` + a test | Yes | [§6](#6-contributing-a-core-change) |
 | Improve the docs | Markdown in `docs/` or the root | No | [§7](#7-contributing-documentation) |
@@ -148,7 +148,7 @@ packages don't require unit tests, but the tool must load cleanly (step 2) and
 **Step 1 — Subclass `MessagingAdapter`** in a new
 `lesysbot/messaging/<platform>.py`, implementing `start()` and `send()`, and
 override `confirm()` if the platform can show a yes/no UI. The annotated
-template is in [docs/adapters.md §4](docs/adapters.md#4-building-a-custom-adapter).
+template is in [docs/architecture.md → Adding a chat platform](docs/architecture.md#adding-a-chat-platform).
 
 **Step 2 — Wire it up:** add an `elif` to the provider block in
 [lesysbot/__main__.py](lesysbot/__main__.py) (keep the import *inside* the branch —

@@ -1,253 +1,93 @@
 # Everyday use
 
-How to actually use LeSysBot once it's installed.
+Everything here works the same in the terminal, Telegram and Discord.
 
-Everything here works the same whether you're in a terminal, in Telegram, or in
-Discord. The examples use the terminal because it needs no setup.
-
----
-
-## Starting a chat
+## Start a chat
 
 ```bash
 lesysbot chat
 ```
 
-```
-LeSysBot — local AI assistant with tools
-Type a message to chat, or use /commands directly. Type 'exit' to quit.
+`lesysbot` on its own doesn't chat — it prints a health check and exits.
 
-You:
-```
+## Two ways to ask
 
-> **`lesysbot` on its own does something different** — it prints health and
-> metrics (backend, tools, service, [control panel](management-ui.md), Grafana)
-> and exits. To chat, use `lesysbot chat`.
-
-Already running as a Telegram or Discord service? A terminal chat runs happily
-alongside it, with its own separate conversation.
-
----
-
-## Two ways to ask for something
-
-This is the one thing worth understanding well.
-
-| | **Ask in words** | **Run it directly** (`/…`) |
+| | **Ask in words** | **Run a tool yourself** |
 |---|---|---|
-| Looks like | `what's my disk usage on /?` | `/disk_usage path=/` |
-| Who decides | the model picks a tool | nothing to decide — it just runs |
-| Needs a model running | yes | **no** |
-| Speed | as fast as your model | instant |
-| Good for | questions, vague requests, several steps at once | a tool you already know, quick checks, when the model is down |
+| Example | `how much space is left on /?` | `/disk_usage /` |
+| Who picks the tool | the model | you |
+| Needs the model running | yes | no |
+| Remembered in the conversation | yes | no |
 
-Both reach exactly the same tools. They're two doors into the same room.
+Both reach the same tools. Ask in words for questions and follow-ups — it
+remembers the conversation. Use `/` when you know the tool, or when the model is
+down.
 
----
-
-## Asking in words
-
-Type a sentence and press Enter.
+## Running a tool yourself
 
 ```
-You: what operating system is this machine running?
-Bot: Linux 6.8.0.
-
-You: and how much free space is on / ?
-Bot: The root filesystem has 143 GB free out of 980 GB — 80% used.
+/disk_usage /                        arguments in order
+/disk_usage path=/tmp                or by name
+/fetch_url url="https://example.com" quote anything with spaces
 ```
 
-Notice the second question didn't repeat any context. LeSysBot remembers the
-conversation, so follow-ups work.
+Leave out an argument and it tells you what it needs. In `/help`, `<angle>`
+arguments are required and `[square]` ones are optional.
 
-While it thinks you'll see a **`Thinking…`** spinner, switching to
-**`Running <tool>…`** when it uses one. The reply streams in and renders as
-proper Markdown — headings, **bold**, lists and `code` show as formatting rather
-than raw symbols. If your model exposes its reasoning, that appears dimmed above
-the answer.
-
-Background log lines stay out of your way (they go to a file). Add `-v` if you
-want to watch them.
-
----
-
-## Running a tool directly
-
-Anything starting with `/` runs a tool immediately, without the model.
-
-**Pass arguments in order:**
-
-```
-You: /disk_usage /
-You: /fetch_url https://example.com
-```
-
-**Or by name, in any order** — clearer when there are several:
-
-```
-You: /disk_usage path=/tmp
-You: /search query="weekly report" folder=/docs
-```
-
-Quote anything containing spaces.
-
-**Forget an argument** and it shows you what it wanted:
-
-```
-You: /disk_usage
-Missing required parameter(s): path
-
-Usage: /disk_usage <path>
-  Check how much free disk space is available at a given path
-```
-
-**Mistype a name** and it points you at `/help`.
-
-In `/help` output, `<angle brackets>` mean required and `[square brackets]` mean
-optional.
-
-> Direct calls don't go into your conversation history — they're one-shot and
-> stateless, which is exactly why they still work when no model is running.
-
-### In Telegram and Discord, the menu does the typing
-
-You don't have to remember tool names on either platform: LeSysBot registers
-every tool with the platform itself, so they show up in the client's command
-menu.
-
-- **Telegram** — type `/` and the menu lists every tool with its description.
-  Pick one, then type the arguments as above.
-- **Discord** — type `/` and pick the tool from the picker. Discord then gives
-  you a **labelled field per parameter**, so you don't type `key=value` at all;
-  required fields are marked and numbers only accept numbers.
-
-Both are just a nicer way in — they run the same tool, without the model, and
-typing the command out by hand keeps working.
-
-> **The menu is built when the bot starts.** Install a tool (or run
-> `lesysbot enable`) and it works as a typed command immediately, but it
-> joins the menu on the next restart — the platforms rate-limit command updates,
-> so LeSysBot registers once rather than on every change. Tools that are
-> disabled, or unavailable on this machine, are left out of the menu.
-
----
+In **Telegram and Discord**, type `/` to pick a tool from a menu. Discord also
+gives you a field for each argument. A newly installed tool works straight away
+when typed, but joins the menu after the next restart.
 
 ## Built-in commands
 
-Handled by LeSysBot itself, in every chat platform:
-
 | Command | What it does |
 |---|---|
-| `/help` *(or `/tools`)* | List every tool, with its parameters |
-| `/clear` | Forget the conversation and start fresh |
-| `/history` | Show what it currently remembers |
-| `exit` / `quit` / `q` | Leave a terminal session |
-| `Ctrl+C` | Force-quit a terminal session |
+| `/help` | List every tool and its arguments |
+| `/clear` | Forget the conversation |
+| `/history` | Show what it remembers |
+| `exit` | Leave a terminal chat (or press `Ctrl+C`) |
 
----
+## Confirmations
 
-## When it asks permission
-
-Some tools require approval before they run — anything that deletes, reboots, or
-powers off. When the *model* decides to use one, you get asked first:
+Tools that reboot or power off the machine ask first when the **model** decides
+to use them:
 
 ```
-⚠ Confirmation required
-  Tool : power_off
-  This will power off the machine in 1 minute — are you sure?
+⚠ This will power off the machine in 1 minute — are you sure?
 Proceed? [y/n] (n):
 ```
 
-`y` runs it; anything else cancels. In Telegram and Discord this arrives as
-✅/❌ buttons (Telegram's expire after two minutes, Discord's after five).
-
-> **Typing `/power_off` yourself skips the prompt.** You already decided. The
-> confirmation exists to catch the *model* acting on your behalf, not to
-> second-guess you.
-
----
-
-## Conversation memory
-
-- Each user gets their own history, seeded with the system prompt from your
-  config.
-- Only word-based messages and replies are kept — `/` commands aren't.
-- Old messages are dropped once you pass `agent.max_history` (default 50). The
-  system prompt always stays.
-- `/history` shows what's remembered; `/clear` wipes it.
-
-Tune the limit in [Settings](configuration.md).
-
----
-
-## Changing the model for one session
-
-No need to edit anything:
-
-```bash
-lesysbot chat --model qwen3.5                        # a different local model
-lesysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI instead
-LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot run                   # any setting, via the environment
-```
-
-Command-line flags win over environment variables, which win over your config
-file. Full list: [Settings](configuration.md).
-
----
+In Telegram and Discord you get **✅ Yes / ❌ No** buttons. Typing `/power_off`
+yourself skips the question — you already decided.
 
 ## Turning tools on and off
 
-From any terminal, whether or not the bot is running:
+```bash
+lesysbot list                 # every tool and its status
+lesysbot disable traceroute   # hide it from the model; /traceroute refuses too
+lesysbot enable traceroute    # back on
+lesysbot remove traceroute    # delete it and its package (asks first)
+```
+
+Changes reach a running bot within a second. The
+[control panel](management-ui.md) has the same switches.
+
+## Try a different model
+
+For one session, without editing anything:
 
 ```bash
-lesysbot list                # everything installed, with its status
-lesysbot info gpu_temp       # what it takes, where it came from
-lesysbot disable gpu_temp    # hide it from the model; /gpu_temp refuses too
-lesysbot enable gpu_temp     # back on
-lesysbot remove gpu_temp     # delete it (asks first)
-lesysbot install owner/repo  # add tools from GitHub
+lesysbot chat --model qwen3.5
 ```
 
-**Enabling and disabling applies within a second** to a running bot — no restart.
-**Removing** deletes the tool's whole folder, including any sibling tools defined
-alongside it; those are listed before you confirm.
+To change it for good, use `lesysbot setup` or [Settings](configuration.md).
 
-You can do all of this from the [control panel](management-ui.md) too, if you'd
-rather click.
-
-Installing is covered properly in [Install tools](installing-tools.md).
-
----
-
-## Where things are written
+## Logs
 
 ```
-~/.lesysbot/logs/lesysbot.log     what the program did
-~/.lesysbot/logs/traces.jsonl     one JSON line per message: which tools ran, how long
+~/.lesysbot/logs/lesysbot.log    what the program did
+~/.lesysbot/logs/traces.jsonl    one line per message: tools used, timings
 ```
 
-(For a source checkout with its own `config.yaml`, they're next to that instead.)
-
-Both rotate daily. Set either to `null` in your config to switch it off. Tokens
-and API keys are stripped before anything is written.
-
----
-
-## Something not working?
-
-See **[Troubleshooting](troubleshooting.md)** — it covers the model being
-unreachable, tools not showing up, service problems, and Telegram/Discord setup
-issues.
-
----
-
-## Where to next
-
-| Want to… | Go to |
-|---|---|
-| Message it from your phone | [Telegram & Discord](adapters.md) |
-| Add your own abilities | [Write a tool](writing-tools.md) |
-| Install tools from GitHub | [Install tools](installing-tools.md) |
-| Change models, history, logging | [Settings](configuration.md) |
-| Keep it running in the background | [Run as a service](service.md) |
-| Understand how it works inside | [How it works](architecture.md) |
+Tokens and API keys are removed before anything is written. Run
+`lesysbot chat -v` to see the log on screen.

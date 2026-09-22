@@ -131,7 +131,25 @@ def test_bundled_entries_have_unique_ids():
 def test_the_official_collection_is_findable_by_id():
     entry = load_catalog(bundled_path()).find("official")
     assert entry is not None
-    assert entry.source == "lesysbot/lesysbot-packages-official"
+    assert entry.source == "lesysbot/lesysbot/tools"
+
+
+def test_every_bundled_entry_points_into_this_repo():
+    """The catalog used to list a separate ``lesysbot-packages-official`` repo.
+    Nothing tied those listings to anything real, so when that repo was retired
+    the entries stayed valid-looking and `lesysbot install official` got a 404
+    from an index with no way of knowing it was wrong.
+
+    Every entry now names a subdirectory of *this* repo, which makes the tree
+    itself the check: delete or rename one and this fails here, rather than on
+    somebody's machine.
+    """
+    root = bundled_path().parent
+    for entry in load_catalog(bundled_path()).entries:
+        source = parse_source(entry.source)
+        assert source.slug == "lesysbot/lesysbot", entry.source
+        assert source.subdir, f"{entry.source} names no subdirectory"
+        assert (root / source.subdir).is_dir(), f"{entry.source} is not in the tree"
 
 
 def test_dashboards_are_searchable_by_kind():

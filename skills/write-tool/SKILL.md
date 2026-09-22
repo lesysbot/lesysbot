@@ -141,7 +141,7 @@ lesysbot install you/lesysbot-gpu-temp
   optional `_helpers.py`/`requirements.txt`). The frontmatter `name:`
   overrides the repo name.
 - **Multi-tool repo:** one package per subdirectory — under `tools/` when the
-  repo has that folder (the official collections' layout), else at the repo
+  repo has that folder (the core repo's own layout), else at the repo
   root; users cherry-pick with `--only NAME` or `you/repo/subdir`. `tests/`,
   `docs/`, dot-/`_`-dirs are ignored.
 - **Versioning:** tag releases (`git tag v1.0.0`) so users can pin `@v1.0.0`;

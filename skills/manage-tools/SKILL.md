@@ -59,8 +59,9 @@ writing. A running bot with hot-reload activates new packages immediately.
   no sandbox. Install only from trusted repos (read `tool.py` — they're
   small); prefer pinning `@tag`/`@sha`. The exact commit is recorded in
   `tools.lock.json` either way. `--yes` skips the prompt — scripts only.
-- **Pip deps:** a package's `requirements.txt` is **printed**, not run;
-  `--install-deps` opts in to running it.
+- **Pip deps:** a package's `requirements.txt` is installed into LeSysBot's
+  own environment by default; `--no-deps` skips it (the pip command is printed
+  when pip can't run).
 - **Private repos:** set `GITHUB_TOKEN` (or `GH_TOKEN`).
 - **Collisions:** the installer refuses to overwrite a folder it didn't
   create (hand-written tools are safe); `--force` overrides.
@@ -93,8 +94,8 @@ so the CLI and the bot always resolve the same locations.
 | `Not found: owner/repo@ref` | Check the spec; private repo → set `GITHUB_TOKEN`. |
 | `tools dir already has X` | Folder not installed by LeSysBot — `--force` to overwrite. |
 | Installed but not in `/help` | Restart the bot if `hot_reload` is off; check `~/.lesysbot/logs/lesysbot.log` for import errors. |
-| Tool needs a pip package | Re-run with `--install-deps` or run the printed `pip install -r` line. |
-| Tool shows "⚠ unavailable here" | Platform/binary gating — it's registered but this machine can't run it (wrong OS or a `requires` binary missing from PATH). |
+| Tool needs a pip package | Re-install without `--no-deps`, or run the printed `pip install -r` line. |
+| Tool shows "⚠ unavailable here" | Platform/binary gating — it's registered but this machine can't run it (a `requires` binary is missing from PATH). |
 
 ## Related
 
