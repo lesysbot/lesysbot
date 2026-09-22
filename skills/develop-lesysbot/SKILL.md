@@ -60,7 +60,7 @@ lesysbot/
 ├─ messaging/      base interface + CLI / Telegram / Discord adapters,
 │                  startup notice
 └─ artifacts/      `lesysbot install` engine (zipball fetch, lockfile)
-tools/             bundled tool packages (the seeded catalog)
+tools/             bundled tool packages (seeded into ~/.lesysbot/tools)
 tests/             hermetic pytest suite — no network, no LLM, temp dirs
 scripts/           install/uninstall bootstrap (bash), logo generator
 config/            default.yaml — the documented default config

@@ -39,22 +39,6 @@ _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", ""}
 PING = {"ok": True, "service": "lesysbot-management"}
 
 
-def _resolve_catalog_id(source: str) -> str:
-    """A marketplace id → its GitHub link; a link passes through unchanged.
-
-    Same rule as the CLI: the catalog only ever supplies a github.com link, and
-    that link goes through the ordinary parser from here.
-    """
-    from lesysbot.artifacts.catalog import load_catalog
-
-    if "/" in source or "://" in source or source.startswith("git@"):
-        return source
-    entry = load_catalog().find(source)
-    if entry is None:
-        raise ValueError(f"{source!r} is not a GitHub link or a marketplace id")
-    return entry.source
-
-
 class CLIContextProxy:
     """A CLIContext with the console swapped for a job's output sink.
 
@@ -146,8 +130,6 @@ class _Handler(BaseHTTPRequestHandler):
             return self._artifacts()
         if path == "/api/dashboards":
             return self._dashboards()
-        if path == "/api/catalog":
-            return self._catalog()
         if path == "/api/prereq":
             return self._prereq()
         if path == "/api/jobs":
@@ -240,26 +222,6 @@ class _Handler(BaseHTTPRequestHandler):
             self.server.registry.set_enabled(name, enabled)   # persists to state_file
         self._send(200, {"ok": True, "name": name, "enabled": enabled})
 
-    # -- marketplace ----------------------------------------------------------
-    def _catalog(self):
-        """Marketplace entries, annotated with what is already installed."""
-        from lesysbot.artifacts.catalog import load_catalog
-
-        catalog = load_catalog()
-        installed = {e.get("name") for e in self.server.ctx.lock.load().values()}
-        entries = [
-            {
-                "id": e.id, "name": e.name, "kind": e.kind.value,
-                "description": e.description, "source": e.source,
-                "homepage": e.homepage or f"https://github.com/{e.source}",
-                "platforms": list(e.platforms), "tags": list(e.tags),
-                "official": e.official, "runs_here": e.runs_here(),
-                "installed": e.id in installed or e.name in installed,
-            }
-            for e in catalog.search()
-        ]
-        self._send(200, {"entries": entries, "updated": catalog.updated})
-
     def _artifacts(self):
         from lesysbot.cli import artifacts as artifact_cli
 
@@ -303,18 +265,27 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(400, {"ok": False, "error": "missing source"})
 
         ctx = self.server.ctx
-        try:
-            resolved = _resolve_catalog_id(source)
-            src = parse_source(resolved)
-        except Exception as e:
-            return self._send(400, {"ok": False, "error": f"bad source: {e}"})
+        # Same rule as `lesysbot install`: a path on this machine wins, else a
+        # GitHub link. The panel runs as the user on loopback, so a path here is
+        # the same authority as typing the command — and a panel that rejected
+        # what the terminal accepts would be its own bug report.
+        local = Path(source).expanduser()
+        if not local.exists():
+            try:
+                src = parse_source(source)
+            except Exception as e:
+                return self._send(400, {"ok": False, "error": f"bad source: {e}"})
+        else:
+            src = None
 
         server = self.server
 
         def work(console):
             installer = ctx.installer(console=console)
-            result = installer.install(src, yes=True,
-                                       install_deps=body.get("deps", True))
+            deps = body.get("deps", True)
+            result = (installer.install(src, yes=True, install_deps=deps)
+                      if src is not None
+                      else installer.install_path(local, yes=True, install_deps=deps))
             with server.lock:
                 server.registry.reload(ctx.settings.mcp.tools_dir)
             return {"installed": result.names}

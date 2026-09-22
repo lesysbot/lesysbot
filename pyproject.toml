@@ -3,10 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 # Content that ships *with* LeSysBot rather than being fetched: the default
-# tools, the default dashboards, the Prometheus/Grafana stack, and the
-# marketplace catalog. Without this, `pip install lesysbot` produces a bot with
-# no tools and no dashboards, and `lesysbot setup` only works from a git
-# checkout (`--repo`).
+# tools, the default dashboards, and the Prometheus/Grafana stack. Without this,
+# `pip install lesysbot` produces a bot with no tools and no dashboards, and
+# `lesysbot setup` only works from a git checkout (`--repo`).
 #
 # These are force-included rather than moved under `lesysbot/` because they are
 # also the files people edit, link to from the docs, and copy out as examples —

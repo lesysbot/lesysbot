@@ -68,8 +68,8 @@ the installer, so a collection repo can keep those alongside packages.
    tool, handle `ImportError` with a friendly message, and list them in the
    package's `requirements.txt` (printed at install time, not auto-installed).
 
-4. **Write `README.md`** with frontmatter mirroring the code (for humans, any
-   catalog, and the tools CLI — `lesysbot list/info` display it)
+4. **Write `README.md`** with frontmatter mirroring the code (for humans, the
+   installer, and the tools CLI — `lesysbot list/info` display it)
    and a short usage blurb:
 
    ```markdown

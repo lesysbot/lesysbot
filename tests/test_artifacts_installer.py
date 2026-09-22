@@ -193,3 +193,129 @@ def test_installed_package_loads_in_registry(tmp_path):
     registry = ToolRegistry()
     registry.load_directory(tmp_path / "tools")
     assert "hello" in registry.names
+
+
+# -- installing from a path on this machine ------------------------------------
+# The copy-paste story with the checks kept. Everything past staging is the same
+# code the GitHub path runs, so these pin the two things that genuinely differ:
+# how a payload reaches staging, and what provenance gets recorded.
+
+def _write_package(root, name: str) -> None:
+    pkg = root / name
+    pkg.mkdir(parents=True)
+    for rel, content in package_files(name).items():
+        (pkg / rel).write_text(content)
+
+
+def test_install_path_from_a_folder(tmp_path):
+    _write_package(tmp_path / "src", "greet")
+    mgr = _manager(tmp_path, FakeFetcher())
+
+    installed = mgr.install_path(tmp_path / "src" / "greet", yes=True)
+
+    assert installed.names == ["greet"]
+    assert (tmp_path / "tools" / "greet" / "tool.py").exists()
+
+
+def test_install_path_records_the_path_and_no_repo(tmp_path):
+    """No `repo` is what keeps `lesysbot update` (a re-fetch) away from it."""
+    _write_package(tmp_path / "src", "greet")
+    mgr = _manager(tmp_path, FakeFetcher())
+    mgr.install_path(tmp_path / "src" / "greet", yes=True)
+
+    entry = _lock(tmp_path)["greet"]
+    assert entry["path"] == str((tmp_path / "src" / "greet").resolve())
+    assert "repo" not in entry
+    assert entry["version"] == "1.2.0"          # frontmatter is still read
+
+
+def test_install_path_from_a_repo_shaped_folder(tmp_path):
+    """A folder holding `tools/` installs every package under it, like a repo."""
+    _write_package(tmp_path / "src" / "tools", "alpha")
+    _write_package(tmp_path / "src" / "tools", "beta")
+    mgr = _manager(tmp_path, FakeFetcher())
+
+    installed = mgr.install_path(tmp_path / "src", yes=True)
+
+    assert sorted(installed.names) == ["alpha", "beta"]
+    assert (tmp_path / "tools" / "alpha" / "tool.py").exists()
+    assert (tmp_path / "tools" / "beta" / "tool.py").exists()
+
+
+def test_install_path_from_a_zip(tmp_path):
+    """A plain `zip -r greet.zip greet/` — one top-level dir, like a zipball."""
+    archive = tmp_path / "greet.zip"
+    archive.write_bytes(make_github_zip("greet", package_files("greet"),
+                                        comment_sha=None))
+    mgr = _manager(tmp_path, FakeFetcher())
+
+    assert mgr.install_path(archive, yes=True).names == ["greet"]
+    assert (tmp_path / "tools" / "greet" / "tool.py").exists()
+
+
+def test_reinstalling_a_local_package_is_an_update(tmp_path):
+    """Re-running it must not need --force: the lock knows it put that dir there."""
+    _write_package(tmp_path / "src", "greet")
+    mgr = _manager(tmp_path, FakeFetcher())
+    mgr.install_path(tmp_path / "src" / "greet", yes=True)
+
+    (tmp_path / "src" / "greet" / "tool.py").write_text(
+        package_files("greet")["tool.py"] + "\n# edited\n"
+    )
+    assert mgr.install_path(tmp_path / "src" / "greet", yes=True).names == ["greet"]
+    assert "# edited" in (tmp_path / "tools" / "greet" / "tool.py").read_text()
+
+
+def test_install_path_refuses_a_hand_copied_dir_without_force(tmp_path):
+    """Same rule as a GitHub install: never clobber what the lock never placed."""
+    _write_package(tmp_path / "src", "greet")
+    _write_package(tmp_path / "tools", "greet")
+    mgr = _manager(tmp_path, FakeFetcher())
+
+    with pytest.raises(ToolInstallError, match="--force"):
+        mgr.install_path(tmp_path / "src" / "greet", yes=True)
+
+    assert mgr.install_path(tmp_path / "src" / "greet", yes=True, force=True)
+
+
+def test_install_path_skips_pycache_and_git(tmp_path):
+    _write_package(tmp_path / "src", "greet")
+    (tmp_path / "src" / "greet" / "__pycache__").mkdir()
+    (tmp_path / "src" / "greet" / "__pycache__" / "tool.pyc").write_text("junk")
+    (tmp_path / "src" / "greet" / ".gitignore").write_text("*.pyc")
+    mgr = _manager(tmp_path, FakeFetcher())
+
+    mgr.install_path(tmp_path / "src" / "greet", yes=True)
+
+    assert not (tmp_path / "tools" / "greet" / "__pycache__").exists()
+    assert not (tmp_path / "tools" / "greet" / ".gitignore").exists()
+
+
+def test_install_path_rejects_a_missing_path(tmp_path):
+    mgr = _manager(tmp_path, FakeFetcher())
+    with pytest.raises(ToolInstallError, match="No such file or directory"):
+        mgr.install_path(tmp_path / "nope")
+
+
+def test_install_path_rejects_a_plain_file(tmp_path):
+    loose = tmp_path / "tool.py"
+    loose.write_text("x = 1\n")
+    mgr = _manager(tmp_path, FakeFetcher())
+    with pytest.raises(ToolInstallError, match="not a folder or a .zip"):
+        mgr.install_path(loose)
+
+
+def test_install_path_honours_the_consent_prompt(tmp_path):
+    _write_package(tmp_path / "src", "greet")
+    seen = []
+
+    def refuse(message):
+        seen.append(message)
+        return False
+
+    mgr = _manager(tmp_path, FakeFetcher(), confirm=refuse)
+    result = mgr.install_path(tmp_path / "src" / "greet")
+
+    assert not result and result.skipped
+    assert not (tmp_path / "tools" / "greet").exists()
+    assert str(tmp_path / "src" / "greet") in seen[0]

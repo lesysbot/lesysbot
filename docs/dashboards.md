@@ -65,8 +65,8 @@ to a month. Say *"list my shared dashboards"* to see them, and *"delete snapshot
 ## Add more dashboards
 
 ```bash
-lesysbot search --kind dashboard     # see what's available
-lesysbot install owner/repo          # install one from GitHub
+lesysbot install ./my-dashboard      # a folder on this machine
+lesysbot install owner/repo          # or one from GitHub
 lesysbot dashboard render            # show it in Grafana
 ```
 
@@ -79,9 +79,10 @@ Installed dashboards live in `~/.lesysbot/dashboard/installed/<name>/`. Edit the
 files there, then run `lesysbot dashboard render`. Changes made in Grafana's own
 editor are lost on the next render, so edit the files instead.
 
-The simplest dashboard is a Grafana export: click **Export** in Grafana, save the
-JSON as `dashboard.json` in a folder with a `README.md`, and push it to GitHub.
-Anyone can then install it with `lesysbot install`.
+The simplest dashboard is a Grafana export: click **Export** in Grafana and save
+the JSON as `dashboard.json` in a folder with a `README.md`. That folder is the
+package — send it to someone, or push it to GitHub. Either way they install it
+with `lesysbot install`.
 
 <details>
 <summary><b>Declare what a dashboard needs</b></summary>

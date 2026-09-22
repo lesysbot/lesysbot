@@ -134,25 +134,6 @@ def seed_dashboards(repo_dir: Path | None, data_dir: Path) -> bool:
                           ArtifactKind.DASHBOARD)
 
 
-def seed_catalog(repo_dir: Path | None, data_dir: Path) -> bool:
-    """Put the bundled marketplace catalog where `lesysbot search` reads it.
-
-    Only when there isn't one already: a cached copy is *newer* than the bundled
-    one by definition, so overwriting it would undo a `--refresh`.
-    """
-    from lesysbot.artifacts.catalog import CATALOG_NAME
-    from lesysbot.core.paths import bundled_dir
-
-    dst = data_dir / CATALOG_NAME
-    if dst.exists():
-        return False
-    for root in (repo_dir, bundled_dir()):
-        if root is not None and (root / CATALOG_NAME).is_file():
-            shutil.copyfile(root / CATALOG_NAME, dst)
-            return True
-    return False
-
-
 def _seed_packages(src: Path, dst: Path, data_dir: Path, kind) -> bool:
     """Copy each package folder under *src* into *dst*, recording the lock entry.
 

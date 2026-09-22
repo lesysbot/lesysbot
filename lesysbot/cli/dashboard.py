@@ -47,7 +47,7 @@ def _render(ctx: CLIContext, args: argparse.Namespace) -> int:
     results = render_all(ctx, names=args.names or None, force=args.force)
     if not results:
         ctx.console.print(
-            "No dashboards installed. Find one with `lesysbot search --kind dashboard`."
+            "No dashboards installed. Add one with `lesysbot install <folder>`."
         )
         return 0
 

@@ -120,7 +120,7 @@ _TEMPLATE = r"""<!doctype html>
   .card .s{font-size:12px;color:var(--muted);margin-top:2px}
   .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
   .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)} .dot.off{background:var(--faint)}
-  /* Marketplace / Doctor / job output */
+  /* Doctor / job output */
   .joblog{margin:0;padding:10px 12px;background:var(--panel);border:1px solid var(--line);
     border-radius:var(--radius-card);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
     font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;
@@ -170,7 +170,6 @@ _TEMPLATE = r"""<!doctype html>
 </header>
 <nav>
   <button data-tab="status" class="active">Status</button>
-  <button data-tab="market">Marketplace</button>
   <button data-tab="tools">Tools</button>
   <button data-tab="dashboards">Dashboards</button>
   <button data-tab="doctor">Doctor</button>
@@ -183,26 +182,16 @@ _TEMPLATE = r"""<!doctype html>
     <table id="statusMeta"></table>
   </section>
 
-  <section id="market" class="hide">
-    <div class="row" style="margin-bottom:14px">
-      <input id="installSrc" placeholder="Paste a GitHub link, or an id from the list below">
-      <button class="btn primary" onclick="install()">Install</button>
-      <span class="grow"></span>
-      <label class="muted"><input type="checkbox" id="onlyHere" checked onchange="renderMarket()"> Runs on this machine</label>
-      <button class="btn small" onclick="loadMarket()">↻ Refresh</button>
-    </div>
-    <div class="note">Every entry is a link to a GitHub repo you can read before installing — there is no registry that decides what you may run.</div>
-    <div id="jobBox" class="hide"></div>
-    <table id="marketTable"><tbody></tbody></table>
-  </section>
-
   <section id="tools" class="hide">
     <div class="row" style="margin-bottom:14px">
-      <span class="muted">Installed tools. Toggling applies to a running bot within a second.</span>
+      <input id="installSrc" placeholder="Add a tool: paste a GitHub link, or a folder path on this machine">
+      <button class="btn primary" onclick="install()">Install</button>
       <span class="grow"></span>
       <button class="btn small" onclick="update()">↻ Update all</button>
       <button class="btn small" onclick="loadTools()">↻ Refresh</button>
     </div>
+    <div class="note">A tool is a folder. Copying one into the tools directory works too — a running bot picks it up within a second.</div>
+    <div id="jobBox" class="hide"></div>
     <table id="toolsTable"><tbody></tbody></table>
   </section>
 
@@ -277,9 +266,9 @@ applyThemeIcon();
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  const TABS=['status','market','tools','dashboards','doctor','config'];
+  const TABS=['status','tools','dashboards','doctor','config'];
   for(const t of TABS) $('#'+t).classList.toggle('hide', t!==b.dataset.tab);
-  ({status:loadStatus, market:loadMarket, tools:loadTools,
+  ({status:loadStatus, tools:loadTools,
     dashboards:loadDashboards, doctor:loadDoctor, config:loadConfig}[b.dataset.tab])();
 });
 
@@ -337,41 +326,15 @@ async function removeTool(name){
   catch(e){ toast('Remove failed: '+e.message,'bad'); }
 }
 
-// MARKETPLACE
-let MARKET=[];
-async function loadMarket(){
-  try{ const d=await api('GET','/api/catalog'); MARKET=d.entries||[]; renderMarket(); }
-  catch(e){ toast('Marketplace failed: '+e.message,'bad'); }
-}
-function renderMarket(){
-  const here=$('#onlyHere').checked;
-  const rows=MARKET.filter(e=>!here||e.runs_here);
-  $('#marketTable').innerHTML='<tr><th>Name</th><th>Kind</th><th>Where from</th><th></th></tr>'+
-    (rows.length?rows.map(e=>{
-      const badge=e.official?'<span class="chip">official</span>':'';
-      const off=e.runs_here?'':'<span class="chip">other OS</span>';
-      const act=e.installed
-        ? '<span class="muted">installed</span>'
-        : `<button class="btn small primary" onclick="installId('${esc(e.id)}')">Install</button>`;
-      return `<tr>
-        <td><div class="name">${esc(e.name)}</div><div class="desc">${esc(e.description)}</div>
-            <div class="muted mono" style="font-size:11px">${esc(e.id)}</div></td>
-        <td><span class="chip">${esc(e.kind)}</span>${badge}${off}</td>
-        <td><a href="${esc(e.homepage)}" target="_blank" rel="noopener">${esc(e.source)} ↗</a></td>
-        <td>${act}</td></tr>`;
-    }).join(''):'<tr><td colspan="4" class="muted">Nothing to show. Paste a GitHub link above.</td></tr>');
-}
-function installId(id){ $('#installSrc').value=id; install(); }
-
 // Installs run as a background job: a zipball download plus pip can take tens of
 // seconds, and a request held open that long is indistinguishable from a hang.
 async function install(){
-  const src=$('#installSrc').value.trim(); if(!src){toast('Enter a GitHub link or an id','bad');return;}
+  const src=$('#installSrc').value.trim(); if(!src){toast('Enter a GitHub link or a folder path','bad');return;}
   let r; try{ r=await api('POST','/api/artifacts/install',{source:src}); }
   catch(e){ toast('Install failed: '+e.message,'bad'); return; }
   $('#installSrc').value='';
   await followJob(r.job, 'Installed');
-  loadMarket(); loadTools(); loadDashboards();
+  loadTools(); loadDashboards();
 }
 async function update(){
   let r; try{ r=await api('POST','/api/artifacts/update',{}); }

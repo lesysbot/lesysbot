@@ -35,7 +35,7 @@ def test_packaged_layout_wins_when_present(tmp_path, monkeypatch):
     assert bundled_dir() == package / "_bundled"
 
 
-@pytest.mark.parametrize("name", ["tools", "dashboard", "dashboards", "catalog.json"])
+@pytest.mark.parametrize("name", ["tools", "dashboard", "dashboards"])
 def test_everything_the_build_ships_exists(name):
     """The build hook copies exactly these; a rename here would silently ship
     an install with no tools or no dashboards."""

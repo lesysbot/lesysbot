@@ -14,8 +14,7 @@ this machine.
 | Tab | What it's for |
 |---|---|
 | **Status** | Is the model reachable, is the service running, where is Grafana |
-| **Marketplace** | Browse and install tools and dashboards |
-| **Tools** | Turn tools on or off (applies within a second), or remove them |
+| **Tools** | Add a tool, turn tools on or off (applies within a second), or remove them |
 | **Dashboards** | See which Grafana dashboards are ready, and render them |
 | **Doctor** | What's missing on this machine, and how to fix it |
 | **Config** | Edit `config.yaml` — checked before saving; restart the service to apply |

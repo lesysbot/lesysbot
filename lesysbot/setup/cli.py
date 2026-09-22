@@ -155,8 +155,6 @@ def _flow(ui, args: argparse.Namespace) -> int:
         ui.ok(f"dashboard stack installed/updated in {data_dir / 'dashboard'}")
     if apply.seed_dashboards(repo_dir, data_dir):
         ui.ok("dashboards installed")
-    if apply.seed_catalog(repo_dir, data_dir):
-        ui.ok("marketplace catalog installed — browse it with `lesysbot search`")
 
     ui.say("")
     apply.setup_service(ui, st, data_dir)

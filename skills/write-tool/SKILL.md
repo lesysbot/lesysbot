@@ -151,10 +151,10 @@ lesysbot install you/lesysbot-gpu-temp
 Checklist before sharing: imports = stdlib + declared `requirements.txt` deps
 with `ImportError` handled; destructive actions have `confirm=`;
 `platforms`/`requires` declared where not universal; frontmatter filled in;
-tested via `lesysbot install you/repo@your-branch` or a local copy.
+tested via `lesysbot install ./your-tool` (or `you/repo@your-branch`).
 
 ## Related
 
 - Installing/enabling/removing tools: [manage-tools](../manage-tools/SKILL.md).
-- Contributing a tool to the bundled catalog (repo `tools/` + catalog table):
+- Contributing a tool to the bundled set (repo `tools/` + its table):
   [develop-lesysbot](../develop-lesysbot/SKILL.md).

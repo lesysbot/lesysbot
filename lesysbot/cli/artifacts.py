@@ -8,9 +8,12 @@ the directory its kind belongs in. That is the point of
 
 being a single verb — a repo holding both installs both, in one step.
 
-Installs are **GitHub links only** (or a catalog id, which resolves to one). A
-bare word that is neither gets a usage error rather than a guess, because
-guessing at what to download is the one place this must not be clever.
+A tool is a folder, so ``install`` takes one: a path to a folder (or a ``.zip``)
+on this machine, or a GitHub link to fetch one from. **Anything on disk wins** —
+if the argument names a real path, that is what gets installed, because pointing
+at a real thing is never the ambiguous case. A bare word that is neither a path
+nor a GitHub link gets a usage error rather than a guess, since guessing at what
+to download is the one place this must not be clever.
 """
 
 from __future__ import annotations
@@ -32,10 +35,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     install = subparsers.add_parser(
         "install", parents=[common],
-        help="Add tools or dashboards from GitHub or `lesysbot search`",
+        help="Add a tool or dashboard from a folder, a .zip, or GitHub",
     )
-    install.add_argument("source", help="owner/repo[/subdir][@ref], a github.com URL, "
-                                        "or a marketplace id from `lesysbot search`")
+    install.add_argument("source", help="a path to a folder or .zip on this machine, "
+                                        "or owner/repo[/subdir][@ref] / a github.com URL")
     install.add_argument("--ref", default=None, help="Branch, tag, or commit SHA")
     install.add_argument("--kind", choices=[k.value for k in ArtifactKind], default=None,
                          help="Install only packages of this kind")
@@ -100,35 +103,24 @@ def _looks_like_github(source: str) -> bool:
     return "/" in source or "://" in source or source.startswith("git@")
 
 
-def _resolve_source(ctx: CLIContext, source: str) -> str:
-    """Turn a marketplace id into its GitHub link, or pass a link through.
+def _unusable_source(ctx: CLIContext, source: str) -> _Reported:
+    """Report a source that is neither a path on disk nor a GitHub link.
 
-    The catalog is metadata, never a resolver of its own: whatever it hands back
-    goes through the same `parse_source` and the same consent prompt as a link
-    typed by hand, so "you can read the repo before you install it" still holds.
+    Printed here rather than raised, because the usage lines contain
+    `[/subdir]` — which Rich's markup parser reads as a closing tag and then
+    raises MarkupError on, turning a helpful message into a crash.
     """
-    from lesysbot.artifacts.catalog import load_catalog
-
-    if _looks_like_github(source):
-        return source
-    entry = load_catalog().find(source)
-    if entry is None:
-        # Printed here rather than raised, because the usage lines contain
-        # `[/subdir]` — which Rich's markup parser reads as a closing tag and
-        # then raises MarkupError on, turning a helpful message into a crash.
-        ctx.console.print(
-            f"[red]Error:[/red] {source!r} isn't a GitHub link, and no "
-            "marketplace entry matches it."
-        )
-        ctx.console.print(
-            "    lesysbot install owner/repo[/subdir][@ref]\n"
-            "    lesysbot install https://github.com/owner/repo\n"
-            "    lesysbot search <query>      to find an id",
-            markup=False,
-        )
-        raise _Reported()
-    ctx.console.print(f"[dim]{source} → {entry.source}[/dim]")
-    return entry.source
+    ctx.console.print(
+        f"[red]Error:[/red] {source!r} is neither a path on this machine "
+        "nor a GitHub link."
+    )
+    ctx.console.print(
+        "    lesysbot install ./my-tool                 a folder (or a .zip)\n"
+        "    lesysbot install owner/repo[/subdir][@ref]\n"
+        "    lesysbot install https://github.com/owner/repo",
+        markup=False,
+    )
+    return _Reported()
 
 
 class _Reported(ToolInstallError):
@@ -143,19 +135,35 @@ class _Reported(ToolInstallError):
 
 
 def _install(ctx: CLIContext, args: argparse.Namespace) -> int:
+    """Install from a local path if there is one, else from GitHub.
+
+    Disk is checked first and wins outright: a bare word is not a valid GitHub
+    spec anyway, so the only way both could match is a relative path that also
+    reads as `owner/repo` — and there, the folder the user can actually see is
+    the better answer.
+    """
     from lesysbot.artifacts.spec import parse_source
 
-    src = parse_source(_resolve_source(ctx, args.source))
-    if args.ref:
-        src = replace(src, ref=args.ref)
-    result = ctx.installer().install(
-        src,
+    common = dict(
         only=args.only,
         kind=ArtifactKind(args.kind) if args.kind else None,
         force=args.force,
         yes=args.yes,
         install_deps=not args.no_deps,
     )
+
+    local = Path(args.source).expanduser()
+    if local.exists():
+        if args.ref:
+            return ctx.error("--ref applies to a GitHub source, not a local path")
+        result = ctx.installer().install_path(local, **common)
+    else:
+        if not _looks_like_github(args.source):
+            raise _unusable_source(ctx, args.source)
+        src = parse_source(args.source)
+        if args.ref:
+            src = replace(src, ref=args.ref)
+        result = ctx.installer().install(src, **common)
     return 0 if result or not result.skipped else 1
 
 
@@ -283,11 +291,15 @@ def _rows(ctx: CLIContext, kind: str | None) -> list[dict]:
 
 
 def _origin(entry: dict | None) -> str:
+    # No entry means a folder someone copied in by hand; a `path` entry means
+    # `lesysbot install <path>` did the copying. Both are local.
     if not entry:
         return "local"
     if entry.get("bundled"):
         return "bundled"
-    origin = entry.get("repo", "?")
+    if not entry.get("repo"):
+        return "local"
+    origin = entry["repo"]
     if entry.get("commit"):
         origin += f"@{entry['commit'][:7]}"
     return origin
@@ -300,7 +312,7 @@ def _list(ctx: CLIContext, args: argparse.Namespace) -> int:
         return 0
     if not rows:
         ctx.console.print(
-            "Nothing installed. Find something with `lesysbot search`, "
+            "Nothing installed. Add a tool with `lesysbot install <folder>`, "
             "or `lesysbot install owner/repo`."
         )
         return 0
@@ -336,7 +348,7 @@ def _info(ctx: CLIContext, args: argparse.Namespace) -> int:
         ("available", True if row["available"] else f"no — {row['unavailable_reason']}"),
         ("platforms", ", ".join(row.get("platforms") or []) or None),
         ("requires", ", ".join(row.get("requires") or []) or None),
-        ("installed from", entry.get("repo")),
+        ("installed from", entry.get("repo") or entry.get("path")),
         ("commit", entry.get("commit")),
         ("installed at", entry.get("installed_at")),
         ("updated at", entry.get("updated_at")),

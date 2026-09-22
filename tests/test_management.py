@@ -280,22 +280,15 @@ def _json(live, method, path, body=None):
     return code, (json.loads(raw) if raw else {})
 
 
-# ── marketplace, dashboards, doctor and the job table ─────────────────────────
-# These back the panel's new tabs. The job table is the one genuinely new
-# mechanism: an install downloads a zipball and may run pip, which is far too
-# long to hold an HTTP request open — a slow network would be indistinguishable
-# from a hung panel.
+# ── artifacts, dashboards, doctor and the job table ───────────────────────────
+# These back the panel's tabs. The job table is the one genuinely new mechanism:
+# an install downloads a zipball and may run pip, which is far too long to hold
+# an HTTP request open — a slow network would be indistinguishable from a hung
+# panel.
 
-def test_catalog_endpoint_marks_what_runs_here_and_what_is_installed(live):
-    code, body = _json(live, "GET", "/api/catalog")
-    assert code == 200
-    for entry in body["entries"]:
-        assert {"id", "kind", "source", "runs_here", "installed"} <= set(entry)
-        # The guarantee that makes the catalog safe: it only ever hands back a
-        # GitHub link, which the installer parses like any other.
-        from lesysbot.artifacts.spec import parse_source
-
-        parse_source(entry["source"])
+def test_catalog_endpoint_is_gone(live):
+    """The marketplace was removed; the panel installs from a link, not an index."""
+    assert _json(live, "GET", "/api/catalog")[0] == 404
 
 
 def test_artifacts_endpoint_is_json_serialisable(live):
@@ -338,10 +331,23 @@ def test_install_returns_a_job_rather_than_blocking(live, monkeypatch):
     assert job["state"] == "failed" and job["error"]
 
 
-def test_install_rejects_an_unresolvable_source(live):
+def test_install_rejects_an_unparseable_source(live):
     code, body = _json(live, "POST", "/api/artifacts/install", {"source": "not-a-link"})
-    assert code == 400 and "not a GitHub link" in body["error"]
+    assert code == 400 and "bad source" in body["error"]
 
 
 def test_install_requires_a_source(live):
     assert _json(live, "POST", "/api/artifacts/install", {})[0] == 400
+
+
+def test_install_accepts_a_local_folder(live, tmp_path):
+    """The panel takes the same sources the CLI does — a path on disk included."""
+    pkg = tmp_path / "greet"
+    pkg.mkdir()
+    (pkg / "tool.py").write_text(
+        "from lesysbot.mcp import tool\n\n\n"
+        '@tool(description="hi")\n'
+        "async def greet() -> str:\n    return 'hi'\n"
+    )
+    code, body = _json(live, "POST", "/api/artifacts/install", {"source": str(pkg)})
+    assert code == 202 and body["job"]

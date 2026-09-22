@@ -18,7 +18,7 @@ New here? Start with **[Getting started](getting-started.md)**.
 
 ## Extend it
 
-- [Install tools](installing-tools.md) — add tools and dashboards from GitHub
+- [Install tools](installing-tools.md) — copy in a folder, or fetch one from GitHub
 - [Write a tool](writing-tools.md) — make your own, share it, or let Claude Code write it
 
 ## Run it

@@ -34,7 +34,6 @@ def test_modern_grammar():
     assert build_parser().parse_args(["list", "--json"]).as_json
     assert build_parser().parse_args(["update", "--check"]).check
     assert build_parser().parse_args(["doctor"]).command == "doctor"
-    assert build_parser().parse_args(["search", "temp"]).query == "temp"
 
 
 
@@ -48,7 +47,7 @@ def test_config_flag_both_positions():
 
 def test_cli_owns_the_management_verbs():
     for verb in ("install", "update", "list", "info", "remove", "enable",
-                 "disable", "search", "doctor", "dashboard", "setup"):
+                 "disable", "doctor", "dashboard", "setup"):
         assert handles(verb), verb
     for verb in (None, "run", "manage"):
         assert not handles(verb), verb
@@ -120,9 +119,10 @@ def test_remove_without_confirmation_aborts(env, monkeypatch):
 
 
 def test_install_rejects_a_bare_word(env, capsys):
-    """Neither a GitHub link nor a catalog id — must not guess at a download."""
+    """Neither a path on disk nor a GitHub link — must not guess at a download."""
     assert _run(["install", "gpu-temp"]) == 1
-    assert "GitHub link" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "GitHub link" in out and "path on this machine" in out
 
 
 def test_install_dispatches_to_installer(env, monkeypatch):
@@ -167,6 +167,48 @@ def test_no_deps_flag_reaches_the_installer(env, monkeypatch):
 
 
 
+def test_install_dispatches_a_local_path_to_install_path(env, monkeypatch, tmp_path):
+    """A real path on disk beats any GitHub reading of the same string."""
+    from lesysbot.artifacts.installer import InstallResult
+
+    pkg = tmp_path / "my-tool"
+    pkg.mkdir()
+    (pkg / "tool.py").write_text(TOOL)
+    calls = {}
+
+    class FakeInstaller:
+        def __init__(self, *a, **kw):
+            pass
+
+        def install(self, src, **kw):                 # pragma: no cover - must not run
+            calls["remote"] = src
+            return InstallResult([object()], [])
+
+        def install_path(self, path, **kw):
+            calls["path"], calls["kw"] = path, kw
+            return InstallResult([object()], [])
+
+    monkeypatch.setattr("lesysbot.artifacts.installer.ArtifactInstaller", FakeInstaller)
+    assert _run(["install", str(pkg), "--yes"]) == 0
+    assert calls["path"] == pkg and "remote" not in calls
+    assert calls["kw"]["yes"] is True
+
+
+def test_install_rejects_ref_with_a_local_path(env, capsys, tmp_path):
+    """`--ref` names a git ref; a folder on disk doesn't have one."""
+    pkg = tmp_path / "my-tool"
+    pkg.mkdir()
+    assert _run(["install", str(pkg), "--ref", "v1"]) == 1
+    assert "--ref" in capsys.readouterr().out
+
+
+def test_list_shows_a_local_install_as_local(env, capsys):
+    _lock(env).put(ArtifactKind.TOOL, "greet",
+                   {"name": "greet", "kind": "tool", "path": "/home/me/greet"})
+    assert _run(["list", "--json"]) == 0
+    assert "local" in capsys.readouterr().out
+
+
 def test_list_shows_install_origin(env, capsys):
     _lock(env).put(ArtifactKind.TOOL, "greet",
                    {"name": "greet", "kind": "tool", "repo": "acme/greet",
@@ -186,6 +228,17 @@ def test_update_check_writes_nothing(env, capsys):
     out = capsys.readouterr().out
     assert "acme/greet" in out and "would be re-fetched" in out
     assert (env / "lesysbot.lock.json").read_text() == before
+
+
+def test_update_leaves_a_local_install_alone(env, capsys):
+    """`update` means re-fetch at the recorded ref. A folder has no ref — you
+    re-run `lesysbot install <path>` instead, which is why the entry has no repo."""
+    _lock(env).put(ArtifactKind.TOOL, "greet",
+                   {"name": "greet", "kind": "tool", "path": "/home/me/greet"})
+    assert _run(["update"]) == 0
+    assert "Nothing to update" in capsys.readouterr().out
+
+    assert _run(["update", "greet"]) == 1        # naming it says so out loud
 
 
 def test_update_rejects_an_unknown_name(env):
