@@ -8,7 +8,25 @@ every start and mounted it read-only.
 
 An install has **one** dashboard. It starts as the bundled default below and is
 replaced — not joined — by anything installed from GitHub.
+
+``model`` is re-exported here so a package's ``dashboard.py`` opens with one
+readable line — ``from lesysbot.dashboards import Layout, dashboard, sel`` —
+rather than reaching into a submodule. It is stdlib-only and imports nothing
+else from ``lesysbot``, so this costs a package nothing.
 """
+
+from lesysbot.dashboards.model import (
+    DS,
+    MODEL_API_VERSION,
+    PCT,
+    PCT_FREE,
+    TEMP,
+    Layout,
+    dashboard,
+    host_variable,
+    sel,
+    stamp,
+)
 
 # The dashboard a fresh install starts with, bundled in the wheel.
 #
@@ -19,3 +37,17 @@ replaced — not joined — by anything installed from GitHub.
 # indistinguishable from a broken one. Users who want those install a dashboard
 # built for their machine, or fork one and edit it.
 DEFAULT_DASHBOARD = "system-overview"
+
+__all__ = [
+    "DEFAULT_DASHBOARD",
+    "DS",
+    "MODEL_API_VERSION",
+    "PCT",
+    "PCT_FREE",
+    "TEMP",
+    "Layout",
+    "dashboard",
+    "host_variable",
+    "sel",
+    "stamp",
+]

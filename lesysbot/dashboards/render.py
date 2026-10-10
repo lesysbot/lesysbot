@@ -94,20 +94,61 @@ def host_context() -> dict:
     }
 
 
+def _drop_package_helpers(root: Path) -> None:
+    """Evict cached top-level ``_``-prefixed helpers loaded from under *root*.
+
+    A package-local helper (``_panels.py``, ``_queries.py``) is imported by its
+    bare name, so the import system caches it globally. Without this, a
+    dashboard that replaced another one shipping a like-named helper would be
+    served the *previous* package's copy out of ``sys.modules`` — silently, and
+    with panels that look almost right.
+
+    Keyed on the file's location rather than on a stdlib exclusion list, which
+    the tool loader needs but this does not: nothing the interpreter owns lives
+    under a dashboards directory, so "loaded from under *root*" is already the
+    exact set of modules that are ours to drop.
+    """
+    prefix = str(root.resolve())
+    for name in list(sys.modules):
+        if not (name.startswith("_") and "." not in name):
+            continue
+        mod_file = getattr(sys.modules.get(name), "__file__", None)
+        if mod_file and mod_file.startswith(prefix):
+            sys.modules.pop(name, None)
+
+
 def _load_builder(path: Path):
     """Import a package's ``dashboard.py`` and return its ``build`` callable.
 
     Imported under a unique module name so two dashboards can each have a
     ``dashboard.py`` without the second one getting the first from sys.modules.
+
+    The package's own directory goes on ``sys.path`` for the duration, the way
+    the tool loader does it (``mcp/registry.py:_load_package``), so a package
+    can split itself across ``_``-prefixed helper files and ``import _panels``
+    plainly. It could not before, which is why older packages open with a
+    by-path ``_sibling()`` loader — that still works untouched, it is simply no
+    longer the only way.
     """
-    spec = importlib.util.spec_from_file_location(
-        f"_lesysbot_dashboards.{path.parent.name}.dashboard", path
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    package = path.parent
+    pkg_str = str(package.resolve())
+    added = pkg_str not in sys.path
+    if added:
+        sys.path.insert(0, pkg_str)
+    _drop_package_helpers(package.parent)
+    try:
+        spec = importlib.util.spec_from_file_location(
+            f"_lesysbot_dashboards.{package.name}.dashboard", path
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load {path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+    finally:
+        _drop_package_helpers(package.parent)
+        if added and pkg_str in sys.path:
+            sys.path.remove(pkg_str)
     build = getattr(module, "build", None)
     if not callable(build):
         raise ImportError(f"{path} defines no build(host, caps, ctx)")
