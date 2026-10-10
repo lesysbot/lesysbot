@@ -15,7 +15,7 @@
 # Debian/Ubuntu, where bash syntax ([[ ]], arrays, BASH_SOURCE) is a parse error.
 # Keep it that way; `shellcheck --shell=sh scripts/install.sh` is in CI.
 #
-# Every real decision belongs in `lesysbot setup` (Python, tested, cross-platform).
+# Every real decision belongs in `lesysbot setup` (Python, tested).
 # This script's whole job is: find an interpreter, install, link, hand off.
 
 set -eu

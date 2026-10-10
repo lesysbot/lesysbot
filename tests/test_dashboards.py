@@ -304,3 +304,73 @@ def _load_generator():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+# -- the two dashboards folded in from the retired packages repo ---------------
+#
+# `network-traffic` and `gpu-detail` used to live in `lesysbot-packages-official`
+# and were the only content there that Linux still wanted. They came home when
+# that repo was retired; these are their tests, minus the per-OS branching the
+# Linux-only refactor removed.
+
+def _build_package(name: str, host: str = "linux", caps=(), **ctx_extra) -> dict:
+    """Call one bundled dashboard package's `build()` with a v2 render context."""
+    import importlib.util
+
+    path = bundled_dir() / "dashboards" / name / "dashboard.py"
+    spec = importlib.util.spec_from_file_location(
+        f"_test_{name.replace('-', '_')}", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    ctx = {"api_version": render.RENDER_API_VERSION, "host": host,
+           "caps": list(caps), "arch": "x86_64", "os_version": "", **ctx_extra}
+    return module.build(host, set(caps), ctx)
+
+
+def _exprs(model: dict) -> str:
+    return json.dumps([t["expr"] for p in model["panels"] for t in p["targets"]])
+
+
+def test_network_traffic_queries_node_exporter():
+    """The windows_exporter branch went with Windows support; what is left must
+    still be node_exporter's names and not a half-removed hybrid."""
+    exprs = _exprs(_build_package("network-traffic"))
+    assert "node_network_receive_bytes_total" in exprs
+    assert "node_network_transmit_bytes_total" in exprs
+    assert "windows_net" not in exprs
+
+
+def test_network_traffic_description_records_the_rendered_machine():
+    """A shared screenshot should say which machine's cut it shows."""
+    model = _build_package("network-traffic", arch="arm64", os_version="24.04")
+    assert "linux arm64 24.04" in model["description"]
+
+
+def test_network_traffic_is_serializable_with_a_stable_uid():
+    model = _build_package("network-traffic")
+    assert json.dumps(model)
+    assert model["uid"] == "lesysbot-network-traffic"
+
+
+def test_gpu_detail_covers_the_four_vitals():
+    model = _build_package("gpu-detail")
+    exprs = _exprs(model)
+    for metric in ("utilization_gpu_ratio", "memory_used_bytes",
+                   "temperature_gpu", "power_draw_watts"):
+        assert metric in exprs
+    assert len(model["panels"]) == 4
+    assert json.dumps(model)
+
+
+@pytest.mark.parametrize("name,requirement", [
+    ("network-traffic", ("service", "prometheus")),
+    ("gpu-detail", ("gpu", "nvidia")),
+])
+def test_both_declare_what_they_need_to_be_provisioned(name, requirement):
+    """Withholding only works if the package says what it depends on — a
+    dashboard with no prerequisites is provisioned unconditionally."""
+    from lesysbot.artifacts.kinds import ArtifactKind
+
+    pkg = _package_from(bundled_dir() / "dashboards" / name, name)
+    assert pkg.kind is ArtifactKind.DASHBOARD
+    assert requirement in pkg.prerequisites

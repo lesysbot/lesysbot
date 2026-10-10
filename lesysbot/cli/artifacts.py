@@ -32,7 +32,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     install = subparsers.add_parser(
         "install", parents=[common],
-        help="Install a tool or dashboard from GitHub (or a marketplace id)",
+        help="Add tools or dashboards from GitHub or `lesysbot search`",
     )
     install.add_argument("source", help="owner/repo[/subdir][@ref], a github.com URL, "
                                         "or a marketplace id from `lesysbot search`")
@@ -49,7 +49,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     update = subparsers.add_parser(
         "update", parents=[common],
-        help="Re-fetch installed packages at their recorded ref",
+        help="Re-download installed tools and dashboards",
     )
     update.add_argument("names", nargs="*", metavar="NAME",
                         help="Which to update (default: everything)")
@@ -62,19 +62,19 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     listing.add_argument("--kind", choices=[k.value for k in ArtifactKind], default=None)
     listing.add_argument("--json", action="store_true", dest="as_json")
 
-    info = subparsers.add_parser("info", parents=[common], help="Show details for one")
+    info = subparsers.add_parser("info", parents=[common], help="Show details for a tool or dashboard")
     info.add_argument("name")
 
     remove = subparsers.add_parser("remove", parents=[common],
-                                   help="Delete an installed tool or dashboard")
+                                   help="Delete a tool or dashboard")
     remove.add_argument("name")
     remove.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
-    enable = subparsers.add_parser("enable", parents=[common], help="Re-enable a tool")
+    enable = subparsers.add_parser("enable", parents=[common], help="Turn a tool back on")
     enable.add_argument("name")
     disable = subparsers.add_parser(
         "disable", parents=[common],
-        help="Disable a tool (hidden from the LLM, /commands refuse it)")
+        help="Turn a tool off")
     disable.add_argument("name")
 
 

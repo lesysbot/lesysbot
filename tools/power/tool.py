@@ -4,7 +4,7 @@ These are destructive, so every action sets ``confirm=`` and the agent must get
 approval through the adapter before the command runs. The commands deliberately
 stay unprivileged: ``shutdown`` schedules through logind under the same polkit
 rules as ``systemctl poweroff``, which a local session may invoke without sudo.
-Nothing here shells out through ``sudo`` — see ``docs/writing-tools.md`` §6.
+Nothing here shells out through ``sudo`` — see ``docs/writing-tools.md`` ("Never require root").
 
 Reboot/power-off are **scheduled 1 minute out** rather than run immediately:
 an instant poweroff kills this process before the reply can reach the user, so

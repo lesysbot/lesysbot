@@ -16,7 +16,7 @@ instance is registered and becomes both an LLM-callable function and a
 
 Pick by the repo you're in:
 
-- **Package-collection repo** (e.g. `lesysbot-packages-official`): each tool
+- **Package-collection repo** (several tools in one repo): each tool
   package is a subdirectory of the repo's `tools/` folder —
   `<repo>/tools/<tool-name>/` (dashboard packages go under `dashboards/`).
   Add a row to the catalog table in the repo's root `README.md` if it has one.
@@ -105,7 +105,7 @@ the installer, so a collection repo can keep those alongside packages.
   ones: https://github.com/lesysbot/lesysbot/tree/main/tools).
 - The folder shape above is exactly what `lesysbot install owner/repo[/subdir]`
   downloads, so a package pushed to GitHub is installable as-is — see
-  https://github.com/lesysbot/lesysbot/blob/main/docs/sharing-tools.md.
+  https://github.com/lesysbot/lesysbot/blob/main/docs/writing-tools.md#share-it.
 
 ## Verify
 
@@ -126,4 +126,4 @@ the installer, so a collection repo can keep those alongside packages.
   saves while the bot is running.
 
 Full reference: https://github.com/lesysbot/lesysbot/blob/main/docs/writing-tools.md
-and https://github.com/lesysbot/lesysbot/blob/main/docs/sharing-tools.md.
+and https://github.com/lesysbot/lesysbot/blob/main/docs/writing-tools.md#share-it.

@@ -18,7 +18,7 @@ from lesysbot.cli.context import CLIContext, config_parent
 def register(subparsers: argparse._SubParsersAction) -> None:
     doctor = subparsers.add_parser(
         "doctor", parents=[config_parent()],
-        help="Check this machine and every installed package for problems",
+        help="Find what is missing on this machine, and how to fix it",
     )
     doctor.add_argument("name", nargs="?",
                         help="Check just this package (default: everything)")

@@ -155,7 +155,7 @@ def check_binary(req: Requirement) -> Result:
 
 # Binaries whose package name isn't their command name, or that don't come from
 # a package manager at all. `nvidia-smi` is the motivating case: it ships *with*
-# the NVIDIA driver, so `brew install nvidia-smi` is not a command that exists.
+# the NVIDIA driver, so `apt install nvidia-smi` is not a command that exists.
 _KNOWN_BINARY_FIXES = {
     "nvidia-smi": "install the NVIDIA driver — https://www.nvidia.com/download/index.aspx",
     "docker": "install Docker Engine — https://docs.docker.com/engine/install/",
@@ -168,7 +168,7 @@ _KNOWN_BINARY_FIXES = {
 def _binary_fix(name: str) -> str:
     """How to get a missing binary. Never `sudo`, and never a guessed package name.
 
-    Suggesting `brew install <command>` is right often enough to be tempting and
+    Suggesting `apt install <command>` is right often enough to be tempting and
     wrong often enough to mislead — package names routinely differ from the
     command they install. So an exact command is only offered where it is known
     to be correct; otherwise this names the binary and leaves the choice of

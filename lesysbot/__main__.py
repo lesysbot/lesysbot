@@ -187,52 +187,65 @@ async def _run(settings: Settings, *, serve_ui: bool = False) -> None:
         await agent.aclose()
 
 
+_EPILOG = """\
+common commands:
+  lesysbot                  show status
+  lesysbot chat             chat in this terminal
+  lesysbot setup            change the model, Telegram/Discord, or startup
+  lesysbot list             see installed tools
+  lesysbot install SOURCE   add tools from GitHub or `lesysbot search`
+
+docs: https://lesysbot.github.io
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="lesysbot", description="LeSysBot — local LLM + tools bot")
-    parser.add_argument("-c", "--config", default=None, help="Path to config.yaml")
-    parser.add_argument("-v", "--verbose", action="store_true")
+    parser = argparse.ArgumentParser(
+        prog="lesysbot",
+        description="Chat with your Linux machine. Run with no command to see its status.",
+        epilog=_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("-c", "--config", default=None, help="Use this config file")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show debug logs")
     parser.add_argument(
         "--provider",
         choices=["cli", "telegram", "discord"],
         default=None,
-        help="Override messaging provider",
+        help="Run the bot in the foreground on this chat platform",
     )
-    parser.add_argument("--model", default=None, help="Override LLM model name")
-    parser.add_argument("--base-url", default=None, help="Override LLM base URL")
+    parser.add_argument("--model", default=None, help="Use this model for this run")
+    parser.add_argument("--base-url", default=None, help="Use this model server for this run")
 
     # Subcommands. Bare `lesysbot` prints status and exits; the background
     # service runs `lesysbot run` (bot + always-on control panel);
     # `lesysbot --provider …` runs the bot in the foreground.
     from lesysbot.cli import register_all
 
-    subparsers = parser.add_subparsers(
-        dest="command",
-        metavar="{chat,install,search,list,doctor,dashboard,run,manage,setup}",
-    )
+    subparsers = parser.add_subparsers(dest="command", title="commands", metavar="COMMAND")
     # Re-add -c on each leaf (SUPPRESS default) so a root-level -c isn't clobbered
     # and `lesysbot manage -c …` works regardless of flag order — the same pattern
     # every artifact verb uses.
-    chat = subparsers.add_parser(
-        "chat", help="Chat with LeSysBot in this terminal (the long form is --provider cli)"
-    )
-    chat.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
-    chat.add_argument("--model", default=argparse.SUPPRESS, help="Override LLM model name")
-    chat.add_argument("--base-url", default=argparse.SUPPRESS, help="Override LLM base URL")
+    chat = subparsers.add_parser("chat", help="Chat in this terminal")
+    chat.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Use this config file")
+    chat.add_argument("--model", default=argparse.SUPPRESS, help="Use this model for this chat")
+    chat.add_argument("--base-url", default=argparse.SUPPRESS,
+                      help="Use this model server for this chat")
     # -v after the subcommand too: `lesysbot chat -v` is what anyone following a
     # troubleshooting page will type, and argparse would otherwise reject it
     # because -v is only on the root parser.
-    chat.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS)
+    chat.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS,
+                      help="Show debug logs")
     run = subparsers.add_parser(
-        "run", help="Run the service: the control panel plus the bot (what the "
-                    "background service uses)"
+        "run", help="Run the background service (control panel + bot)"
     )
-    run.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
+    run.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Use this config file")
     manage = subparsers.add_parser(
-        "manage", help="Open the control panel (localhost only; the service already serves it)"
+        "manage", help="Show the control panel address (serves it if the service is stopped)"
     )
-    manage.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Path to config.yaml")
+    manage.add_argument("-c", "--config", default=argparse.SUPPRESS, help="Use this config file")
     manage.add_argument("--port", type=int, default=None, help="Control panel port")
-    manage.add_argument("--open", action="store_true", help="Open the control panel in a browser")
+    manage.add_argument("--open", action="store_true", help="Open it in your browser")
     register_all(subparsers)
     return parser
 
@@ -316,9 +329,9 @@ def _print_status(settings: Settings) -> dict:
         # configured (LESYSBOT_GRAFANA_URL) but nothing answered there or on the
         # usual ports — don't offer it as a working link
         t.add_row("Grafana", f"[dim]not answering at {gf['url']} — "
-                             "start it with dashboard/scripts/start.sh[/dim]")
+                             "start it with `lesysbot dashboard start`[/dim]")
     else:
-        t.add_row("Grafana", "[dim]not running — start it with dashboard/scripts/start.sh[/dim]")
+        t.add_row("Grafana", "[dim]not running — start it with `lesysbot dashboard start`[/dim]")
     t.add_row("Config", st["config_path"] or "[dim](built-in defaults)[/dim]")
     from lesysbot.core.banner import banner
 
