@@ -12,6 +12,7 @@ wrong the other way and a working sensor silently goes unrecorded.
 """
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -139,3 +140,47 @@ def test_detected_capabilities_are_accepted_by_the_generator(tmp_path):
     subprocess.run(["python3", str(gen), "--host", "linux", "--have", caps,
                     "--out", str(out)], check=True, capture_output=True)
     assert out.exists()
+
+
+# -- which dashboard Grafana gets ---------------------------------------------
+
+def _select(tmp_path: Path, *, custom: str | None = None) -> tuple[subprocess.CompletedProcess, Path]:
+    """Source start.sh and run select_dashboard against a scratch stack dir."""
+    root = tmp_path / "stack"
+    generated = root / "grafana" / "dashboards" / "generated"
+    generated.mkdir(parents=True)
+    (generated / "gpu-detail.json").write_text("{}")         # left by an old release
+    if custom is not None:
+        (root / "dashboard.json").write_text(custom)
+    script = f"""
+      set -euo pipefail
+      source {SCRIPT}
+      GENERATED={generated}
+      CUSTOM={root / "dashboard.json"}
+      CAPS=""
+      select_dashboard
+    """
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    return r, generated
+
+
+def test_the_users_own_dashboard_is_used_as_is(tmp_path):
+    r, generated = _select(tmp_path, custom='{"title": "mine"}')
+    assert r.returncode == 0, r.stderr
+    assert (generated / "system-overview.json").read_text() == '{"title": "mine"}'
+    assert "your dashboard" in r.stdout
+
+
+@pytest.mark.skipif(shutil.which("python3") is None, reason="generator needs python3")
+def test_without_one_the_dashboard_is_generated_for_this_host(tmp_path):
+    r, generated = _select(tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert json.loads((generated / "system-overview.json").read_text())["uid"]
+
+
+def test_grafana_is_left_exactly_one_dashboard(tmp_path):
+    """Grafana provisions every JSON in the directory, so a file an older release
+    rendered there would keep showing up as a second dashboard."""
+    r, generated = _select(tmp_path, custom="{}")
+    assert r.returncode == 0, r.stderr
+    assert [p.name for p in generated.glob("*.json")] == ["system-overview.json"]

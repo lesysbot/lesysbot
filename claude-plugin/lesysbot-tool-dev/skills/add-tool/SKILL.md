@@ -18,7 +18,7 @@ Pick by the repo you're in:
 
 - **Package-collection repo** (several tools in one repo): each tool
   package is a subdirectory of the repo's `tools/` folder —
-  `<repo>/tools/<tool-name>/` (dashboard packages go under `dashboards/`).
+  `<repo>/tools/<tool-name>/`.
   Add a row to the catalog table in the repo's root `README.md` if it has one.
 - **Standalone single-tool repo**: the repo root *is* the package —
   `README.md` + `tool.py` at the top level.

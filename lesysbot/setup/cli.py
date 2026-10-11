@@ -153,8 +153,8 @@ def _flow(ui, args: argparse.Namespace) -> int:
         # "installed/updated", not "copied": on a re-run this is how a fix to the
         # stack's scripts or dashboards actually reaches an existing install.
         ui.ok(f"dashboard stack installed/updated in {data_dir / 'dashboard'}")
-    if apply.seed_dashboards(repo_dir, data_dir):
-        ui.ok("dashboards installed")
+    if apply.retire_dashboard_packages(data_dir):
+        ui.ok("removed old dashboard packages — LeSysBot now has one dashboard")
 
     ui.say("")
     apply.setup_service(ui, st, data_dir)

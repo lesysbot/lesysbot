@@ -100,7 +100,7 @@ def test_unknown_name_errors(env):
 def test_info(env, capsys):
     assert _run(["info", "greet"]) == 0
     out = capsys.readouterr().out
-    assert "say hi" in out and "tool" in out
+    assert "say hi" in out and "greet" in out
 
 
 def test_remove_deletes_package_and_lock_entry(env):

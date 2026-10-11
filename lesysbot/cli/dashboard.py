@@ -1,17 +1,19 @@
-"""``lesysbot dashboard …`` — render installed dashboards and drive the stack.
+"""``lesysbot dashboard …`` — the one Grafana dashboard, and the stack behind it.
 
-``render`` resolves each installed dashboard package against this host and this
-Prometheus, then writes the JSON Grafana provisions. A dashboard whose metrics
-aren't being scraped is deliberately **not** written: a panel querying a series
-nobody collects renders empty, and an empty panel is indistinguishable from a
-broken one — which is the exact ambiguity this whole design exists to remove.
+There is one dashboard. By default it is generated for this machine every time
+the stack starts, so it only has panels the hardware can fill. A user who wants
+to change it runs ``customize``: that saves a copy to ``dashboard.json`` in the
+stack directory, which is then used as-is instead of the generated one — and
+``reset`` goes back. Keeping the user's version in its own file is what lets an
+edit survive an upgrade: the generated dashboard is rewritten on every start,
+the user's file never is.
 """
 
 from __future__ import annotations
 
 import argparse
-
-from rich.table import Table
+import shutil
+from pathlib import Path
 
 from lesysbot.cli.context import CLIContext, config_parent
 
@@ -19,88 +21,146 @@ from lesysbot.cli.context import CLIContext, config_parent
 def register(subparsers: argparse._SubParsersAction) -> None:
     common = config_parent()
     dashboard = subparsers.add_parser(
-        "dashboard", help="Start or stop Grafana, and update its dashboards",
+        "dashboard", parents=[common],
+        help="Start or stop Grafana, and change its dashboard",
     )
-    sub = dashboard.add_subparsers(dest="dashboard_cmd", metavar="action", required=True)
+    sub = dashboard.add_subparsers(dest="dashboard_cmd", metavar="action")
 
-    render = sub.add_parser("render", parents=[common],
-                            help="Render installed dashboards for Grafana")
-    render.add_argument("names", nargs="*", metavar="NAME")
-    render.add_argument("--force", action="store_true",
-                        help="Render even when required metrics are missing")
-
-    sub.add_parser("list", parents=[common], help="Installed dashboards and their state")
-    sub.add_parser("start", parents=[common], help="Start the Grafana/Prometheus stack")
-    sub.add_parser("stop", parents=[common], help="Stop the Grafana/Prometheus stack")
+    start = sub.add_parser("start", parents=[common],
+                           help="Start Grafana and Prometheus (also applies dashboard changes)")
+    start.add_argument("--grafana-port", metavar="PORT",
+                       help="Run Grafana on this port (saved for next time). "
+                            "Without it, a taken port is replaced by the next free one.")
+    sub.add_parser("stop", parents=[common], help="Stop Grafana and Prometheus")
+    sub.add_parser("customize", parents=[common],
+                   help="Save a copy of the dashboard you can edit")
+    sub.add_parser("reset", parents=[common],
+                   help="Go back to the automatic dashboard")
 
 
 def run(args: argparse.Namespace) -> int:
     ctx = CLIContext.load(args)
     return {
-        "render": _render, "list": _list, "start": _start, "stop": _stop,
-    }[args.dashboard_cmd](ctx, args)
+        None: _status, "start": _start, "stop": _stop,
+        "customize": _customize, "reset": _reset,
+    }[getattr(args, "dashboard_cmd", None)](ctx, args)
 
 
-def _render(ctx: CLIContext, args: argparse.Namespace) -> int:
-    from lesysbot.dashboards.render import render_all
+def _stack(ctx: CLIContext) -> Path:
+    from lesysbot.core.paths import dashboard_dir
 
-    results = render_all(ctx, names=args.names or None, force=args.force)
-    if not results:
-        ctx.console.print(
-            "No dashboards installed. Add one with `lesysbot install <folder>`."
+    return dashboard_dir(ctx.settings.config_dir)
+
+
+def _custom(ctx: CLIContext) -> Path:
+    from lesysbot.core.paths import custom_dashboard_path
+
+    return custom_dashboard_path(ctx.settings.config_dir)
+
+
+def _short(path: Path) -> str:
+    """*path* with the home directory written as ``~``, so it fits on one line."""
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)
+
+
+def _status(ctx: CLIContext, _args) -> int:
+    """Bare ``lesysbot dashboard``: where it is, which version, what to do next."""
+    from lesysbot.core.grafana import detect_grafana, home_dashboard_url
+
+    base = ctx.settings.config_dir
+    gf = detect_grafana(base)
+    if gf and gf["reachable"]:
+        where = home_dashboard_url(gf["url"], base) or gf["url"]
+        ctx.console.print(f"Grafana:    [green]running[/green] — {where}")
+    else:
+        ctx.console.print("Grafana:    [yellow]not running[/yellow] — "
+                          "start it with: lesysbot dashboard start")
+
+    custom = _custom(ctx)
+    if custom.is_file():
+        ctx.console.print(f"Dashboard:  yours — {_short(custom)}")
+        ctx.console.print("\n[dim]Edit that file, then run `lesysbot dashboard start`. "
+                          "`lesysbot dashboard reset` goes back to the automatic one.[/dim]")
+    else:
+        ctx.console.print("Dashboard:  automatic — built for this machine")
+        ctx.console.print("\n[dim]Want to change it? Run `lesysbot dashboard customize`.[/dim]")
+    return 0
+
+
+def _customize(ctx: CLIContext, _args) -> int:
+    from lesysbot.core.paths import bundled_dir, generated_dashboards_dir
+
+    custom = _custom(ctx)
+    if custom.is_file():
+        ctx.console.print(f"You already have your own dashboard: {_short(custom)}")
+        ctx.console.print("  Edit it, then run:  lesysbot dashboard start")
+        return 0
+
+    stack = _stack(ctx)
+    if not stack.is_dir():
+        return ctx.error(
+            f"no dashboard stack at {stack} — run `lesysbot setup` to install it."
         )
-        return 0
-
-    for result in results:
-        if result.written:
-            ctx.console.print(f"[green]✔[/green] {result.name} → {result.path}")
-        else:
-            ctx.console.print(f"[yellow]○[/yellow] {result.name} — {result.reason}")
-
-    provisioned = sum(1 for r in results if r.written)
-    ctx.console.print(
-        f"\n{provisioned}/{len(results)} provisioned. "
-        "[dim]Grafana picks changes up within 30s.[/dim]"
+    # Start from what Grafana is showing now — the copy generated for this
+    # machine — and fall back to the portable one if the stack never started.
+    candidates = (
+        generated_dashboards_dir(ctx.settings.config_dir) / "system-overview.json",
+        stack / "grafana" / "dashboards" / "system-overview.json",
+        bundled_dir() / "dashboard" / "grafana" / "dashboards" / "system-overview.json",
     )
+    source = next((c for c in candidates if c.is_file()), None)
+    if source is None:
+        return ctx.error("no dashboard to copy — run `lesysbot dashboard start` first.")
+
+    shutil.copyfile(source, custom)
+    ctx.console.print(f"[green]✔[/green] Your dashboard: {_short(custom)}")
+    ctx.console.print("  Edit it (or paste a Grafana export into it), then run:")
+    ctx.console.print("  lesysbot dashboard start")
     return 0
 
 
-def _list(ctx: CLIContext, _args) -> int:
-    from lesysbot.dashboards.render import describe_all
-
-    rows = describe_all(ctx)
-    if not rows:
-        ctx.console.print("No dashboards installed.")
+def _reset(ctx: CLIContext, _args) -> int:
+    custom = _custom(ctx)
+    if not custom.is_file():
+        ctx.console.print("You're already using the automatic dashboard.")
         return 0
-    table = Table(box=None, pad_edge=False)
-    for col in ("name", "state", "provisioned", "description"):
-        table.add_column(col)
-    for row in rows:
-        state = "[green]ready[/green]" if row["ok"] else f"[yellow]{row['reason']}[/yellow]"
-        table.add_row(row["name"], state,
-                      "yes" if row["provisioned"] else "[dim]no[/dim]",
-                      row["description"])
-    ctx.console.print(table)
+    # Kept, not deleted: it may hold hours of someone's edits, and getting it
+    # back should be a rename, not a rewrite.
+    backup = custom.with_name(custom.name + ".bak")
+    custom.replace(backup)
+    ctx.console.print("[green]✔[/green] Back to the automatic dashboard.")
+    ctx.console.print(f"  Your copy is saved as {_short(backup)}")
+    ctx.console.print("  Apply it now:  lesysbot dashboard start")
     return 0
 
 
-def _stack_script(ctx: CLIContext, action: str) -> int:
+def _stack_script(ctx: CLIContext, action: str, *extra: str) -> int:
     """Run the stack's own start/stop script — the same one setup uses."""
     import subprocess
 
-    from lesysbot.core.paths import dashboard_dir
-
-    stack = dashboard_dir(ctx.settings.config_dir)
+    stack = _stack(ctx)
     script = stack / "scripts" / "start.sh"
     if not script.is_file():
         return ctx.error(
             f"no dashboard stack at {stack} — run `lesysbot setup` to install it."
         )
-    return subprocess.run(["bash", str(script), action], cwd=str(stack)).returncode
+    return subprocess.run(["bash", str(script), action, *extra], cwd=str(stack)).returncode
 
 
-def _start(ctx: CLIContext, _args) -> int:
-    return _stack_script(ctx, "up")
+def _start(ctx: CLIContext, args) -> int:
+    from lesysbot.core.grafana import sync_saved_url
+    from lesysbot.core.paths import user_dir
+
+    extra = ("--grafana-port", args.grafana_port) if args.grafana_port else ()
+    rc = _stack_script(ctx, "up", *extra)
+    # start.sh may have moved Grafana off a taken port; keep the saved URL true.
+    url = sync_saved_url(_stack(ctx), user_dir() / "grafana.env")
+    if url:
+        ctx.console.print(f"Saved Grafana address updated to {url}")
+    return rc
 
 
 def _stop(ctx: CLIContext, _args) -> int:

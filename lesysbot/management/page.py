@@ -157,6 +157,25 @@ _TEMPLATE = r"""<!doctype html>
   .hide{display:none}
   .note{background:var(--chip);border:1px solid var(--line);border-radius:.6rem;padding:8px 12px;font-size:13px;margin:10px 0;color:var(--muted)}
   .err{color:var(--bad);white-space:pre-wrap;font-family:var(--font-mono);font-size:12px;margin-top:8px}
+  /* Messaging form */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:.7rem;padding:3px;gap:3px;background:var(--chip)}
+  .seg button{font:inherit;font-weight:500;border:none;background:none;color:var(--muted);padding:6px 14px;border-radius:.5rem;cursor:pointer}
+  .seg button.on{background:var(--panel);color:var(--heading);box-shadow:0 1px 3px var(--shadow)}
+  .form{display:grid;gap:14px;margin-top:14px}
+  .form .card h3{margin:0 0 2px;font-size:15px}
+  .field{display:grid;gap:5px;margin-top:12px}
+  .field>label{font-size:12px;font-weight:600;color:var(--heading)}
+  .field .help{font-size:12px;color:var(--muted)}
+  .field input{min-width:0;width:100%}
+  .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .inline input{flex:1;min-width:200px}
+  .tokstate{font-size:12px;color:var(--muted)}
+  .tokstate b{color:var(--heading);font-weight:600}
+  .banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);border-radius:.6rem;padding:9px 12px;font-size:13px;margin-top:12px}
+  .check{display:inline-flex;gap:8px;align-items:center;cursor:pointer;font-size:13px}
+  .check input{min-width:0;width:auto;flex:none;margin:0}
+  .testres{font-size:12px}
+  .testres.ok{color:var(--ok)} .testres.bad{color:var(--bad)}
 </style>
 </head>
 <body>
@@ -170,8 +189,8 @@ _TEMPLATE = r"""<!doctype html>
 </header>
 <nav>
   <button data-tab="status" class="active">Status</button>
+  <button data-tab="messaging">Messaging</button>
   <button data-tab="tools">Tools</button>
-  <button data-tab="dashboards">Dashboards</button>
   <button data-tab="doctor">Doctor</button>
   <button data-tab="config">Config</button>
 </nav>
@@ -180,6 +199,89 @@ _TEMPLATE = r"""<!doctype html>
     <div class="row" style="margin-bottom:12px"><button class="btn small" onclick="loadStatus()">↻ Refresh</button></div>
     <div class="cards" id="statusCards"></div>
     <table id="statusMeta"></table>
+  </section>
+
+  <section id="messaging" class="hide">
+    <div class="row">
+      <span class="muted">Where you chat with LeSysBot. Tokens are never shown here — paste a new one to replace it.</span>
+      <span class="grow"></span>
+      <button class="btn small" onclick="loadMessaging()">↻ Reload</button>
+    </div>
+    <div id="msgBanner"></div>
+    <div class="form">
+      <div class="card">
+        <div class="k">Chat platform</div>
+        <div class="seg" id="provSeg" role="radiogroup" style="margin-top:8px">
+          <button type="button" data-prov="cli" role="radio">Terminal only</button>
+          <button type="button" data-prov="telegram" role="radio">Telegram</button>
+          <button type="button" data-prov="discord" role="radio">Discord</button>
+        </div>
+        <div class="s" id="provHelp" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" id="card-telegram">
+        <h3>Telegram</h3>
+        <div class="s">Create a bot by messaging <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> → <span class="mono">/newbot</span>, then paste the token it gives you.</div>
+        <div class="field">
+          <label for="tok-telegram">Bot token</label>
+          <div class="tokstate" id="tokstate-telegram"></div>
+          <div class="inline">
+            <input id="tok-telegram" type="password" autocomplete="new-password" spellcheck="false" placeholder="123456789:AA…">
+            <button class="btn small" type="button" onclick="peek('telegram')" id="peek-telegram">Show</button>
+            <button class="btn small" type="button" onclick="testToken('telegram')">Test</button>
+            <button class="btn small danger" type="button" onclick="clearToken('telegram')">Clear</button>
+          </div>
+          <div class="testres" id="test-telegram"></div>
+        </div>
+        <div class="field">
+          <label for="ids-telegram">Allowed user IDs</label>
+          <input id="ids-telegram" spellcheck="false" placeholder="e.g. 123456789, 987654321">
+          <div class="help">Only these Telegram users can use the bot. Message <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your ID. Empty = <b>anyone</b> who finds the bot.</div>
+        </div>
+      </div>
+
+      <div class="card" id="card-discord">
+        <h3>Discord</h3>
+        <div class="s">In the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Developer Portal</a>: New Application → Bot → Reset Token. Turn on <b>Message Content Intent</b>, and invite the bot with the <span class="mono">bot</span> and <span class="mono">applications.commands</span> scopes.</div>
+        <div class="field">
+          <label for="tok-discord">Bot token</label>
+          <div class="tokstate" id="tokstate-discord"></div>
+          <div class="inline">
+            <input id="tok-discord" type="password" autocomplete="new-password" spellcheck="false" placeholder="MTA…">
+            <button class="btn small" type="button" onclick="peek('discord')" id="peek-discord">Show</button>
+            <button class="btn small" type="button" onclick="testToken('discord')">Test</button>
+            <button class="btn small danger" type="button" onclick="clearToken('discord')">Clear</button>
+          </div>
+          <div class="testres" id="test-discord"></div>
+        </div>
+        <div class="field">
+          <label for="ids-discord">Allowed user IDs</label>
+          <input id="ids-discord" spellcheck="false" placeholder="e.g. 123456789012345678">
+          <div class="help">Turn on Developer Mode in Discord, then right-click your name → Copy User ID. Empty = <b>anyone</b> who shares a server with the bot.</div>
+        </div>
+      </div>
+
+      <div class="card" id="card-notice">
+        <h3>Startup message</h3>
+        <div class="s">A short system report (temperatures, disk, internet speed) sent when the service starts — e.g. right after the machine boots.</div>
+        <div class="field"><label class="check"><input type="checkbox" id="sn-enabled"> Send a message when LeSysBot starts</label></div>
+        <div class="field">
+          <label for="sn-notify">Send it to</label>
+          <input id="sn-notify" spellcheck="false" placeholder="Empty = the allowed user IDs above">
+          <div class="help">Telegram chat IDs, or Discord user/channel IDs.</div>
+        </div>
+        <div class="field inline">
+          <label class="check"><input type="checkbox" id="sn-speed"> Include an internet speed test</label>
+          <input id="sn-mb" type="number" min="0.1" step="0.5" style="max-width:90px;flex:none"><span class="muted">MB download</span>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" onclick="saveMessaging()">Save</button>
+      <button class="btn" id="restartBtn" onclick="restartService()">Restart service</button>
+      <span class="muted mono" id="msgPath" style="font-size:12px"></span>
+    </div>
+    <div class="err" id="msgErr"></div>
   </section>
 
   <section id="tools" class="hide">
@@ -193,17 +295,6 @@ _TEMPLATE = r"""<!doctype html>
     <div class="note">A tool is a folder. Copying one into the tools directory works too — a running bot picks it up within a second.</div>
     <div id="jobBox" class="hide"></div>
     <table id="toolsTable"><tbody></tbody></table>
-  </section>
-
-  <section id="dashboards" class="hide">
-    <div class="row" style="margin-bottom:14px">
-      <span class="muted">Installed dashboards. Rendering writes the JSON Grafana provisions.</span>
-      <span class="grow"></span>
-      <button class="btn primary" onclick="renderDashboards()">Render</button>
-      <button class="btn small" onclick="loadDashboards()">↻ Refresh</button>
-    </div>
-    <div class="note">A dashboard whose metrics aren't being scraped is <b>not</b> provisioned — an empty panel is indistinguishable from a broken one, so it's withheld and explained instead.</div>
-    <table id="dashTable"><tbody></tbody></table>
   </section>
 
   <section id="doctor" class="hide">
@@ -221,7 +312,8 @@ _TEMPLATE = r"""<!doctype html>
       <button class="btn small" onclick="loadConfig()">↻ Reload</button>
       <button class="btn primary" onclick="saveConfig()">Save</button>
     </div>
-    <div class="note">Edits are validated against the schema before saving. Restart the bot to apply — <b>tool enable/disable applies live</b>.</div>
+    <div class="note">Edits are validated against the schema before saving. Restart the bot to apply — <b>tool enable/disable applies live</b>.
+      Tokens and keys show as <span class="mono">&lt;hidden&gt;</span>: leave that to keep the saved value, or replace it with a new one. Telegram and Discord are easier in the <a href="#" onclick="showTab('messaging');return false">Messaging</a> tab.</div>
     <textarea id="cfgText" spellcheck="false"></textarea>
     <div class="err" id="cfgErr"></div>
   </section>
@@ -263,14 +355,14 @@ matchMedia('(prefers-color-scheme:dark)').addEventListener('change', ()=>{
 applyThemeIcon();
 
 // tabs
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  const TABS=['status','tools','dashboards','doctor','config'];
-  for(const t of TABS) $('#'+t).classList.toggle('hide', t!==b.dataset.tab);
-  ({status:loadStatus, tools:loadTools,
-    dashboards:loadDashboards, doctor:loadDoctor, config:loadConfig}[b.dataset.tab])();
-});
+function showTab(tab){
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active', x.dataset.tab===tab));
+  const TABS=['status','messaging','tools','doctor','config'];
+  for(const t of TABS) $('#'+t).classList.toggle('hide', t!==tab);
+  ({status:loadStatus, messaging:loadMessaging, tools:loadTools,
+    doctor:loadDoctor, config:loadConfig}[tab])();
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 
 // STATUS
 async function loadStatus(){
@@ -287,9 +379,9 @@ async function loadStatus(){
     ['Service', dm? `<span class="dot ${dm.running?'ok':'off'}"></span>${dm.running?'running':'stopped'}` : '<span class="dot off"></span>unknown',
        dm&&dm.pid? 'PID '+dm.pid+' · serves this panel' : 'serves this panel' ],
     ['Grafana',
-       (gf&&gf.reachable)? `<a href="${esc(gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
+       (gf&&gf.reachable)? `<a href="${esc(gf.dashboard_url||gf.url)}" target="_blank" rel="noopener">Open dashboard ↗</a>`
          : '<span class="dot off"></span>not running',
-       (gf&&gf.reachable)? esc(gf.url)+(gf.version?(' · v'+gf.version):'')
+       (gf&&gf.reachable)? esc(gf.dashboard_url||gf.url)+(gf.version?(' · v'+gf.version):'')
          : (gf? 'not answering at '+esc(gf.url) : 'start it with: lesysbot dashboard start')],
   ];
   $('#statusCards').innerHTML=cards.map(c=>`<div class="card"><div class="k">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]||''}</div></div>`).join('');
@@ -322,7 +414,7 @@ async function toggle(name, enabled){
 }
 async function removeTool(name){
   if(!confirm('Remove "'+name+'"? This deletes its files.')) return;
-  try{ await api('POST','/api/artifacts/remove',{name}); toast('Removed '+name,'ok'); loadTools(); loadDashboards(); }
+  try{ await api('POST','/api/artifacts/remove',{name}); toast('Removed '+name,'ok'); loadTools(); }
   catch(e){ toast('Remove failed: '+e.message,'bad'); }
 }
 
@@ -334,13 +426,13 @@ async function install(){
   catch(e){ toast('Install failed: '+e.message,'bad'); return; }
   $('#installSrc').value='';
   await followJob(r.job, 'Installed');
-  loadTools(); loadDashboards();
+  loadTools();
 }
 async function update(){
   let r; try{ r=await api('POST','/api/artifacts/update',{}); }
   catch(e){ toast('Update failed: '+e.message,'bad'); return; }
   await followJob(r.job, 'Updated');
-  loadTools(); loadDashboards();
+  loadTools();
 }
 async function followJob(id, verb){
   const box=$('#jobBox'); box.classList.remove('hide');
@@ -353,25 +445,6 @@ async function followJob(id, verb){
     if(j.state==='failed'){ toast('Failed: '+j.error,'bad'); return; }
     await new Promise(r=>setTimeout(r,600));
   }
-}
-
-// DASHBOARDS
-async function loadDashboards(){
-  let d; try{ d=await api('GET','/api/dashboards'); }catch(e){ toast('Dashboards failed: '+e.message,'bad'); return; }
-  const rows=d.dashboards||[];
-  $('#dashTable').innerHTML='<tr><th>Dashboard</th><th>State</th><th>In Grafana</th><th></th></tr>'+
-    (rows.length?rows.map(x=>`<tr>
-      <td><div class="name">${esc(x.name)}</div><div class="desc">${esc(x.description)}</div></td>
-      <td>${x.ok?'<span class="dot ok"></span>ready':'<span class="dot off"></span><span class="muted">'+esc(x.reason)+'</span>'}</td>
-      <td>${x.provisioned?'yes':'<span class="muted">no</span>'}</td>
-      <td><button class="btn small danger" onclick="removeTool('${esc(x.name)}')">Remove</button></td>
-    </tr>`).join(''):'<tr><td colspan="4" class="muted">No dashboards installed.</td></tr>');
-}
-async function renderDashboards(){
-  try{ const r=await api('POST','/api/dashboards/render',{});
-    const done=(r.results||[]).filter(x=>x.written).length;
-    toast(done+'/'+(r.results||[]).length+' provisioned','ok'); loadDashboards(); }
-  catch(e){ toast('Render failed: '+e.message,'bad'); }
 }
 
 // DOCTOR
@@ -389,6 +462,93 @@ async function loadDoctor(){
     return `<h3 class="secname">${esc(rep.name)} ${rep.ok?'':'<span class="chip">needs attention</span>'}</h3>
             <table>${rows}</table>`;
   }).join('') || '<p class="muted">Nothing to check.</p>';
+}
+
+// MESSAGING — the browser never receives a token; it sends one only when typed.
+const PROV_HELP={cli:'Chat in a terminal with <span class="mono">lesysbot chat</span>. The service runs without a chat platform.',
+  telegram:'The service answers you in Telegram.', discord:'The service answers you in Discord (DMs or a channel).'};
+let msg=null, msgProv='cli', clearTok={};
+function setProv(p){
+  msgProv=p;
+  document.querySelectorAll('#provSeg button').forEach(b=>{const on=b.dataset.prov===p; b.classList.toggle('on',on); b.setAttribute('aria-checked',on);});
+  $('#provHelp').innerHTML=PROV_HELP[p]||'';
+  $('#card-telegram').classList.toggle('hide', p!=='telegram');
+  $('#card-discord').classList.toggle('hide', p!=='discord');
+  $('#card-notice').classList.toggle('hide', p==='cli');
+}
+document.querySelectorAll('#provSeg button').forEach(b=>b.onclick=()=>setProv(b.dataset.prov));
+function tokState(name){
+  const t=(msg&&msg[name]&&msg[name].token)||{state:'empty'};
+  if(clearTok[name]) return '<span class="dot warn"></span>Will be <b>cleared</b> on save.';
+  if(t.state==='set') return '<span class="dot ok"></span><b>Saved</b>'+(t.hint?' · ends in <span class="mono">…'+esc(t.hint)+'</span>':'')+' — leave the box empty to keep it.';
+  if(t.state==='env') return '<span class="dot '+(t.env_set?'ok':'bad')+'"></span>From environment variable <span class="mono">$'+esc(t.env_var)+'</span> ('+(t.env_set?'set':'<b>not set</b>')+'). Paste a token to store it in config.yaml instead.';
+  return '<span class="dot bad"></span><b>Not set</b> — paste your bot token.';
+}
+function renderTok(name){ $('#tokstate-'+name).innerHTML=tokState(name); }
+function peek(name){ const i=$('#tok-'+name); const show=i.type==='password'; i.type=show?'text':'password'; $('#peek-'+name).textContent=show?'Hide':'Show'; }
+function clearToken(name){
+  if(!confirm('Remove the saved '+name+' token from config.yaml when you save?')) return;
+  clearTok[name]=true; $('#tok-'+name).value=''; renderTok(name);
+}
+async function loadMessaging(){
+  let d; try{ d=await api('GET','/api/messaging'); }catch(e){ $('#msgErr').textContent=e.message; toast('Messaging failed: '+e.message,'bad'); return; }
+  msg=d; clearTok={}; $('#msgErr').textContent='';
+  for(const n of ['telegram','discord']){
+    $('#tok-'+n).value=''; $('#tok-'+n).type='password'; $('#peek-'+n).textContent='Show'; $('#test-'+n).textContent='';
+    $('#ids-'+n).value=(d[n].allowed_user_ids||[]).join(', ');
+    renderTok(n);
+  }
+  const sn=d.startup_notice||{};
+  $('#sn-enabled').checked=!!sn.enabled; $('#sn-notify').value=(sn.notify||[]).join(', ');
+  $('#sn-speed').checked=!!sn.speedtest; $('#sn-mb').value=sn.speedtest_mb;
+  setProv(d.provider||'cli');
+  $('#msgPath').textContent=d.path+(d.exists?'':'  (will be created)');
+  $('#restartBtn').classList.toggle('hide', !(d.service&&d.service.installed));
+  renderMsgBanner();
+}
+function renderMsgBanner(){
+  const d=msg; if(!d) return;
+  const svc=d.service&&d.service.installed;
+  $('#msgBanner').innerHTML = d.restart_needed
+    ? `<div class="banner"><span>⚠ Saved settings differ from what the service is running (currently <b>${esc(d.running_provider)}</b>). `+
+      (svc?'Restart to apply.</span><button class="btn small" onclick="restartService()">Restart now</button>'
+          :'Restart LeSysBot to apply.</span>')+'</div>'
+    : '';
+}
+function msgPayload(){
+  const p={provider:msgProv, startup_notice:{enabled:$('#sn-enabled').checked, notify:$('#sn-notify').value,
+    speedtest:$('#sn-speed').checked, speedtest_mb:parseFloat($('#sn-mb').value||'5')}};
+  for(const n of ['telegram','discord']){
+    const s={allowed_user_ids:$('#ids-'+n).value};
+    const typed=$('#tok-'+n).value.trim();
+    if(typed) s.token=typed; else if(clearTok[n]) s.token='';
+    p[n]=s;
+  }
+  return p;
+}
+async function saveMessaging(){
+  $('#msgErr').textContent='';
+  try{ const r=await api('POST','/api/messaging',msgPayload()); toast(r.note||'Saved','ok'); await loadMessaging(); }
+  catch(e){ $('#msgErr').textContent=e.message; toast('Not saved','bad'); }
+}
+async function testToken(name){
+  const out=$('#test-'+name); out.className='testres'; out.textContent='Checking…';
+  try{
+    const r=await api('POST','/api/messaging/test',{provider:name, token:$('#tok-'+name).value.trim()});
+    out.className='testres '+(r.ok?'ok':'bad');
+    out.textContent=r.ok?('✓ Works — this is '+r.bot+(r.name?' ('+r.name+')':'')):('✗ '+r.error);
+  }catch(e){ out.className='testres bad'; out.textContent='✗ '+e.message; }
+}
+async function restartService(){
+  if(!confirm('Restart the LeSysBot service now? The bot (and this page) will be offline for a few seconds.')) return;
+  let r; try{ r=await api('POST','/api/service/restart',{}); }catch(e){ toast('Restart failed: '+e.message,'bad'); return; }
+  toast(r.note||'Restarting…','ok');
+  // Wait for the panel to come back, then refresh what the service now runs.
+  const t0=Date.now(); await new Promise(res=>setTimeout(res,1500));
+  while(Date.now()-t0<30000){
+    try{ await api('GET','/api/ping'); break; }catch(e){ await new Promise(res=>setTimeout(res,1000)); }
+  }
+  loadStatus(); if(!$('#messaging').classList.contains('hide')) loadMessaging();
 }
 
 // CONFIG

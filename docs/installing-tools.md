@@ -36,8 +36,9 @@ lesysbot install owner/repo/tools/gpu      # one package from it
 lesysbot install owner/repo@v1.2           # a specific tag, branch or commit
 ```
 
-LeSysBot shows what it found and asks before writing anything. Repos can hold
-[dashboards](dashboards.md) too; they install the same way.
+LeSysBot shows what it found and asks before writing anything. Dashboards
+aren't installed this way — to use a different one, see
+[Change the dashboard](dashboards.md#change-it).
 
 ## Manage
 

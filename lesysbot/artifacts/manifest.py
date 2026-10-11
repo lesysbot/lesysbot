@@ -7,7 +7,7 @@ has consented to the install).
 Every frontmatter key is optional, and a package with no README at all still
 installs. That is deliberate: the frontmatter describes a package *better*, it
 is never the thing that makes it work. It means every tool package written
-before dashboards, prerequisites or `preserve:` existed keeps installing with
+before prerequisites or `preserve:` existed keeps installing with
 no edit.
 """
 
@@ -19,12 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from lesysbot.artifacts.kinds import (
-    DASHBOARD_MARKERS,
-    DEFAULT_KIND,
-    ArtifactKind,
-    parse_kind,
-)
+from lesysbot.artifacts.kinds import DASHBOARD_MARKERS, DEFAULT_KIND, ArtifactKind
 
 # Loader-compatible package names: the registry ignores dirs starting with `.`/`_`.
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -35,7 +30,7 @@ _FRONTMATTER_RE = re.compile(r"\A\s*---\s*\n(.*?)\n\s*---\s*(?:\n|\Z)", re.DOTAL
 _SKIP_DIRS = ("__pycache__", "tests", "docs")
 
 # Collection repos group packages under one of these; checked in order.
-_COLLECTION_DIRS = ("tools", "dashboards")
+_COLLECTION_DIRS = ("tools",)
 
 
 def parse_frontmatter(text: str) -> dict:
@@ -106,7 +101,6 @@ class ArtifactPackage:
     has_requirements: bool = False
     # Gating, mirroring what `@tool` already accepts so a package README and its
     # code can state the same thing.
-    platforms: list[str] = field(default_factory=list)
     requires: list[str] = field(default_factory=list)
     # Richer checks (gpu/service/metric/docker/…), resolved by lesysbot.prereq.
     prerequisites: list[tuple[str, str]] = field(default_factory=list)
@@ -117,34 +111,33 @@ class ArtifactPackage:
 
 
 
-def _qualifies(directory: Path) -> bool:
-    """True when *directory* looks like an installable package.
-
-    Either it directly contains a non-underscore ``.py`` file — the same rule the
-    registry loader uses for a tool package — or it carries a dashboard payload.
-    A dashboard may be a lone ``dashboard.json`` with no Python at all, so the
-    marker check is what lets such a folder be discovered.
-    """
-    if any(p.suffix == ".py" and not p.name.startswith("_")
-           for p in directory.iterdir() if p.is_file()):
-        return True
+def is_dashboard(directory: Path) -> bool:
+    """True when *directory* holds a Grafana dashboard rather than a tool."""
     return any((directory / marker).is_file() for marker in DASHBOARD_MARKERS)
 
 
-def _detect_kind(directory: Path, declared: str | None) -> ArtifactKind:
-    """Resolve a package's kind: explicit frontmatter, else the payload.
+def contains_dashboard(root: Path) -> bool:
+    """True when *root*, or a folder directly inside it, is a dashboard.
 
-    The payload is consulted second but is authoritative when the frontmatter is
-    silent — a folder holding ``dashboard.json`` is a dashboard whether or not
-    its author remembered to say so, which keeps a plain Grafana export (the
-    most likely thing someone drops in a repo) installable as-is.
+    Only used to explain an install that found nothing: a dashboard folder is not
+    a tool, and the useful answer is how to use it as *the* dashboard.
     """
-    kind = parse_kind(declared)
-    if kind is not None:
-        return kind
-    if any((directory / marker).is_file() for marker in DASHBOARD_MARKERS):
-        return ArtifactKind.DASHBOARD
-    return DEFAULT_KIND
+    if is_dashboard(root):
+        return True
+    return any(sub.is_dir() and is_dashboard(sub) for sub in root.iterdir())
+
+
+def _qualifies(directory: Path) -> bool:
+    """True when *directory* looks like a tool package.
+
+    It directly contains a non-underscore ``.py`` file — the same rule the
+    registry loader uses for a tool package — and is not a dashboard, whose
+    ``dashboard.py`` would otherwise pass for one.
+    """
+    if is_dashboard(directory):
+        return False
+    return any(p.suffix == ".py" and not p.name.startswith("_")
+               for p in directory.iterdir() if p.is_file())
 
 
 def _package_from(directory: Path, default_name: str) -> ArtifactPackage:
@@ -156,7 +149,6 @@ def _package_from(directory: Path, default_name: str) -> ArtifactPackage:
     return ArtifactPackage(
         path=directory,
         name=str(fm.get("name") or default_name),
-        kind=_detect_kind(directory, fm.get("kind")),
         description=str(fm.get("description") or ""),
         version=str(version) if version is not None else None,
         tool_files=sorted(
@@ -165,7 +157,6 @@ def _package_from(directory: Path, default_name: str) -> ArtifactPackage:
             if p.is_file() and p.suffix == ".py" and not p.name.startswith("_")
         ),
         has_requirements=(directory / "requirements.txt").is_file(),
-        platforms=[p.lower() for p in _as_list(fm.get("platforms"))],
         requires=_as_list(fm.get("requires")),
         prerequisites=_parse_prerequisites(fm.get("prerequisites")),
         requires_python=_as_list(fm.get("requires_python")),
@@ -178,12 +169,8 @@ def discover_packages(root: Path, default_name: str) -> list[ArtifactPackage]:
 
     *root* itself is the package when it directly holds a payload (single-package
     repo, named *default_name*); otherwise packages are the qualifying immediate
-    subdirectories of ``root/tools`` or ``root/dashboards`` when either yields
-    any — collection repos group them that way, like the core repo — else of
-    *root* itself.
-
-    A collection may hold both, and both are returned: one repo, one install
-    command, tools and dashboards each routed by their own kind.
+    subdirectories of ``root/tools`` when that yields any — collection repos
+    group them that way, like the core repo — else of *root* itself.
     """
     if _qualifies(root):
         return [_package_from(root, default_name)]

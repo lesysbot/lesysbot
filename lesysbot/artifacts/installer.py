@@ -40,7 +40,12 @@ from lesysbot.artifacts.errors import ToolInstallError
 from lesysbot.artifacts.fetch import Fetcher, UrllibFetcher, download_zipball
 from lesysbot.artifacts.kinds import ArtifactKind
 from lesysbot.artifacts.lockfile import ArtifactLock
-from lesysbot.artifacts.manifest import NAME_RE, ArtifactPackage, discover_packages
+from lesysbot.artifacts.manifest import (
+    NAME_RE,
+    ArtifactPackage,
+    contains_dashboard,
+    discover_packages,
+)
 from lesysbot.artifacts.spec import ToolSource
 from lesysbot.core.paths import force_rmtree as _rmtree
 
@@ -282,6 +287,13 @@ class ArtifactInstaller:
     ) -> InstallResult:
         """Everything past staging — identical for a zipball and a local folder."""
         packages = discover_packages(staging, default_name)
+        if not packages and contains_dashboard(staging):
+            raise ToolInstallError(
+                f"{origin.label} is a Grafana dashboard, not a tool. LeSysBot has one "
+                "dashboard — to use this one instead, run `lesysbot dashboard customize`, "
+                "replace the file it prints with this dashboard's JSON, then run "
+                "`lesysbot dashboard start`."
+            )
         packages = self._select(packages, only, origin)
         if kind is not None:
             packages = self._filter_kind(packages, ArtifactKind(kind), origin)
@@ -367,9 +379,9 @@ class ArtifactInstaller:
                 origin: Origin) -> list[ArtifactPackage]:
         if not packages:
             raise ToolInstallError(
-                f"No packages found in {origin.label} — expected a `tool.py` or a "
-                "`dashboard.json`/`dashboard.py` (plus README.md) in the repo root, "
-                "or per-package subdirectories there or under `tools/`/`dashboards/`."
+                f"No packages found in {origin.label} — expected a `tool.py` "
+                "(plus README.md) in the repo root, or per-package subdirectories "
+                "there or under `tools/`."
             )
         if not only:
             return packages
@@ -464,16 +476,10 @@ class ArtifactInstaller:
             ))
 
     def _print_epilogue(self, installed: list[ArtifactPackage]) -> None:
-        kinds = {p.kind for p in installed}
-        if ArtifactKind.TOOL in kinds:
+        if installed:
             self.console.print(
                 "A running LeSysBot with hot_reload picks new tools up automatically; "
                 "otherwise restart it. Type /help in the chat to see them."
-            )
-        if ArtifactKind.DASHBOARD in kinds:
-            self.console.print(
-                "Render it with `lesysbot dashboard render`; "
-                "Grafana picks it up within 30s."
             )
 
     # -- dependencies ---------------------------------------------------------

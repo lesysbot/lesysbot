@@ -12,11 +12,10 @@ time series and shows them on a pre-built Grafana dashboard.
 
 `lesysbot setup` (run by the installer) seeds this stack into
 `~/.lesysbot/dashboard` and gets the user to a Grafana dashboard at
-**http://localhost:3000**: if Docker is running, setup *asks* whether to
+**http://localhost:3000** (or the next free port if 3000 is taken —
+`lesysbot dashboard` prints it): if Docker is running, setup *asks* whether to
 auto-start the bundled stack now or leave it for manual start; otherwise it
-prints the no-sudo steps to get Docker ready, or points at a **native Grafana
-install** from `https://grafana.com/grafana/download` and how to connect it
-(auto-detected on `localhost:3000`, else `LESYSBOT_GRAFANA_URL`).
+prints the no-sudo steps to get Docker ready.
 
 Use the steps below to start/stop the stack by hand, seed it on a box where the
 prerequisite arrived later, or reconfigure it. `LESYSBOT_SKIP_DASHBOARD=1`
@@ -61,7 +60,7 @@ copying just that folder is enough.
 ./scripts/start.sh down     # stop
 ```
 
-Then open **http://localhost:3000** (login `admin` / the password in `.env`).
+Then open **http://localhost:3000** (or the port `start.sh` prints). Log in with the user and password in `~/.lesysbot/grafana.env`.
 The dashboard is in the **LeSysBot** folder in Grafana.
 
 **What the start script does under the hood** (useful when debugging): runs
@@ -126,35 +125,56 @@ Everything binds to loopback. Grafana `127.0.0.1:3000`, Prometheus
 `127.0.0.1:9090` (`/targets` shows exporter health), exporters on
 `:9100`/`:9835`.
 
-- **Login:** `admin` / `admin`. **Change it** before exposing Grafana anywhere.
+- **Login:** whatever `lesysbot setup` asked for (default user `admin`;
+  unattended installs generate the password). It's saved in
+  `~/.lesysbot/grafana.env` (`LESYSBOT_GRAFANA_USER`/`_PASSWORD`, read by the
+  bot) and `~/.lesysbot/dashboard/.env` (`GRAFANA_ADMIN_*`, read by Grafana on
+  first start only). **Forgot it?** `grep PASSWORD ~/.lesysbot/grafana.env`; if
+  Grafana refuses it, re-run `lesysbot setup` (keep the config) — it resets the
+  running Grafana to the password entered at the login step.
 - **Override defaults:** copy `dashboard/.env.example` → `dashboard/.env`
   (git-ignored) and set `GRAFANA_ADMIN_PASSWORD`, `GRAFANA_PORT`, `PROM_PORT`,
   `PROM_RETENTION` (how long history is kept). `GRAFANA_ADMIN_PASSWORD` only
-  applies on the **first** Grafana start; to change it later use the Grafana UI
-  or `docker exec lesysbot-grafana grafana cli admin reset-admin-password NEW`.
+  applies on the **first** Grafana start; to change it later re-run
+  `lesysbot setup` (it resets the running Grafana to the password you enter),
+  or `docker exec -i lesysbot-grafana grafana cli admin reset-admin-password
+  --password-from-stdin` and put the same password in both files above.
 - **Add another host/exporter:** add its `host:port` to the right job in
   `prometheus/prometheus.yml`, then `curl -X POST http://localhost:9090/-/reload`.
 
-## Editing the dashboards
+## Changing the dashboard
 
-The JSON under `grafana/dashboards/` is **generated** — edit
-`scripts/gen-dashboards.py` (stdlib only) and regenerate so every dashboard stays
-consistent. Never hand-edit the JSON:
+There is **one** dashboard. By default it is generated for the machine on every
+start. To change it, the user gets their own copy:
+
+```bash
+lesysbot dashboard customize   # copies it to ~/.lesysbot/dashboard/dashboard.json
+# edit that file — or paste a Grafana export over it ("Export for sharing externally" off)
+lesysbot dashboard start       # applies it; Grafana shows it within ~30 s
+lesysbot dashboard reset       # back to automatic (the copy is kept as dashboard.json.bak)
+lesysbot dashboard             # which one is in use, and Grafana's address
+```
+
+When `dashboard.json` exists, `start.sh` uses it as-is instead of generating
+one; `lesysbot setup` and upgrades never touch it. Edits saved only inside
+Grafana's UI are lost on the next start — fold them into `dashboard.json`.
+Dashboards are **not** installable packages: `lesysbot install` refuses a
+dashboard folder and points at `customize`.
+
+**Changing the default for everyone** (repo work): the JSON under
+`grafana/dashboards/` is **generated** — edit `scripts/gen-dashboards.py`
+(stdlib only) and regenerate. Never hand-edit the JSON:
 
 ```bash
 python3 scripts/gen-dashboards.py                       # the committed, portable JSON
 python3 scripts/gen-dashboards.py --host linux --have CAPS --out FILE
 ```
 
-The second form is what the start script runs; the per-host cuts are generated
-rather than committed so one generator still covers every hardware combination.
+The second form is what the start script runs.
 `tests/test_gen_dashboards.py` pins the inclusion/exclusion decisions per cut
 (and fails if the committed JSON goes stale — regenerate after touching the
 generator); `tests/test_start_detect.py` sources `start.sh` against a fixture
 `/sys` tree (`SYSFS_ROOT`) to pin the chip-name → capability mapping.
-
-Grafana reloads provisioned dashboards within ~30 s. You can also tweak live in
-the UI to experiment, then fold the change back into the generator.
 
 ## Troubleshooting
 
@@ -168,16 +188,23 @@ the UI to experiment, then fold the change back into the generator.
 - **`start.sh` exits with "Can't talk to the Docker daemon".** Docker isn't
   running or the user isn't in the `docker` group — `sudo systemctl start
   docker`, or `sudo usermod -aG docker $USER` then re-login.
-- **Grafana won't start / "address already in use".** Something holds 3000 or
-  9090 — set `GRAFANA_PORT` / `PROM_PORT` in `.env` and start again. LeSysBot reads
-  `GRAFANA_PORT` back, so the status screen and `share_dashboard` follow the move.
+- **Grafana won't start / "address already in use".** `start.sh` (and so
+  `lesysbot dashboard start`) moves Grafana off a port another program holds to
+  the next free one and saves it as `GRAFANA_PORT` in `.env`; it leaves a port
+  our own running Grafana holds alone. Pick one with `lesysbot dashboard start
+  --grafana-port N` (refused if taken, never swapped). Unattended setup takes
+  `LESYSBOT_SETUP_GRAFANA_PORT`. Prometheus isn't moved: set `PROM_PORT` in
+  `.env`. LeSysBot reads `GRAFANA_PORT` back, so the status screen and
+  `share_dashboard` follow the move.
 - **Metrics missing despite an exporter running.** A firewall (`ufw`) blocks
   container→host; that's why the stack runs on the **host network**. Use
   `./scripts/start.sh` (or plain `docker compose up -d` in `dashboard/`), never
   a bridge network of your own.
-- **Grafana login fails after wrong tries.** Brute-force throttling returns 401
-  for a few minutes. Wait, or `docker restart lesysbot-grafana`. Reset the
-  password with the `grafana cli` command above.
+- **Grafana login fails after wrong tries.** After 5 failed logins in 5 minutes
+  Grafana returns 401 for that user — even with the right password — until 5
+  minutes pass. The attempts are stored in Grafana's database, so restarting
+  the container doesn't clear them; wait. Don't probe the password repeatedly
+  while diagnosing, since each probe extends the lock.
 - **Don't mix GPU paths.** The containerised (`--profile gpu`) and native
   (`run-exporters.sh`) GPU exporters both want port 9835 — run only one.
 - **Reset everything incl. stored history:**

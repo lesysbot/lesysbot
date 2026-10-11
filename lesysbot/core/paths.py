@@ -31,7 +31,7 @@ def user_dir() -> Path:
 
 
 def bundled_dir() -> Path:
-    """Content that ships *with* LeSysBot: default tools, dashboards, the stack.
+    """Content that ships *with* LeSysBot: default tools and the dashboard stack.
 
     An installed wheel has it at ``lesysbot/_bundled/`` (hatchling copies the
     repo's top-level directories in at build time). A dev checkout has no such
@@ -55,24 +55,19 @@ def dashboard_dir(base: str | Path | None = None) -> Path:
     return root / DASHBOARD_DIRNAME
 
 
-def installed_dashboards_dir(base: str | Path | None = None) -> Path:
-    """Where installed dashboard **packages** live.
-
-    Deliberately nested inside the stack rather than sitting beside it as
-    ``~/.lesysbot/dashboards``: distinguishing the stack from its contents by a
-    trailing `s` is the kind of thing that reads fine in code and ruins an
-    afternoon at a shell prompt.
-    """
-    return dashboard_dir(base) / "installed"
-
-
 def generated_dashboards_dir(base: str | Path | None = None) -> Path:
-    """Where rendered dashboard JSON is written for Grafana to provision.
+    """Where the stack writes the dashboard JSON Grafana provisions.
 
-    Derived output, rewritten on every render — never edit anything here; edit
-    the package under :func:`installed_dashboards_dir` instead.
+    Derived output, rewritten on every ``lesysbot dashboard start`` — never edit
+    anything here; a user's own version lives at :func:`custom_dashboard_path`.
     """
     return dashboard_dir(base) / "grafana" / "dashboards" / "generated"
+
+
+def custom_dashboard_path(base: str | Path | None = None) -> Path:
+    """The user's own copy of the dashboard. When it exists, it is used as-is
+    instead of the one generated for this host; deleting it goes back to that."""
+    return dashboard_dir(base) / "dashboard.json"
 
 
 def parse_env_file(path: str | Path) -> dict[str, str]:

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One command to bring up the whole system-overview stack.
 #
-#   ./scripts/start.sh          # start everything, detecting what this host has
-#   ./scripts/start.sh down     # stop and remove the stack
+#   ./scripts/start.sh                      # start everything, detecting what this host has
+#   ./scripts/start.sh up --grafana-port N  # ...with Grafana on port N (saved in .env)
+#   ./scripts/start.sh down                 # stop and remove the stack
 #
 # Prometheus + Grafana + node-exporter run on the host network. NVIDIA GPU
 # metrics run as a container when the nvidia-container-toolkit is present,
@@ -105,26 +106,33 @@ detect_capabilities_linux() {
   fi
 }
 
-# Fill grafana/dashboards/generated/ — the directory the compose mounts. Three
-# routes, best first:
+# Fill grafana/dashboards/generated/ — the directory the compose mounts — with
+# the one dashboard, best source first:
 #
-#   1. `lesysbot dashboard render` renders every *installed* dashboard package,
-#      so a user's own dashboards come up alongside System Overview.
-#   2. gen-dashboards.py for this host, when LeSysBot isn't on PATH (running the
-#      stack straight from a checkout).
+#   1. dashboard.json next to this stack, when the user has their own copy
+#      (`lesysbot dashboard customize` makes one). Used as-is, never touched.
+#   2. gen-dashboards.py for this host, with the sensors probed above.
 #   3. The committed portable JSON, when there is no python3 at all.
+#
+# Anything else in the directory is removed first: Grafana provisions every
+# JSON it finds there, so a file left by an older release (when dashboards were
+# separate packages) would keep showing up as a second dashboard.
 #
 # The directory is created either way: Docker creates a missing bind-mount
 # source as a root-owned directory, which then can't be written without sudo.
 DASH_DEFAULT=system-overview.json
 GENERATED="$ROOT/grafana/dashboards/generated"
+CUSTOM="$ROOT/dashboard.json"
 
 select_dashboard() {
-  local gen="$HERE/gen-dashboards.py" out="$GENERATED/system-overview.json"
+  local gen="$HERE/gen-dashboards.py" out="$GENERATED/$DASH_DEFAULT"
   mkdir -p "$GENERATED"
+  rm -f "$GENERATED"/*.json
 
-  if command -v lesysbot >/dev/null 2>&1 && lesysbot dashboard render >/dev/null 2>&1; then
-    echo "==> dashboards rendered by lesysbot"
+  if [ -f "$CUSTOM" ]; then
+    cp "$CUSTOM" "$out"
+    echo "==> using your dashboard ($CUSTOM)"
+    echo "    Back to the automatic one:  lesysbot dashboard reset"
     return
   fi
   if ! command -v python3 >/dev/null 2>&1 || [ ! -f "$gen" ]; then
@@ -132,7 +140,7 @@ select_dashboard() {
     echo "==> using the portable dashboard (no python3 to generate one)"
     return
   fi
-  if python3 "$gen" --host "$1" --have "$CAPS" --out "$out" >/dev/null 2>&1; then
+  if python3 "$gen" --host linux --have "$CAPS" --out "$out" >/dev/null 2>&1; then
     echo "==> dashboard generated for this host [${CAPS:-no optional sensors detected}]"
   else
     cp "$ROOT/grafana/dashboards/$DASH_DEFAULT" "$out" 2>/dev/null || true
@@ -150,9 +158,102 @@ report_missing() {
 EOF
 }
 
+# --- Grafana's port -----------------------------------------------------------
+# Grafana binds 127.0.0.1:$GRAFANA_PORT on the host network. If anything else
+# already listens there it crash-loops on "address already in use" and the
+# dashboard just never appears — and 3000 is every web dev server's default. So
+# a taken port is detected here and Grafana moves to the next free one, saved
+# in .env so the move sticks and LeSysBot (which reads .env) finds it there.
+# An explicit --grafana-port is a choice, not a hint: it is used or refused,
+# never silently swapped for another.
+PORT_SEARCH_SPAN=100
+
+env_get() { grep -E "^$1=" .env 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
+env_set() {
+  if grep -qE "^$1=" .env 2>/dev/null; then
+    sed -i "s/^$1=.*/$1=$2/" .env
+  else
+    printf '%s=%s\n' "$1" "$2" >> .env
+  fi
+}
+
+# Is something listening on 127.0.0.1:PORT? (bash's /dev/tcp — no extra tools)
+port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+# The port our own Grafana container is healthily serving, or nothing. A
+# restarting container is crash-looping (usually on exactly this conflict), so
+# it holds no port.
+our_grafana_port() {
+  docker inspect -f '{{.State.Running}} {{.State.Restarting}}{{range .Config.Env}} {{.}}{{end}}' \
+    lesysbot-grafana 2>/dev/null |
+    awk '$1 == "true" && $2 == "false" {
+      for (i = 3; i <= NF; i++) if ($i ~ /^GF_SERVER_HTTP_PORT=/) { sub(/^[^=]*=/, "", $i); print $i }
+    }' || true
+}
+
+valid_port() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+
+# Settle GRAFANA_PORT before `compose up`. $1 is an explicit choice, or empty.
+choose_grafana_port() {
+  local want="${1:-}" prom next p
+  if [ -n "$want" ]; then
+    if ! valid_port "$want"; then
+      echo "✗ --grafana-port needs a port number (1-65535), got '$want'." >&2
+      return 1
+    fi
+    if port_busy "$want" && [ "$(our_grafana_port)" != "$want" ]; then
+      echo "✗ Port $want is already used by another program. Pick a free one." >&2
+      return 1
+    fi
+    [ "$want" = "$PORT" ] || echo "==> Grafana port set to $want (saved in .env)"
+    env_set GRAFANA_PORT "$want"
+    PORT="$want"
+    return 0
+  fi
+
+  port_busy "$PORT" || return 0
+  [ "$(our_grafana_port)" = "$PORT" ] && return 0
+
+  prom="$(env_get PROM_PORT)"; prom="${prom:-9090}"
+  next=""
+  p=$((PORT + 1))
+  while [ "$p" -le $((PORT + PORT_SEARCH_SPAN)) ]; do
+    if [ "$p" != "$prom" ] && ! port_busy "$p"; then next="$p"; break; fi
+    p=$((p + 1))
+  done
+  if [ -z "$next" ]; then
+    echo "✗ Port $PORT is used by another program and no free port was found after it." >&2
+    echo "  Choose one:  $0 up --grafana-port <port>" >&2
+    return 1
+  fi
+  echo "==> Port $PORT is used by another program; Grafana moves to $next (saved in .env)."
+  echo "    Prefer a different one?  $0 up --grafana-port <port>"
+  env_set GRAFANA_PORT "$next"
+  PORT="$next"
+}
+
 down() {
   dc --profile gpu down
   "$HERE/run-exporters.sh" stop 2>/dev/null || true
+}
+
+# Fill the dashboard, then start the containers. A function, above the
+# sourcing guard, so tests/test_start_detect.py can drive it with docker stubbed.
+start_stack() {
+  select_dashboard
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    if has_nvidia_runtime; then
+      echo "==> NVIDIA (container runtime): full stack on the host network"
+      dc --profile gpu up -d
+    else
+      echo "==> NVIDIA (no container toolkit): stack + native GPU exporter"
+      dc up -d
+      "$HERE/run-exporters.sh" nvidia     # port 9100 is taken by the container
+    fi
+  else
+    echo "==> No NVIDIA GPU detected: starting stack without GPU"
+    dc up -d
+  fi
 }
 
 # Sourcing this file defines the functions above and stops there, so the
@@ -162,25 +263,29 @@ if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
   return 0
 fi
 
-main() {
-preflight
-if [ "${1:-up}" = "down" ]; then down; echo "stack stopped."; exit 0; fi
+usage() {
+  echo "usage: $0 [up [--grafana-port N] | down]" >&2
+  exit 2
+}
 
+main() {
+local action=up want_port=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    up|down) action="$1" ;;
+    --grafana-port) [ $# -ge 2 ] || usage; want_port="$2"; shift ;;
+    --grafana-port=*) want_port="${1#*=}" ;;
+    *) usage ;;
+  esac
+  shift
+done
+
+preflight
+if [ "$action" = "down" ]; then down; echo "stack stopped."; exit 0; fi
+
+choose_grafana_port "$want_port" || exit 1
 detect_capabilities_linux
-select_dashboard
-if command -v nvidia-smi >/dev/null 2>&1; then
-  if has_nvidia_runtime; then
-    echo "==> NVIDIA (container runtime): full stack on the host network"
-    dc --profile gpu up -d
-  else
-    echo "==> NVIDIA (no container toolkit): stack + native GPU exporter"
-    dc up -d
-    "$HERE/run-exporters.sh" nvidia     # port 9100 is taken by the container
-  fi
-else
-  echo "==> No NVIDIA GPU detected: starting stack without GPU"
-  dc up -d
-fi
+start_stack
 
 cat <<EOF
 
@@ -188,6 +293,7 @@ cat <<EOF
   Prometheus: http://localhost:9090/targets (your exporters should be 'up')
 
   Dashboard is under the "LeSysBot" folder in Grafana.
+  Change it:  lesysbot dashboard customize
   Stop with:  ./scripts/start.sh down
 EOF
 

@@ -26,8 +26,6 @@ from lesysbot.prereq.report import Requirement, Result
 NET_TIMEOUT = 0.7
 CMD_TIMEOUT = 5.0
 
-_OS_LABELS = {"linux": "Linux"}
-
 # Well-known services a package may depend on, and where they usually listen.
 _SERVICE_PORTS = {
     "prometheus": 9090,
@@ -49,24 +47,7 @@ def _no(req, detail, fix="", auto=False) -> Result:
     return Result(req, False, detail, fix, auto)
 
 
-# -- os / arch -----------------------------------------------------------------
-
-# What a README writes to mean "no OS constraint". `platforms: all` is the
-# convention across the bundled packages, so reading it as a literal OS name
-# would report every cross-platform tool as broken.
-ANY_PLATFORM = {"all", "any", "*"}
-
-
-def check_os(req: Requirement) -> Result:
-    from lesysbot.core.host import current_os
-
-    here = current_os()
-    wanted = [p.strip().lower() for p in req.value.replace(",", " ").split() if p.strip()]
-    if not wanted or ANY_PLATFORM & set(wanted) or here in wanted:
-        return _ok(req, _OS_LABELS.get(here, here))
-    runs_on = ", ".join(_OS_LABELS.get(w, w) for w in wanted)
-    return _no(req, f"this is {_OS_LABELS.get(here, here)}; needs {runs_on}")
-
+# -- arch ----------------------------------------------------------------------
 
 def check_arch(req: Requirement) -> Result:
     from lesysbot.core.host import current_arch, normalize_arch
@@ -355,8 +336,6 @@ def _configured_prometheus_port(default: int = 9090) -> int:
 # -- registry ------------------------------------------------------------------
 
 CHECKERS: dict[str, Callable[[Requirement], Result]] = {
-    "os": check_os,
-    "platform": check_os,          # `platforms:` in frontmatter maps here
     "arch": check_arch,
     "os_version": check_os_version,
     "os-version": check_os_version,

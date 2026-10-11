@@ -4,8 +4,6 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from lesysbot.mcp._legacy import linux_command, linux_requires, note_platforms
-
 
 @dataclass
 class CLITool:
@@ -31,23 +29,17 @@ class CLITool:
             params={"host": "The hostname or IP to trace"},
             requires=["mtr"],
         )
-
-    ``platforms``, and an OS-keyed dict for ``command`` or ``requires``, are
-    accepted and reduced to their Linux entry so packages written against the
-    older API keep loading; see :mod:`lesysbot.mcp._legacy`.
     """
     name: str
     description: str
-    command: str | dict[str, str]
+    command: str
     params: dict[str, str] = field(default_factory=dict)
     timeout: float = 30.0
     confirm: bool | str = False
-    requires: list[str] | dict[str, list[str]] | None = None
-    platforms: list[str] | None = None   # legacy, ignored — see mcp/_legacy.py
+    requires: list[str] | None = None
 
     @property
     def __tool_meta__(self) -> dict[str, Any]:
-        note_platforms(self.name, self.platforms)
         properties = {k: {"type": "string", "description": v} for k, v in self.params.items()}
         return {
             "name": self.name,
@@ -59,15 +51,12 @@ class CLITool:
             },
             "fn": self._run,
             "confirm": self.confirm,
-            "requires": linux_requires(self.name, self.requires),
+            "requires": self.requires,
         }
 
     async def _run(self, **kwargs: Any) -> str:
-        template = linux_command(self.name, self.command)
-        if not template:
-            return f"Error: '{self.name}' has no command for Linux"
         try:
-            cmd = template.format(**kwargs)
+            cmd = self.command.format(**kwargs)
         except KeyError as e:
             return f"Error: missing parameter {e}"
 

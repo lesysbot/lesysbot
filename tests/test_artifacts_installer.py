@@ -18,8 +18,7 @@ def _console() -> Console:
 
 def _manager(tmp_path, fetcher, confirm=lambda _msg: True):
     return ArtifactInstaller(
-        {ArtifactKind.TOOL: tmp_path / "tools",
-         ArtifactKind.DASHBOARD: tmp_path / "dashboards"},
+        {ArtifactKind.TOOL: tmp_path / "tools"},
         tmp_path / "lesysbot.lock.json",
         fetcher,
         confirm=confirm,

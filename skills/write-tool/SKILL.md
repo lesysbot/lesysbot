@@ -150,7 +150,7 @@ lesysbot install you/lesysbot-gpu-temp
 
 Checklist before sharing: imports = stdlib + declared `requirements.txt` deps
 with `ImportError` handled; destructive actions have `confirm=`;
-`platforms`/`requires` declared where not universal; frontmatter filled in;
+`requires` declared where not universal; frontmatter filled in;
 tested via `lesysbot install ./your-tool` (or `you/repo@your-branch`).
 
 ## Related

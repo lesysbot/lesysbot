@@ -87,13 +87,11 @@ lesysbot/            the package
 ├─ mcp/              tool registry, @tool decorator, CLITool, requirement gating
 ├─ messaging/        CLI / Telegram / Discord adapters + the base interface
 ├─ management/       the loopback panel on :8700 (stdlib http.server, no deps)
-├─ artifacts/        install tool AND dashboard packages (local or GitHub); lock
-├─ prereq/           what a package needs, whether this machine has it, the fix
-└─ dashboards/       render installed dashboard packages for Grafana
+├─ artifacts/        install tool packages (local or GitHub); lock
+└─ prereq/           what a package needs, whether this machine has it, the fix
 tools/             bundled tool packages
-dashboards/        bundled dashboard packages (System Overview)
-dashboard/         the Prometheus + Grafana stack (compose, scripts, provisioning)
-hatch_build.py     copies the three above into the wheel, minus local state
+dashboard/         the Prometheus + Grafana stack and its one dashboard
+hatch_build.py     copies the two above into the wheel, minus local state
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
 scripts/           install/uninstall bootstrap (bash), logo generator

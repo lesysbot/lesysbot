@@ -41,7 +41,7 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Wrong tool picked / no tool used | Small models call tools unreliably — switch to Qwen3.5/Gemma4, or run the tool directly with `/`. |
 | First reply very slow | Model loading into memory on first use; later replies are faster. |
 | Tool missing from `/help` | File not in the tools dir, name starts with `_`, or an import error — check `lesysbot.log`. Also consider stale-install shadowing (above) and *which* tools dir is active (installed setup = `~/.lesysbot/tools/`, dev checkout = repo `tools/`). |
-| Tool listed but "⚠ unavailable here" | Deliberate gating: wrong OS for its `platforms`, or a `requires` binary not on PATH. Install the binary or run on a supported OS. |
+| Tool listed but "⚠ unavailable here" | Deliberate gating: a `requires` binary is not on PATH. Install the binary. |
 | `/tool` returns "disabled" | It was disabled — `lesysbot enable NAME`. It applies live (the bot watches `tool_state.json`). |
 | `lesysbot: command not found` | pip's script dir not on PATH: `python -m site --user-scripts`, then add it. |
 | Service exits immediately | Read `journalctl --user -u lesysbot` — usually Ollama down, wrong `WorkingDirectory` (must hold `config.yaml`/`tools/`), or bad Telegram/Discord tokens. |
@@ -57,6 +57,8 @@ Suspect this whenever behaviour doesn't match the code you're looking at.
 | Tool missing from the `/` menu | Menu is built at startup — restart. Discord also needs the `applications.commands` invite scope. Disabled/unavailable tools are excluded by design. |
 | A tool never shows in the `/` menu | Name must be `[a-z0-9_]` (Telegram's and Discord's shared rule) — see the startup warning. Still callable as typed text. |
 | Config edits don't apply | Wrong file — check the search order (`-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml` → …) and that the service was restarted. Env vars/flags override the file. |
+| Grafana: "Dashboard not found" / empty LeSysBot folder | `lesysbot dashboard start`. If the user made their own copy (`lesysbot dashboard` says "yours"), it may be invalid JSON — `lesysbot dashboard reset`. |
+| Extra dashboards (Network Traffic, GPU Detail) still in Grafana | Left by an older release. `lesysbot setup` removes them; then `lesysbot dashboard start`. |
 | Install: `tools dir already has X` | Folder not created by the installer — `--force` to overwrite. |
 | Changed settings, old bot still polling | A leftover service from a previous install — stop/remove it (see [manage-service](../manage-service/SKILL.md)). |
 | "Another LeSysBot instance … is already running (PID N)" | The single-instance guard: that bot is already up, usually as the service. Stop it for a foreground run, or use `lesysbot chat` (no conflict). |

@@ -35,10 +35,10 @@ def test_packaged_layout_wins_when_present(tmp_path, monkeypatch):
     assert bundled_dir() == package / "_bundled"
 
 
-@pytest.mark.parametrize("name", ["tools", "dashboard", "dashboards"])
+@pytest.mark.parametrize("name", ["tools", "dashboard"])
 def test_everything_the_build_ships_exists(name):
     """The build hook copies exactly these; a rename here would silently ship
-    an install with no tools or no dashboards."""
+    an install with no tools or no dashboard."""
     from hatch_build import BUNDLED
 
     assert name in BUNDLED
@@ -85,15 +85,6 @@ def test_bundled_tools_are_loadable_packages():
     found = discover_packages(bundled_dir() / "tools", "tools")
     names = {p.name for p in found}
     assert {"temperature", "network", "system-info"} <= names
-
-
-def test_bundled_dashboards_are_recognised_as_dashboards():
-    from lesysbot.artifacts.kinds import ArtifactKind
-    from lesysbot.artifacts.manifest import discover_packages
-
-    found = discover_packages(bundled_dir() / "dashboards", "dashboards")
-    assert found, "at least System Overview should ship"
-    assert all(p.kind is ArtifactKind.DASHBOARD for p in found)
 
 
 def test_the_stack_ships_its_start_scripts():

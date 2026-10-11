@@ -14,8 +14,8 @@ this machine.
 | Tab | What it's for |
 |---|---|
 | **Status** | Is the model reachable, is the service running, where is Grafana |
+| **Messaging** | Set up Telegram or Discord: pick the platform, paste the bot token, list who may use it, test the token, restart the service |
 | **Tools** | Add a tool, turn tools on or off (applies within a second), or remove them |
-| **Dashboards** | See which Grafana dashboards are ready, and render them |
 | **Doctor** | What's missing on this machine, and how to fix it |
 | **Config** | Edit `config.yaml` — checked before saving; restart the service to apply |
 
@@ -55,8 +55,9 @@ On a machine only you use, yes.
   that don't come from localhost.
 - It has no login. Anyone who can open it on this machine could also edit
   `config.yaml` directly.
-- It shows your config, tokens included. To hide them, keep tokens in
-  environment variables — see [Settings](configuration.md#keep-secrets-out-of-the-file).
+- It never shows a saved token or API key. The Messaging tab says only whether
+  one is saved (and its last 4 characters); the Config tab shows it as
+  `<hidden>` — leave that as is to keep it, or type a new one over it.
 
 Don't forward the port to other machines.
 

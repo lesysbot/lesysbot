@@ -1,8 +1,7 @@
 """Build hook: stage bundled content into the wheel without machine-local state.
 
-`tools/`, `dashboard/` and `dashboards/` have to reach an installed LeSysBot —
-otherwise `pip install lesysbot` gives you a bot with no tools and no
-dashboards. They live at the repo root rather than under the
+`tools/` and `dashboard/` have to reach an installed LeSysBot — otherwise
+`pip install lesysbot` gives you a bot with no tools and no dashboard. They live at the repo root rather than under the
 package because they are also the files people edit, link to from the docs, and
 copy out as examples.
 
@@ -29,7 +28,7 @@ import tempfile
 from pathlib import Path
 
 #: Top-level names copied into `lesysbot/_bundled/`.
-BUNDLED = ("tools", "dashboard", "dashboards")
+BUNDLED = ("tools", "dashboard")
 
 #: Paths (relative to each bundled root) that must never reach a wheel.
 EXCLUDED_NAMES = {"__pycache__", ".pytest_cache", ".ruff_cache",
