@@ -130,6 +130,19 @@ class ArtifactLock:
             self.save(items)
         return dropped
 
+    def drop_retired(self) -> list[str]:
+        """Drop entries of a kind this version no longer installs, e.g. the
+        ``dashboard:<name>`` rows an older release recorded. Returns their keys."""
+        known = {k.value for k in ArtifactKind}
+        items = self.load()
+        retired = [key for key, entry in items.items()
+                   if entry.get("kind", DEFAULT_KIND.value) not in known]
+        for key in retired:
+            del items[key]
+        if retired:
+            self.save(items)
+        return retired
+
 
 def drop_entries(path: Path, names: list[str],
                  kind: ArtifactKind | str | None = None) -> list[str]:

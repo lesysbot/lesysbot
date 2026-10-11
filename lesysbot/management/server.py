@@ -14,6 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import shutil
+import subprocess
+import tempfile
 import threading
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +32,7 @@ from lesysbot.cli.context import CLIContext
 from lesysbot.core.config import Settings
 from lesysbot.core.paths import user_dir
 from lesysbot.core.status import build_registry, detect_grafana, gather_status, probe_health
+from lesysbot.management import configedit, messaging
 from lesysbot.management.jobs import JobRegistry
 from lesysbot.management.page import PAGE
 
@@ -39,20 +44,54 @@ _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]", ""}
 PING = {"ok": True, "service": "lesysbot-management"}
 
 
-def _resolve_catalog_id(source: str) -> str:
-    """A marketplace id → its GitHub link; a link passes through unchanged.
+SERVICE = "lesysbot"
 
-    Same rule as the CLI: the catalog only ever supplies a github.com link, and
-    that link goes through the ordinary parser from here.
+
+def write_config_text(path: Path, text: str) -> None:
+    """Replace config.yaml atomically — the bot may read it at any moment.
+
+    The file holds bot tokens, so a new one is created owner-only; an existing
+    one keeps whatever mode its owner gave it.
     """
-    from lesysbot.artifacts.catalog import load_catalog
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = path.stat().st_mode & 0o777 if path.exists() else 0o600
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".config.", suffix=".yaml")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
-    if "/" in source or "://" in source or source.startswith("git@"):
-        return source
-    entry = load_catalog().find(source)
-    if entry is None:
-        raise ValueError(f"{source!r} is not a GitHub link or a marketplace id")
-    return entry.source
+
+def service_info(runner=subprocess.run) -> dict:
+    """Is the ``systemd --user`` unit installed, so the panel can restart it?"""
+    if os.environ.get("LESYSBOT_SKIP_SERVICE") or not shutil.which("systemctl"):
+        return {"installed": False}
+    try:
+        r = runner(["systemctl", "--user", "cat", SERVICE], capture_output=True, timeout=5)
+    except Exception:
+        return {"installed": False}
+    return {"installed": r.returncode == 0}
+
+
+def restart_service(runner=subprocess.run) -> dict:
+    """Queue a restart of the service and return at once.
+
+    ``--no-block`` matters: the panel usually lives *inside* that service, so
+    waiting for the restart would mean waiting for our own death.
+    """
+    if not service_info(runner)["installed"]:
+        return {"ok": False, "error": "No LeSysBot service is installed here — restart "
+                                      "LeSysBot however you started it."}
+    r = runner(["systemctl", "--user", "--no-block", "restart", SERVICE],
+               capture_output=True, timeout=10)
+    if r.returncode != 0:
+        err = (r.stderr or b"").decode(errors="replace").strip()
+        return {"ok": False, "error": err or "systemctl restart failed"}
+    return {"ok": True, "note": "Restarting… the panel will be back in a few seconds."}
 
 
 class CLIContextProxy:
@@ -142,12 +181,10 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"tools": self._rows()})
         if path == "/api/config":
             return self._get_config()
+        if path == "/api/messaging":
+            return self._get_messaging()
         if path == "/api/artifacts":
             return self._artifacts()
-        if path == "/api/dashboards":
-            return self._dashboards()
-        if path == "/api/catalog":
-            return self._catalog()
         if path == "/api/prereq":
             return self._prereq()
         if path == "/api/jobs":
@@ -171,8 +208,12 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._remove()
             if path == "/api/artifacts/update":
                 return self._update()
-            if path == "/api/dashboards/render":
-                return self._render_dashboards()
+            if path == "/api/messaging":
+                return self._save_messaging()
+            if path == "/api/messaging/test":
+                return self._test_token()
+            if path == "/api/service/restart":
+                return self._restart()
         except Exception as e:  # never leak a traceback to the browser
             return self._send(500, {"ok": False, "error": str(e)})
         return self._send(404, {"error": "not found"})
@@ -187,7 +228,7 @@ class _Handler(BaseHTTPRequestHandler):
             st["health"] = asyncio.run(probe_health(self.server.settings.llm))
         except Exception as e:
             st["health"] = {"ok": False, "error": str(e)}
-        st["grafana"] = detect_grafana()
+        st["grafana"] = self._grafana()
         # We are the panel — no need to probe ourselves to answer "is it up?".
         port = self.server.server_address[1]
         st["panel"] = {"url": f"http://127.0.0.1:{port}", "port": port, "running": True}
@@ -200,35 +241,79 @@ class _Handler(BaseHTTPRequestHandler):
             r["source_kind"] = src.get("kind") if src else None
         return rows
 
-    def _get_config(self):
+    def _config_file(self) -> Path:
         s = self.server.settings
-        path = Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
+        return Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
+
+    def _config_text(self) -> str:
+        """config.yaml as written (``${VAR}`` unexpanded), or the defaults."""
+        path = self._config_file()
         if path.exists():
-            text = path.read_text()
-        else:
-            text = yaml.safe_dump(s.model_dump(mode="json", exclude_none=True),
-                                  sort_keys=False)
-        self._send(200, {"yaml": text, "path": str(path), "exists": path.exists()})
+            return path.read_text()
+        return yaml.safe_dump(self.server.settings.model_dump(mode="json", exclude_none=True),
+                              sort_keys=False)
+
+    def _write_config(self, text: str) -> Path:
+        path = self._config_file()
+        write_config_text(path, text)
+        return path
+
+    def _get_config(self):
+        # Tokens and keys never reach the browser: they go out as <hidden> and
+        # are put back on save (configedit.unmask).
+        path = self._config_file()
+        self._send(200, {"yaml": configedit.mask(self._config_text()), "path": str(path),
+                         "exists": path.exists(), "hidden": configedit.HIDDEN})
 
     def _save_config(self):
         text = self._body().get("yaml", "")
         try:
-            data = yaml.safe_load(text) or {}
+            text, data = configedit.unmask(text, self._config_text())
         except yaml.YAMLError as e:
             return self._send(400, {"ok": False, "error": f"YAML parse error: {e}"})
-        if not isinstance(data, dict):
-            return self._send(400, {"ok": False, "error": "config must be a mapping"})
+        except ValueError as e:
+            return self._send(400, {"ok": False, "error": str(e)})
         try:
             Settings(**data)                     # validate against the schema
         except Exception as e:
             return self._send(400, {"ok": False, "error": f"Invalid config: {e}"})
-        s = self.server.settings
-        path = Path(s.config_path) if s.config_path else (user_dir() / "config.yaml")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
+        path = self._write_config(text)
         self._send(200, {"ok": True, "path": str(path),
                          "note": "Saved. Restart the LeSysBot service to apply "
                                  "(tool enable/disable is live)."})
+
+    def _get_messaging(self):
+        path = self._config_file()
+        try:
+            view = messaging.view(self._config_text(), self.server.settings)
+        except (yaml.YAMLError, ValueError) as e:
+            return self._send(400, {"ok": False, "error": f"config.yaml can't be read: {e}"})
+        view.update(path=str(path), exists=path.exists(), service=service_info())
+        self._send(200, view)
+
+    def _save_messaging(self):
+        try:
+            text, _ = messaging.apply(self._config_text(), self._body())
+        except yaml.YAMLError as e:
+            return self._send(400, {"ok": False, "error": f"config.yaml can't be read: {e}"})
+        except Exception as e:                   # ValueError, pydantic ValidationError
+            return self._send(400, {"ok": False, "error": str(e)})
+        path = self._write_config(text)
+        self._send(200, {"ok": True, "path": str(path),
+                         "note": "Saved. Restart the service to apply."})
+
+    def _test_token(self):
+        body = self._body()
+        provider = body.get("provider")
+        token = (body.get("token") or "").strip()
+        if not token:                            # nothing typed → test the saved one
+            token = configedit.get(configedit.load(self._config_text()),
+                                   ("messaging", provider, "token")) or ""
+        self._send(200, messaging.check_token(provider, token))
+
+    def _restart(self):
+        result = restart_service()
+        self._send(202 if result["ok"] else 400, result)
 
     def _toggle(self):
         body = self._body()
@@ -240,39 +325,27 @@ class _Handler(BaseHTTPRequestHandler):
             self.server.registry.set_enabled(name, enabled)   # persists to state_file
         self._send(200, {"ok": True, "name": name, "enabled": enabled})
 
-    # -- marketplace ----------------------------------------------------------
-    def _catalog(self):
-        """Marketplace entries, annotated with what is already installed."""
-        from lesysbot.artifacts.catalog import load_catalog
-
-        catalog = load_catalog()
-        installed = {e.get("name") for e in self.server.ctx.lock.load().values()}
-        entries = [
-            {
-                "id": e.id, "name": e.name, "kind": e.kind.value,
-                "description": e.description, "source": e.source,
-                "homepage": e.homepage or f"https://github.com/{e.source}",
-                "platforms": list(e.platforms), "tags": list(e.tags),
-                "official": e.official, "runs_here": e.runs_here(),
-                "installed": e.id in installed or e.name in installed,
-            }
-            for e in catalog.search()
-        ]
-        self._send(200, {"entries": entries, "updated": catalog.updated})
-
     def _artifacts(self):
         from lesysbot.cli import artifacts as artifact_cli
 
         with self.server.lock:
-            rows = artifact_cli._rows(self.server.ctx, None)
+            rows = artifact_cli._rows(self.server.ctx)
         for row in rows:
             row.pop("source", None)          # a Path isn't JSON-serialisable
         self._send(200, {"artifacts": rows})
 
-    def _dashboards(self):
-        from lesysbot.dashboards.render import describe_all
+    def _grafana(self):
+        """Grafana, plus a link straight to the System Overview dashboard.
 
-        self._send(200, {"dashboards": describe_all(self.server.ctx)})
+        Grafana's root URL lands on its home page, one click short of anything
+        useful, so the panel links ``/d/<uid>`` of a provisioned dashboard.
+        """
+        from lesysbot.core.grafana import home_dashboard_url
+
+        gf = detect_grafana()
+        if gf and gf["reachable"]:
+            gf["dashboard_url"] = home_dashboard_url(gf["url"], self.server.ctx.settings.config_dir)
+        return gf
 
     def _prereq(self):
         from lesysbot.cli.doctor import _as_dict, _gather
@@ -303,18 +376,27 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(400, {"ok": False, "error": "missing source"})
 
         ctx = self.server.ctx
-        try:
-            resolved = _resolve_catalog_id(source)
-            src = parse_source(resolved)
-        except Exception as e:
-            return self._send(400, {"ok": False, "error": f"bad source: {e}"})
+        # Same rule as `lesysbot install`: a path on this machine wins, else a
+        # GitHub link. The panel runs as the user on loopback, so a path here is
+        # the same authority as typing the command — and a panel that rejected
+        # what the terminal accepts would be its own bug report.
+        local = Path(source).expanduser()
+        if not local.exists():
+            try:
+                src = parse_source(source)
+            except Exception as e:
+                return self._send(400, {"ok": False, "error": f"bad source: {e}"})
+        else:
+            src = None
 
         server = self.server
 
         def work(console):
             installer = ctx.installer(console=console)
-            result = installer.install(src, yes=True,
-                                       install_deps=body.get("deps", True))
+            deps = body.get("deps", True)
+            result = (installer.install(src, yes=True, install_deps=deps)
+                      if src is not None
+                      else installer.install_path(local, yes=True, install_deps=deps))
             with server.lock:
                 server.registry.reload(ctx.settings.mcp.tools_dir)
             return {"installed": result.names}
@@ -343,17 +425,8 @@ class _Handler(BaseHTTPRequestHandler):
         job = server.jobs.start("update", f"Updating {name or 'everything'}", work)
         self._send(202, {"ok": True, "job": job.id})
 
-    def _render_dashboards(self):
-        from lesysbot.dashboards.render import render_all
-
-        results = render_all(self.server.ctx, force=bool(self._body().get("force")))
-        self._send(200, {"ok": True, "results": [
-            {"name": r.name, "written": r.written, "reason": r.reason}
-            for r in results
-        ]})
-
     def _remove(self):
-        """Delete an installed package — tool or dashboard, by name."""
+        """Delete an installed tool package, by name."""
         import argparse
 
         from lesysbot.cli import artifacts as artifact_cli

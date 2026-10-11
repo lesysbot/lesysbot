@@ -74,6 +74,7 @@ LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS=123456789 \
 | `LESYSBOT_SETUP_DISCORD_TOKEN` / `_DISCORD_ALLOWED_IDS` | — both required for `discord` |
 | `LESYSBOT_SETUP_AUTOSTART` | `1` |
 | `LESYSBOT_SETUP_GRAFANA_USER` / `_GRAFANA_PASSWORD` | `admin` / generated (0600 in `~/.lesysbot/grafana.env`) |
+| `LESYSBOT_SETUP_GRAFANA_PORT` | `3000`, or the next free port when another program holds it (saved as `GRAFANA_PORT` in `dashboard/.env`) |
 
 A missing required value **aborts and names the variable** — never guess one and
 never leave a remote bot with an empty allow-list, which would let anyone who
@@ -84,10 +85,10 @@ Two more guards worth knowing when scripting or testing:
 - `LESYSBOT_SKIP_SERVICE=1` — don't install/replace the background service.
   `LESYSBOT_HOME` does *not* relocate the `systemd --user` unit, so **without
   this a scratch-home test replaces the real machine's service.**
-- `LESYSBOT_HOME` — move config, tools, logs and dashboards somewhere else.
+- `LESYSBOT_HOME` — move config, tools, logs and the dashboard somewhere else.
 
 Re-running the installer or `lesysbot setup --yes` is the **upgrade** path: it
-keeps `config.yaml`, refreshes tools/dashboards, and restarts the service.
+keeps `config.yaml`, refreshes tools and the dashboard stack, and restarts the service.
 `--reconfigure` replaces the config instead.
 
 ## 3. Path C — the interactive wizard

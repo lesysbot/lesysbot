@@ -21,10 +21,11 @@ core at all:
 | Fix a bug / add a core feature | Code in `lesysbot/` + a test | Yes | [§6](#6-contributing-a-core-change) |
 | Improve the docs | Markdown in `docs/` or the root | No | [§7](#7-contributing-documentation) |
 
-> **Tools don't have to live in this repo.** Anyone can share tools from
-> a plain GitHub repo and users install it with `lesysbot install you/repo`
-> — no PR, no review, no waiting. Contribute a tool *here* when it's broadly
-> useful enough to belong in the bundled catalog.
+> **Tools don't have to live in this repo.** A tool is a folder: share it
+> however you like and users drop it in `~/.lesysbot/tools/`, or run
+> `lesysbot install <folder-or-repo>` — no PR, no review, no waiting.
+> Contribute a tool *here* when it's broadly useful enough to ship with
+> LeSysBot.
 
 ---
 
@@ -80,20 +81,17 @@ if you create one (`cp config/default.yaml config.yaml`).
 ```
 lesysbot/            the package
 ├─ __main__.py       entry point: flags, logging, adapter wiring
-├─ cli/              `lesysbot install|update|search|doctor|dashboard|…`
+├─ cli/              `lesysbot install|update|list|doctor|dashboard|…`
 ├─ core/             Agent (the tool-calling loop), config, paths, grafana, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, requirement gating
 ├─ messaging/        CLI / Telegram / Discord adapters + the base interface
 ├─ management/       the loopback panel on :8700 (stdlib http.server, no deps)
-├─ artifacts/        fetch tool AND dashboard packages from GitHub; lock; catalog
-├─ prereq/           what a package needs, whether this machine has it, the fix
-└─ dashboards/       render installed dashboard packages for Grafana
+├─ artifacts/        install tool packages (local or GitHub); lock
+└─ prereq/           what a package needs, whether this machine has it, the fix
 tools/             bundled tool packages
-dashboards/        bundled dashboard packages (System Overview)
-dashboard/         the Prometheus + Grafana stack (compose, scripts, provisioning)
-catalog.json       the marketplace index — metadata pointing at GitHub links
-hatch_build.py     copies the four above into the wheel, minus local state
+dashboard/         the Prometheus + Grafana stack and its one dashboard
+hatch_build.py     copies the two above into the wheel, minus local state
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
 scripts/           install/uninstall bootstrap (bash), logo generator
@@ -130,9 +128,8 @@ anything destructive, `requires=` for every program it shells out to.
 
 Hot reload means you can edit → save → retry without restarting.
 
-**Step 3 — Update the catalog.** Add a row to
-[tools/README.md](tools/README.md) so people browsing the repo can find it
-(bundled packages install via `lesysbot install lesysbot/lesysbot/tools/<name>`).
+**Step 3 — List it.** Add a row to the table in
+[tools/README.md](tools/README.md) so people browsing the repo can find it.
 
 **Step 4 — Lint, then open the PR** ([§8](#8-open-the-pull-request)). Tool
 packages don't require unit tests, but the tool must load cleanly (step 2) and

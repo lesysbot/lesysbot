@@ -26,20 +26,12 @@ __all__ = [
 def requirements_of(pkg) -> list[Requirement]:
     """Every requirement a package declares, from all three frontmatter shapes.
 
-    ``platforms:`` and ``requires:`` predate this module and stay exactly as
-    they were — they are folded in here rather than reimplemented, so a package
-    written years ago is checked by the same machinery as one written today.
-    ``requires_python:`` entries are marked auto-fixable via the ``pip`` checker.
+    ``requires:`` predates this module and stays exactly as it was — it is
+    folded in here rather than reimplemented, so a package written years ago is
+    checked by the same machinery as one written today. ``requires_python:``
+    entries are marked auto-fixable via the ``pip`` checker.
     """
-    from lesysbot.prereq.checks import ANY_PLATFORM
-
     out: list[Requirement] = []
-    platforms = getattr(pkg, "platforms", None) or []
-    # `platforms: all` is a statement that there is no constraint, so it becomes
-    # no requirement at all rather than one that trivially passes — otherwise
-    # `lesysbot doctor` pads every cross-platform package with a noise row.
-    if platforms and not (ANY_PLATFORM & {p.lower() for p in platforms}):
-        out.append(Requirement("os", " ".join(platforms)))
     out += [Requirement("binary", b) for b in getattr(pkg, "requires", None) or []]
     out += [Requirement("pip", p) for p in getattr(pkg, "requires_python", None) or []]
     out += [Requirement(t, v) for t, v in getattr(pkg, "prerequisites", None) or []]

@@ -6,8 +6,6 @@ import inspect
 import typing
 from typing import Any, Callable
 
-from lesysbot.mcp._legacy import note_platforms
-
 # Python type hint → JSON schema type. Anything unmapped falls back to "string".
 _TYPE_MAP = {
     str: "string",
@@ -26,7 +24,6 @@ def tool(
     description: str | None = None,
     confirm: bool | str = False,
     requires: list[str] | None = None,
-    platforms: list[str] | None = None,   # legacy, ignored — see mcp/_legacy.py
 ) -> Any:
     """Decorator to register a Python function as an MCP tool.
 
@@ -43,13 +40,11 @@ def tool(
         With a missing executable the tool is still registered but calling it
         returns a one-line explanation instead of running.
 
-    ``platforms`` is accepted and ignored: LeSysBot is Linux-only, so there is
-    no OS to choose between. It exists so tool packages written against the
-    older API keep loading; see :mod:`lesysbot.mcp._legacy`.
+    There is deliberately no OS gating: LeSysBot targets Linux only, so there
+    is no OS to choose between.
     """
     def decorator(func: Callable) -> Callable:
         tool_name = name or func.__name__
-        note_platforms(tool_name, platforms)
         tool_description = description or (inspect.getdoc(func) or "")
 
         schema = _build_schema(func)

@@ -66,7 +66,7 @@ Save it and it works — as `/hello Ada`, or when you say "say hi to Ada".
 |---|---|
 | Learn the basics | [Everyday use](docs/usage.md) |
 | Message it from my phone | [Telegram & Discord](docs/adapters.md) |
-| Add tools other people wrote | [Install tools](docs/installing-tools.md) |
+| Add a tool someone sent me | [Install tools](docs/installing-tools.md) |
 | Write my own tool | [Write a tool](docs/writing-tools.md) |
 | Fix something | [Troubleshooting](docs/troubleshooting.md) |
 
@@ -75,8 +75,8 @@ it at **[skills/](skills/README.md)**.
 
 ## Contributing
 
-A new tool doesn't need a pull request — put it in your own repo and people
-install it with `lesysbot install you/repo`. For changes to LeSysBot itself, see
+A new tool doesn't need a pull request — a tool is just a folder, so you can
+send one to someone and they drop it in `~/.lesysbot/tools/`. For changes to LeSysBot itself, see
 [CONTRIBUTING.md](CONTRIBUTING.md) and [How it works](docs/architecture.md).
 
 Questions or ideas? [LinkedIn](https://www.linkedin.com/in/syandev/) ·

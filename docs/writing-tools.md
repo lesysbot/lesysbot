@@ -88,8 +88,9 @@ and `_` so they appear in the Telegram and Discord menus.
 
 ## Share it
 
-Give the tool a folder with a `README.md`, push it to GitHub, and anyone can
-install it with `lesysbot install you/your-repo`.
+A tool is a folder, so sharing one is sharing the folder — send it, zip it, or
+push it to GitHub. Whoever gets it drops it in `~/.lesysbot/tools/`, or runs
+`lesysbot install ./gpu-temp` (or `lesysbot install you/your-repo`).
 
 ```
 gpu-temp/
@@ -108,15 +109,16 @@ requires: [nvidia-smi]
 ---
 ```
 
-A repo can hold one package at its root, or several in subfolders (or under a
-`tools/` folder). Tag releases (`git tag v1.0.0`) so people can pin one with
+One folder is one package. A folder (or repo) can also hold several, in
+subfolders or under a `tools/` folder — installing it installs them all. If you
+publish on GitHub, tag releases (`git tag v1.0.0`) so people can pin one with
 `@v1.0.0`, and bump `version:` each time.
 
 Before you share, check:
 
 - [ ] Drastic actions use `confirm=`.
 - [ ] Every program the tool runs is in `requires=[...]`.
-- [ ] It works when installed: `lesysbot install you/repo@your-branch`.
+- [ ] It works when installed: `lesysbot install ./gpu-temp`.
 
 ## Let Claude Code write it
 

@@ -346,9 +346,9 @@ full reference is in [Configuration](configuration.md).
 
 `lesysbot install owner/repo` ([lesysbot/artifacts/](../lesysbot/artifacts/))
 downloads a package from GitHub **into the same directory the bot loads**, so a
-running bot picks it up via hot reload. One verb installs tools *and*
-dashboards: the manifest decides which, and each lands in its own directory.
-The pipeline, one module per stage:
+running bot picks it up via hot reload. It installs tools only — a folder
+holding a Grafana dashboard is refused with a pointer to `lesysbot dashboard
+customize`, since LeSysBot has one dashboard. The pipeline, one module per stage:
 
 ```mermaid
 flowchart LR

@@ -1,16 +1,11 @@
 """``lesysbot install|update|remove|list|info|enable|disable`` — the whole lifecycle.
 
-One command family for tools *and* dashboards. The user does not have to know or
-say which they are installing: the package's manifest decides, and each lands in
-the directory its kind belongs in. That is the point of
-
-    lesysbot install <github_uri>
-
-being a single verb — a repo holding both installs both, in one step.
-
-Installs are **GitHub links only** (or a catalog id, which resolves to one). A
-bare word that is neither gets a usage error rather than a guess, because
-guessing at what to download is the one place this must not be clever.
+A tool is a folder, so ``install`` takes one: a path to a folder (or a ``.zip``)
+on this machine, or a GitHub link to fetch one from. **Anything on disk wins** —
+if the argument names a real path, that is what gets installed, because pointing
+at a real thing is never the ambiguous case. A bare word that is neither a path
+nor a GitHub link gets a usage error rather than a guess, since guessing at what
+to download is the one place this must not be clever.
 """
 
 from __future__ import annotations
@@ -32,13 +27,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     install = subparsers.add_parser(
         "install", parents=[common],
-        help="Add tools or dashboards from GitHub or `lesysbot search`",
+        help="Add a tool from a folder, a .zip, or GitHub",
     )
-    install.add_argument("source", help="owner/repo[/subdir][@ref], a github.com URL, "
-                                        "or a marketplace id from `lesysbot search`")
+    install.add_argument("source", help="a path to a folder or .zip on this machine, "
+                                        "or owner/repo[/subdir][@ref] / a github.com URL")
     install.add_argument("--ref", default=None, help="Branch, tag, or commit SHA")
-    install.add_argument("--kind", choices=[k.value for k in ArtifactKind], default=None,
-                         help="Install only packages of this kind")
     install.add_argument("--only", action="append", default=None, metavar="NAME",
                          help="Install only this package from a multi-package repo")
     install.add_argument("--force", action="store_true",
@@ -49,7 +42,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     update = subparsers.add_parser(
         "update", parents=[common],
-        help="Re-download installed tools and dashboards",
+        help="Re-download installed tools",
     )
     update.add_argument("names", nargs="*", metavar="NAME",
                         help="Which to update (default: everything)")
@@ -58,15 +51,14 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     update.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
     listing = subparsers.add_parser("list", parents=[common],
-                                    help="List installed tools and dashboards")
-    listing.add_argument("--kind", choices=[k.value for k in ArtifactKind], default=None)
+                                    help="List installed tools")
     listing.add_argument("--json", action="store_true", dest="as_json")
 
-    info = subparsers.add_parser("info", parents=[common], help="Show details for a tool or dashboard")
+    info = subparsers.add_parser("info", parents=[common], help="Show details for a tool")
     info.add_argument("name")
 
     remove = subparsers.add_parser("remove", parents=[common],
-                                   help="Delete a tool or dashboard")
+                                   help="Delete a tool")
     remove.add_argument("name")
     remove.add_argument("-y", "--yes", action="store_true", help="Skip confirmation")
 
@@ -100,35 +92,24 @@ def _looks_like_github(source: str) -> bool:
     return "/" in source or "://" in source or source.startswith("git@")
 
 
-def _resolve_source(ctx: CLIContext, source: str) -> str:
-    """Turn a marketplace id into its GitHub link, or pass a link through.
+def _unusable_source(ctx: CLIContext, source: str) -> _Reported:
+    """Report a source that is neither a path on disk nor a GitHub link.
 
-    The catalog is metadata, never a resolver of its own: whatever it hands back
-    goes through the same `parse_source` and the same consent prompt as a link
-    typed by hand, so "you can read the repo before you install it" still holds.
+    Printed here rather than raised, because the usage lines contain
+    `[/subdir]` — which Rich's markup parser reads as a closing tag and then
+    raises MarkupError on, turning a helpful message into a crash.
     """
-    from lesysbot.artifacts.catalog import load_catalog
-
-    if _looks_like_github(source):
-        return source
-    entry = load_catalog().find(source)
-    if entry is None:
-        # Printed here rather than raised, because the usage lines contain
-        # `[/subdir]` — which Rich's markup parser reads as a closing tag and
-        # then raises MarkupError on, turning a helpful message into a crash.
-        ctx.console.print(
-            f"[red]Error:[/red] {source!r} isn't a GitHub link, and no "
-            "marketplace entry matches it."
-        )
-        ctx.console.print(
-            "    lesysbot install owner/repo[/subdir][@ref]\n"
-            "    lesysbot install https://github.com/owner/repo\n"
-            "    lesysbot search <query>      to find an id",
-            markup=False,
-        )
-        raise _Reported()
-    ctx.console.print(f"[dim]{source} → {entry.source}[/dim]")
-    return entry.source
+    ctx.console.print(
+        f"[red]Error:[/red] {source!r} is neither a path on this machine "
+        "nor a GitHub link."
+    )
+    ctx.console.print(
+        "    lesysbot install ./my-tool                 a folder (or a .zip)\n"
+        "    lesysbot install owner/repo[/subdir][@ref]\n"
+        "    lesysbot install https://github.com/owner/repo",
+        markup=False,
+    )
+    return _Reported()
 
 
 class _Reported(ToolInstallError):
@@ -143,19 +124,34 @@ class _Reported(ToolInstallError):
 
 
 def _install(ctx: CLIContext, args: argparse.Namespace) -> int:
+    """Install from a local path if there is one, else from GitHub.
+
+    Disk is checked first and wins outright: a bare word is not a valid GitHub
+    spec anyway, so the only way both could match is a relative path that also
+    reads as `owner/repo` — and there, the folder the user can actually see is
+    the better answer.
+    """
     from lesysbot.artifacts.spec import parse_source
 
-    src = parse_source(_resolve_source(ctx, args.source))
-    if args.ref:
-        src = replace(src, ref=args.ref)
-    result = ctx.installer().install(
-        src,
+    common = dict(
         only=args.only,
-        kind=ArtifactKind(args.kind) if args.kind else None,
         force=args.force,
         yes=args.yes,
         install_deps=not args.no_deps,
     )
+
+    local = Path(args.source).expanduser()
+    if local.exists():
+        if args.ref:
+            return ctx.error("--ref applies to a GitHub source, not a local path")
+        result = ctx.installer().install_path(local, **common)
+    else:
+        if not _looks_like_github(args.source):
+            raise _unusable_source(ctx, args.source)
+        src = parse_source(args.source)
+        if args.ref:
+            src = replace(src, ref=args.ref)
+        result = ctx.installer().install(src, **common)
     return 0 if result or not result.skipped else 1
 
 
@@ -215,7 +211,9 @@ def _update(ctx: CLIContext, args: argparse.Namespace) -> int:
 
 def _select_for_update(ctx: CLIContext, entries: dict, names: list[str]) -> dict | None:
     """Entries to update, honouring bare names given on the command line."""
-    updatable = {k: e for k, e in entries.items() if e.get("repo")}
+    # Only kinds this version installs: an older lock may still name dashboards.
+    updatable = {k: e for k, e in entries.items()
+                 if e.get("repo") and e.get("kind", "tool") == ArtifactKind.TOOL.value}
     if not names:
         return updatable
     chosen, missing = {}, []
@@ -235,12 +233,11 @@ def _select_for_update(ctx: CLIContext, entries: dict, names: list[str]) -> dict
 def _report_update_check(ctx: CLIContext, wanted: dict) -> int:
     """What `--check` prints. Deliberately writes nothing and fetches nothing."""
     table = Table(box=None, pad_edge=False)
-    for col in ("name", "kind", "origin", "pinned", "installed"):
+    for col in ("name", "origin", "pinned", "installed"):
         table.add_column(col)
     for key, entry in sorted(wanted.items()):
         table.add_row(
             entry.get("name", key.split(":", 1)[-1]),
-            entry.get("kind", "tool"),
             entry.get("repo", "?"),
             entry.get("requested_ref") or "HEAD",
             (entry.get("commit") or "?")[:7],
@@ -255,57 +252,47 @@ def _report_update_check(ctx: CLIContext, wanted: dict) -> int:
 
 # -- list / info ---------------------------------------------------------------
 
-def _rows(ctx: CLIContext, kind: str | None) -> list[dict]:
-    """Installed packages, joining live tool status with lock provenance."""
+def _rows(ctx: CLIContext) -> list[dict]:
+    """Installed tools, joining live tool status with lock provenance."""
     lock = ctx.lock.load()
     rows: list[dict] = []
-
-    if kind in (None, ArtifactKind.TOOL.value):
-        registry = ctx.registry()
-        for row in registry.tool_status():
-            src = row.get("source")
-            unit = src["unit"] if src else None
-            entry = lock.get(f"tool:{unit}") if unit else None
-            rows.append({**row, "kind": "tool", "unit": unit,
-                         "origin": _origin(entry), "version": (entry or {}).get("version")})
-
-    if kind in (None, ArtifactKind.DASHBOARD.value):
-        for name, entry in sorted(ctx.lock.of_kind(ArtifactKind.DASHBOARD).items()):
-            installed = ctx.dashboards_dir / name
-            rows.append({
-                "name": name, "kind": "dashboard",
-                "description": entry.get("description", ""),
-                "enabled": True, "available": installed.is_dir(),
-                "unavailable_reason": "" if installed.is_dir() else "files are missing",
-                "unit": name, "origin": _origin(entry), "version": entry.get("version"),
-            })
+    for row in ctx.registry().tool_status():
+        src = row.get("source")
+        unit = src["unit"] if src else None
+        entry = lock.get(f"tool:{unit}") if unit else None
+        rows.append({**row, "kind": "tool", "unit": unit,
+                     "origin": _origin(entry), "version": (entry or {}).get("version")})
     return rows
 
 
 def _origin(entry: dict | None) -> str:
+    # No entry means a folder someone copied in by hand; a `path` entry means
+    # `lesysbot install <path>` did the copying. Both are local.
     if not entry:
         return "local"
     if entry.get("bundled"):
         return "bundled"
-    origin = entry.get("repo", "?")
+    if not entry.get("repo"):
+        return "local"
+    origin = entry["repo"]
     if entry.get("commit"):
         origin += f"@{entry['commit'][:7]}"
     return origin
 
 
 def _list(ctx: CLIContext, args: argparse.Namespace) -> int:
-    rows = _rows(ctx, args.kind)
+    rows = _rows(ctx)
     if args.as_json:
         ctx.console.print_json(json.dumps(rows))
         return 0
     if not rows:
         ctx.console.print(
-            "Nothing installed. Find something with `lesysbot search`, "
+            "Nothing installed. Add a tool with `lesysbot install <folder>`, "
             "or `lesysbot install owner/repo`."
         )
         return 0
     table = Table(box=None, pad_edge=False)
-    for col in ("name", "kind", "status", "origin", "description"):
+    for col in ("name", "status", "origin", "description"):
         table.add_column(col)
     for row in rows:
         if not row["enabled"]:
@@ -315,7 +302,7 @@ def _list(ctx: CLIContext, args: argparse.Namespace) -> int:
         else:
             status = "[green]ok[/green]"
         origin = row["origin"]
-        table.add_row(row["name"], row["kind"], status,
+        table.add_row(row["name"], status,
                       origin if origin not in ("local", "bundled") else f"[dim]{origin}[/dim]",
                       row.get("description") or "")
     ctx.console.print(table)
@@ -323,20 +310,18 @@ def _list(ctx: CLIContext, args: argparse.Namespace) -> int:
 
 
 def _info(ctx: CLIContext, args: argparse.Namespace) -> int:
-    row = next((r for r in _rows(ctx, None) if r["name"] == args.name), None)
+    row = next((r for r in _rows(ctx) if r["name"] == args.name), None)
     if row is None:
         return _missing(ctx, args.name)
     entry = ctx.lock.get(row["kind"], row.get("unit") or row["name"]) or {}
     pairs = [
         ("name", row["name"]),
-        ("kind", row["kind"]),
         ("description", row.get("description")),
         ("version", entry.get("version")),
         ("enabled", row.get("enabled")),
         ("available", True if row["available"] else f"no — {row['unavailable_reason']}"),
-        ("platforms", ", ".join(row.get("platforms") or []) or None),
         ("requires", ", ".join(row.get("requires") or []) or None),
-        ("installed from", entry.get("repo")),
+        ("installed from", entry.get("repo") or entry.get("path")),
         ("commit", entry.get("commit")),
         ("installed at", entry.get("installed_at")),
         ("updated at", entry.get("updated_at")),
@@ -366,12 +351,9 @@ def _confirm(message: str) -> bool:
 def _remove(ctx: CLIContext, args: argparse.Namespace) -> int:
     from lesysbot.artifacts.lockfile import drop_entries
 
-    row = next((r for r in _rows(ctx, None) if r["name"] == args.name), None)
+    row = next((r for r in _rows(ctx) if r["name"] == args.name), None)
     if row is None:
         return _missing(ctx, args.name)
-
-    if row["kind"] == ArtifactKind.DASHBOARD.value:
-        return _remove_dashboard(ctx, args, row)
 
     registry = ctx.registry()
     info = registry.tool_source(args.name)
@@ -396,28 +378,6 @@ def _remove(ctx: CLIContext, args: argparse.Namespace) -> int:
         "[dim]A running LeSysBot with hot_reload drops it automatically; "
         "otherwise restart.[/dim]"
     )
-    return 0
-
-
-def _remove_dashboard(ctx: CLIContext, args, row) -> int:
-    from lesysbot.artifacts.lockfile import drop_entries
-    from lesysbot.core.paths import force_rmtree, generated_dashboards_dir
-
-    target = ctx.dashboards_dir / args.name
-    ctx.console.print(f"[bold]{args.name}[/bold] (dashboard) — {target}")
-    if not args.yes and not _confirm(f"Permanently delete {target}?"):
-        ctx.console.print("Aborted.")
-        return 0
-    if target.is_dir():
-        force_rmtree(target)
-    # Un-provision too: leaving the rendered JSON behind means Grafana keeps
-    # serving a dashboard the user just deleted.
-    rendered = generated_dashboards_dir(ctx.settings.config_dir) / f"{args.name}.json"
-    if rendered.exists():
-        rendered.unlink()
-        ctx.console.print("[dim]un-provisioned from Grafana[/dim]")
-    drop_entries(ctx.lock_path, [args.name], ArtifactKind.DASHBOARD)
-    ctx.console.print(f"[green]✔[/green] Removed {args.name}")
     return 0
 
 
@@ -447,9 +407,3 @@ def _enable(ctx: CLIContext, args: argparse.Namespace) -> int:
 def _disable(ctx: CLIContext, args: argparse.Namespace) -> int:
     return _set_enabled(ctx, args.name, False)
 
-
-def dashboards_dir_for(settings) -> Path:
-    """Public helper for callers that have Settings but no CLIContext."""
-    from lesysbot.core.paths import installed_dashboards_dir
-
-    return installed_dashboards_dir(settings.config_dir)

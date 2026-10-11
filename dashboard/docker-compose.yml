@@ -57,17 +57,12 @@ services:
       GF_NEWS_NEWS_FEED_ENABLED: "false"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      # A *directory* of rendered dashboards, not one file. Grafana's file
-      # provider loads every JSON it finds there, which is what lets more than
-      # one dashboard exist — the single-file `DASH_JSON` mount this replaces
-      # made "install a second dashboard" structurally impossible.
-      #
-      # It is populated by `lesysbot dashboard render`, which writes only the
-      # dashboards this host can actually fill, and by the start scripts falling
-      # back to gen-dashboards.py when LeSysBot isn't installed. Bind-mounted
-      # read-only: Grafana UI edits are still accepted and still reverted on the
-      # next provision, so the durable way to change a dashboard is to edit its
-      # package and re-render.
+      # The dashboard start.sh writes for this host — or the user's own copy,
+      # when `lesysbot dashboard customize` made one. A directory rather than a
+      # single-file mount so start.sh can replace the file atomically.
+      # Read-only: change the dashboard by editing ~/.lesysbot/dashboard/
+      # dashboard.json, not in Grafana's editor, or the edit is lost on the next
+      # start.
       - ./grafana/dashboards/generated:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
