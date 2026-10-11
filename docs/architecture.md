@@ -398,7 +398,10 @@ Two independent records of what happened
 The one network listener in the project is the control panel in
 [lesysbot/management/](../lesysbot/management/) — a stdlib `ThreadingHTTPServer`
 bound to `127.0.0.1` only, with a DNS-rebinding guard that rejects any request
-whose `Host` header isn't loopback. It has no authentication: the trust boundary
+whose `Host` header isn't loopback. That guard doesn't stop a web page in your
+browser from POSTing to `127.0.0.1:8700`, so every write must also be
+`Content-Type: application/json` (which forces a CORS preflight the server never
+answers) and carry no `Origin`, or a loopback one. It has no authentication: the trust boundary
 is a shell on the machine, the same access as editing `config.yaml`. The
 single-page UI is inlined as a Python string, so it ships with the package and
 adds no dependencies.

@@ -45,7 +45,7 @@ The bot opens no port. What does listen is bound to `127.0.0.1`:
 
 | What | Where | Notes |
 |---|---|---|
-| [Control panel](management-ui.md) | `127.0.0.1:8700` | No login — anyone on this machine can use it. It can change your config and replace tokens, but never shows a saved one. |
+| [Control panel](management-ui.md) | `127.0.0.1:8700` | No login — anyone on this machine can use it. It can change your config and replace tokens, but never shows a saved one. Websites you visit can't use it: it refuses changes sent from any other site. |
 | [Grafana](dashboards.md) | `127.0.0.1:3000` | Uses the login from setup. Change it if it's still `admin`/`admin`. |
 
 If you ever need either from another machine, use an SSH tunnel or a reverse

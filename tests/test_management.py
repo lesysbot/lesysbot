@@ -39,11 +39,12 @@ class _Live:
         self.th = threading.Thread(target=self.srv.serve_forever, daemon=True)
         self.th.start()
 
-    def req(self, method, path, body=None, host=None):
+    def req(self, method, path, body=None, host=None, headers=None):
         url = f"http://127.0.0.1:{self.port}{path}"
         data = json.dumps(body).encode() if body is not None else None
         r = urllib.request.Request(url, data=data, method=method,
-                                   headers={"Content-Type": "application/json"})
+                                   headers={"Content-Type": "application/json",
+                                            **(headers or {})})
         if host:
             r.add_header("Host", host)
         try:
@@ -134,6 +135,26 @@ def test_rejects_forged_host(live):
     # a loopback Host is fine
     code, _ = live.req("GET", "/api/tools", host="localhost:1234")
     assert code == 200
+
+
+def test_rejects_cross_site_writes(live):
+    """A web page can POST to 127.0.0.1 with a loopback Host header, so the
+    Host check alone would let any site rewrite the bot token."""
+    body = {"name": "nope", "enabled": False}
+    # A "simple" cross-site request: no JSON content type, so no preflight.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Content-Type": "text/plain"})
+    assert code == 403
+    # JSON, but sent from another site's page.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Origin": "https://evil.example.com"})
+    assert code == 403
+    # The panel's own page (loopback Origin) and non-browser clients get through.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Origin": f"http://127.0.0.1:{live.port}"})
+    assert code == 404                   # unknown tool — past the guard
+    code, _ = live.req("POST", "/api/tools/toggle", body)
+    assert code == 404
 
 
 def test_cli_dispatch_decision():

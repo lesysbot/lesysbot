@@ -145,6 +145,24 @@ class _Handler(BaseHTTPRequestHandler):
     def _host_ok(self) -> bool:
         return (self.headers.get("Host", "").split(":")[0]) in _ALLOWED_HOSTS
 
+    def _write_ok(self) -> bool:
+        """Is this POST from the panel itself, not another site in the browser?
+
+        The Host check stops DNS rebinding, not cross-site requests: any page
+        can POST to ``http://127.0.0.1:8700`` and the Host still reads
+        127.0.0.1. Such a "simple" request can't set ``Content-Type:
+        application/json`` without a CORS preflight, which this server never
+        answers — so requiring it, plus a loopback Origin when one is sent,
+        keeps a web page from rewriting the bot token or installing a tool.
+        """
+        ctype = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return False
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True                  # not a browser (curl, tests)
+        return (urlparse(origin).hostname or "") in _ALLOWED_HOSTS - {""}
+
     def _send(self, code, body, ctype="application/json"):
         if isinstance(body, bytes):
             data = body
@@ -196,6 +214,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._host_ok():
             return self._send(403, {"error": "forbidden host"})
+        if not self._write_ok():
+            return self._send(403, {"error": "cross-site request refused"})
         path = urlparse(self.path).path
         try:
             if path == "/api/config":
