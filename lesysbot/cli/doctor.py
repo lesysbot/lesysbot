@@ -65,12 +65,11 @@ def _installed_packages(ctx: CLIContext):
     """Read installed packages off disk, without importing their code."""
     from lesysbot.artifacts.manifest import _package_from
 
-    for directory in (ctx.tools_dir, ctx.dashboards_dir):
-        if not directory.is_dir():
-            continue
-        for sub in sorted(directory.iterdir()):
-            if sub.is_dir() and not sub.name.startswith((".", "_")):
-                yield _package_from(sub, sub.name)
+    if not ctx.tools_dir.is_dir():
+        return
+    for sub in sorted(ctx.tools_dir.iterdir()):
+        if sub.is_dir() and not sub.name.startswith((".", "_")):
+            yield _package_from(sub, sub.name)
 
 
 def _render(ctx: CLIContext, report) -> None:

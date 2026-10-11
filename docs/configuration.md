@@ -80,6 +80,9 @@ LESYSBOT_GRAFANA_USER=admin
 LESYSBOT_GRAFANA_PASSWORD=…
 ```
 
+Forgot it, or Grafana refuses it? See
+[Forgot the password?](dashboards.md#forgot-the-password).
+
 LeSysBot finds Grafana on its own. Add `LESYSBOT_GRAFANA_URL=…` only if Grafana
 runs on another machine.
 

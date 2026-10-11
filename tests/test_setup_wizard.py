@@ -1000,3 +1000,57 @@ def test_generated_passwords_differ():
 )
 def test_parse_allowed_ids(raw, expected):
     assert wizard.parse_allowed_ids(raw) == expected
+
+
+# ── Existing Grafana volume: the saved password must actually reach Grafana ────
+class GrafanaRunner:
+    """Our Grafana container is running; records `docker exec` calls."""
+
+    def __init__(self, reset_rc=0):
+        self.calls, self.inputs, self.reset_rc = [], [], reset_rc
+
+    def __call__(self, cmd, **kw):
+        import subprocess
+
+        self.calls.append(cmd)
+        if cmd[:2] == ["docker", "inspect"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="true false GF_SERVER_HTTP_PORT=3001")
+        if cmd[:2] == ["docker", "exec"]:
+            self.inputs.append(kw.get("input"))
+            return subprocess.CompletedProcess(cmd, self.reset_rc, stdout="", stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+
+def _fake_grafana(monkeypatch):
+    from lesysbot.core import grafana
+
+    monkeypatch.setattr(grafana, "api_health", lambda url, **_: "11.5.1")
+
+
+def test_apply_grafana_login_resets_the_password_over_stdin(monkeypatch):
+    _fake_grafana(monkeypatch)
+    runner = GrafanaRunner()
+    ui = FakeUI([])
+    assert apply_mod.apply_grafana_login(ui, "http://localhost:3001", "admin",
+                                         "new-password", runner=runner, wait=0)
+    execs = [c for c in runner.calls if c[:2] == ["docker", "exec"]]
+    assert execs and "reset-admin-password" in execs[0]
+    # Over stdin, never argv; and never printed.
+    assert runner.inputs == ["new-password"]
+    assert all("new-password" not in c for c in runner.calls)
+    assert not _said(ui, "new-password")
+
+
+def test_apply_grafana_login_warns_when_reset_fails(monkeypatch):
+    _fake_grafana(monkeypatch)
+    ui = FakeUI([])
+    assert not apply_mod.apply_grafana_login(ui, "http://localhost:3001", "admin",
+                                             "pw", runner=GrafanaRunner(reset_rc=1), wait=0)
+    assert _said(ui, "reset-admin-password")
+
+
+def test_apply_grafana_login_skips_when_grafana_not_running(monkeypatch):
+    runner = DockerRunner()   # docker inspect → empty stdout → not running
+    assert not apply_mod.apply_grafana_login(FakeUI([]), "http://localhost:3000",
+                                             "admin", "pw", runner=runner, wait=0)
+    assert not [c for c in runner.calls if c[:2] == ["docker", "exec"]]

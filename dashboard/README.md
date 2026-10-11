@@ -12,6 +12,7 @@ flowchart LR
     ne["node_exporter<br>CPU · memory · disk · network · temps"] --> prom
     gpu["nvidia_gpu_exporter<br>GPU"] --> prom
     prom["Prometheus<br>scrapes every 15 s"] --> graf["Grafana<br>localhost:3000"]
+    graf --> bot["LeSysBot<br>share_dashboard"]
 ```
 
 ## Prerequisites
@@ -73,7 +74,7 @@ so some may be empty.
 
 | Service | Address | Notes |
 |---|---|---|
-| Grafana | `127.0.0.1:3000` | login from `lesysbot setup` |
+| Grafana | `127.0.0.1:3000` | or the next free port — `GRAFANA_PORT` in `.env` |
 | Prometheus | `127.0.0.1:9090` | `/targets` shows exporter health |
 | node_exporter | `127.0.0.1:9100` | host metrics |
 | nvidia_gpu_exporter | `127.0.0.1:9835` | GPU metrics |
@@ -89,16 +90,45 @@ Edit `.env` (copied from `.env.example`; `lesysbot setup` never overwrites it):
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=change-me
 PROM_RETENTION=15d        # how long to keep data
-GRAFANA_PORT=3000         # change if 3000 is taken
+GRAFANA_PORT=3000         # moved automatically if 3000 is taken
 PROM_PORT=9090            # change if 9090 is taken
 ```
 
+If another program already listens on `GRAFANA_PORT`, `start.sh` moves Grafana
+to the next free port and writes it here, so the move sticks. Choose it yourself
+with `lesysbot dashboard start --grafana-port N` (or `./scripts/start.sh up
+--grafana-port N`); a port you name is used as given, or refused if it's taken.
 LeSysBot reads `GRAFANA_PORT` back, so the status screen and dashboard sharing
 follow a moved Grafana with no other change.
+
+`GRAFANA_ADMIN_USER`/`GRAFANA_ADMIN_PASSWORD` only apply the first time Grafana
+starts with empty data; after that Grafana keeps the password in its own
+database. See [Login](#login).
 
 - **Add a machine or exporter:** add its `host:port` to
   `prometheus/prometheus.yml`, then `curl -X POST http://localhost:9090/-/reload`.
 - **Keep more history:** raise `PROM_RETENTION`.
+
+## Login
+
+`lesysbot setup` asks for the Grafana login and writes it to two files:
+
+| File | Read by |
+|---|---|
+| `~/.lesysbot/grafana.env` (`LESYSBOT_GRAFANA_*`) | LeSysBot — snapshot sharing and the status screen |
+| `~/.lesysbot/dashboard/.env` (`GRAFANA_ADMIN_*`) | Grafana, on its first start only |
+
+When the Grafana container is already running, setup also resets its admin
+password to the one you entered, so the three always agree after a setup run.
+To set it by hand instead:
+
+```bash
+docker exec -i lesysbot-grafana grafana cli admin reset-admin-password --password-from-stdin
+```
+
+Then put the same password in both files. Grafana locks a user for 5 minutes
+after 5 failed logins in 5 minutes; the lock is kept in its database, so
+restarting the container doesn't clear it.
 
 ## Editing the built-in dashboard
 
@@ -111,9 +141,11 @@ python3 scripts/gen-dashboards.py              # the portable JSON
 python3 scripts/gen-dashboards.py --host linux --have cpu_temp,disk_temp,nvidia --out FILE
 ```
 
-Grafana reloads provisioned dashboards within 30 seconds. To add a separate
-dashboard, make a package instead — see
-[Dashboards](../docs/dashboards.md#change-or-write-one).
+Grafana reloads provisioned dashboards within 30 seconds. That changes the
+default for everyone; to change just your own, use `lesysbot dashboard
+customize` — see [Dashboards](../docs/dashboards.md#change-it). When
+`dashboard.json` exists in this folder, `start.sh` uses it instead of
+generating one.
 
 ## Troubleshooting
 
@@ -122,7 +154,8 @@ dashboard, make a package instead — see
 | A target is `down` at `localhost:9090/targets` | Normal for exporters you don't run — e.g. `nvidia_gpu` without an NVIDIA card. |
 | GPU row empty | No NVIDIA card, `nvidia-smi` missing, or no GPU exporter running. |
 | No temperature row | The host exposes no sensors (normal in a VM). On bare metal, run the `modprobe` `start.sh` prints, then start again. Check with `cat /sys/class/hwmon/*/name`. |
-| "address already in use" | Another program has 3000 or 9090 (VS Code often uses 9090). Change `GRAFANA_PORT` / `PROM_PORT` in `.env`. |
+| "address already in use" | Grafana moves off a taken port by itself. For Prometheus (VS Code often uses 9090), change `PROM_PORT` in `.env`. |
+| Login refused | See [Login](#login). After 5 wrong tries, wait 5 minutes. |
 | Every panel empty | Prometheus isn't running — `docker compose ps` and its logs. |
 | Port 9835 conflict | The containerised and native GPU exporters are both running. Use one. |
 
@@ -138,13 +171,14 @@ docker compose --profile gpu down -v
 dashboard/
 ├── docker-compose.yml       the stack (host network, localhost-bound)
 ├── .env.example             ports, retention, Grafana login
+├── dashboard.json           your own copy, if you made one (used instead of the generated one)
 ├── prometheus/prometheus.yml   scrape config
 ├── grafana/
 │   ├── provisioning/        datasource + dashboard auto-load
 │   └── dashboards/
 │       ├── system-overview.json   generated, portable
 │       ├── generated-*.json       per-host cuts from start.sh (git-ignored)
-│       └── generated/             rendered dashboard packages (git-ignored)
+│       └── generated/             what Grafana shows — written by start.sh (git-ignored)
 └── scripts/
     ├── start.sh             start/stop, probes the host
     ├── run-exporters.sh     native exporters (GPU fallback)

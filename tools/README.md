@@ -1,8 +1,9 @@
 # LeSysBot tools
 
-Each folder here is a **self-contained tool package**. They ship with LeSysBot
-and `lesysbot setup` installs them into `~/.lesysbot/tools/`, so there is nothing
-to fetch. To pull a copy newer than your release:
+Each folder here is a **self-contained tool package** — copy one anywhere and it
+still works. They ship with LeSysBot and `lesysbot setup` installs them into
+`~/.lesysbot/tools/`, so there is nothing to fetch. To pull a copy newer than
+your release:
 
 ```bash
 lesysbot install lesysbot/lesysbot/tools/temperature   # one package
@@ -12,7 +13,7 @@ lesysbot install lesysbot/lesysbot/tools               # all of them
 See [Install tools](../docs/installing-tools.md) and
 [Write a tool](../docs/writing-tools.md).
 
-## Catalog
+## What's here
 
 | Package        | Tools                                  | Needs                         |
 |----------------|----------------------------------------|-------------------------------|

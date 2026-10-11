@@ -17,7 +17,6 @@ from rich.console import Console
 from lesysbot.artifacts.kinds import ArtifactKind
 from lesysbot.artifacts.lockfile import ArtifactLock
 from lesysbot.core.config import Settings, resolve_paths
-from lesysbot.core.paths import installed_dashboards_dir
 
 
 def config_parent() -> argparse.ArgumentParser:
@@ -50,20 +49,9 @@ class CLIContext:
         return Path(self.settings.mcp.tools_dir)
 
     @property
-    def dashboards_dir(self) -> Path:
-        """Where dashboard packages install.
-
-        Anchored to the *config's* directory when there is one, so a dev
-        checkout with a local config.yaml keeps its dashboards beside it rather
-        than reaching into the user's real home.
-        """
-        return installed_dashboards_dir(self.settings.config_dir)
-
-    @property
     def destinations(self) -> dict[ArtifactKind, Path]:
         return {
             ArtifactKind.TOOL: self.tools_dir,
-            ArtifactKind.DASHBOARD: self.dashboards_dir,
         }
 
     @property

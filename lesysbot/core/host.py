@@ -9,9 +9,9 @@ OS to choose between — but two of its facts outlived it:
 * **OS version**, because exporter metric names move between distro releases,
   so a dashboard may need "Ubuntu >= 24.04" even though the OS is a given.
 
-``current_os()`` survives as a constant so the marketplace and the dashboard
-renderer can keep labelling and filtering without special-casing; it is the one
-value here that can no longer vary.
+``current_os()`` survives as a constant so the dashboard renderer and the
+prerequisite checks can keep labelling and filtering without special-casing; it
+is the one value here that can no longer vary.
 """
 from __future__ import annotations
 

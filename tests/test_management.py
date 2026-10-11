@@ -6,6 +6,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
+import yaml
 
 from lesysbot.core.config import Settings
 from lesysbot.core.status import build_registry, gather_status
@@ -38,11 +39,12 @@ class _Live:
         self.th = threading.Thread(target=self.srv.serve_forever, daemon=True)
         self.th.start()
 
-    def req(self, method, path, body=None, host=None):
+    def req(self, method, path, body=None, host=None, headers=None):
         url = f"http://127.0.0.1:{self.port}{path}"
         data = json.dumps(body).encode() if body is not None else None
         r = urllib.request.Request(url, data=data, method=method,
-                                   headers={"Content-Type": "application/json"})
+                                   headers={"Content-Type": "application/json",
+                                            **(headers or {})})
         if host:
             r.add_header("Host", host)
         try:
@@ -133,6 +135,26 @@ def test_rejects_forged_host(live):
     # a loopback Host is fine
     code, _ = live.req("GET", "/api/tools", host="localhost:1234")
     assert code == 200
+
+
+def test_rejects_cross_site_writes(live):
+    """A web page can POST to 127.0.0.1 with a loopback Host header, so the
+    Host check alone would let any site rewrite the bot token."""
+    body = {"name": "nope", "enabled": False}
+    # A "simple" cross-site request: no JSON content type, so no preflight.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Content-Type": "text/plain"})
+    assert code == 403
+    # JSON, but sent from another site's page.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Origin": "https://evil.example.com"})
+    assert code == 403
+    # The panel's own page (loopback Origin) and non-browser clients get through.
+    code, _ = live.req("POST", "/api/tools/toggle", body,
+                       headers={"Origin": f"http://127.0.0.1:{live.port}"})
+    assert code == 404                   # unknown tool — past the guard
+    code, _ = live.req("POST", "/api/tools/toggle", body)
+    assert code == 404
 
 
 def test_cli_dispatch_decision():
@@ -248,6 +270,25 @@ def test_detect_grafana(monkeypatch, tmp_path):
         "url": "http://gf:3000", "version": None, "reachable": False}
 
 
+def test_home_dashboard_url_links_a_provisioned_dashboard(tmp_path):
+    """The panel's "Open dashboard" goes to /d/<uid>, not Grafana's home page."""
+    import json
+
+    from lesysbot.core import grafana
+
+    assert grafana.home_dashboard_url("http://localhost:3001", tmp_path) is None
+    gen = tmp_path / "dashboard" / "grafana" / "dashboards" / "generated"
+    gen.mkdir(parents=True)
+    (gen / "gpu-detail.json").write_text(json.dumps({"uid": "lesysbot-gpu-detail"}))
+    assert (grafana.home_dashboard_url("http://localhost:3001", tmp_path)
+            == "http://localhost:3001/d/lesysbot-gpu-detail")
+    # System Overview wins over any other dashboard, and a broken file is skipped.
+    (gen / "system-overview.json").write_text(json.dumps({"uid": "lesysbot-node"}))
+    (gen / "broken.json").write_text("{not json")
+    assert (grafana.home_dashboard_url("http://localhost:3001/", tmp_path)
+            == "http://localhost:3001/d/lesysbot-node")
+
+
 def test_grafana_candidates_prefer_the_configured_port(monkeypatch, tmp_path):
     """A stack moved off 3000 (GRAFANA_PORT in dashboard/.env) is probed first."""
     from lesysbot.core import status
@@ -280,22 +321,15 @@ def _json(live, method, path, body=None):
     return code, (json.loads(raw) if raw else {})
 
 
-# ── marketplace, dashboards, doctor and the job table ─────────────────────────
-# These back the panel's new tabs. The job table is the one genuinely new
-# mechanism: an install downloads a zipball and may run pip, which is far too
-# long to hold an HTTP request open — a slow network would be indistinguishable
-# from a hung panel.
+# ── artifacts, dashboards, doctor and the job table ───────────────────────────
+# These back the panel's tabs. The job table is the one genuinely new mechanism:
+# an install downloads a zipball and may run pip, which is far too long to hold
+# an HTTP request open — a slow network would be indistinguishable from a hung
+# panel.
 
-def test_catalog_endpoint_marks_what_runs_here_and_what_is_installed(live):
-    code, body = _json(live, "GET", "/api/catalog")
-    assert code == 200
-    for entry in body["entries"]:
-        assert {"id", "kind", "source", "runs_here", "installed"} <= set(entry)
-        # The guarantee that makes the catalog safe: it only ever hands back a
-        # GitHub link, which the installer parses like any other.
-        from lesysbot.artifacts.spec import parse_source
-
-        parse_source(entry["source"])
+def test_catalog_endpoint_is_gone(live):
+    """The marketplace was removed; the panel installs from a link, not an index."""
+    assert _json(live, "GET", "/api/catalog")[0] == 404
 
 
 def test_artifacts_endpoint_is_json_serialisable(live):
@@ -304,9 +338,10 @@ def test_artifacts_endpoint_is_json_serialisable(live):
     assert code == 200 and isinstance(body["artifacts"], list)
 
 
-def test_dashboards_endpoint_reports_state(live):
-    code, body = _json(live, "GET", "/api/dashboards")
-    assert code == 200 and isinstance(body["dashboards"], list)
+def test_dashboard_render_endpoints_are_gone(live):
+    """One dashboard, generated by the stack — nothing for the panel to render."""
+    assert _json(live, "GET", "/api/dashboards")[0] == 404
+    assert _json(live, "POST", "/api/dashboards/render", {})[0] == 404
 
 
 def test_prereq_endpoint_returns_reports_with_fixes(live):
@@ -338,10 +373,183 @@ def test_install_returns_a_job_rather_than_blocking(live, monkeypatch):
     assert job["state"] == "failed" and job["error"]
 
 
-def test_install_rejects_an_unresolvable_source(live):
+def test_install_rejects_an_unparseable_source(live):
     code, body = _json(live, "POST", "/api/artifacts/install", {"source": "not-a-link"})
-    assert code == 400 and "not a GitHub link" in body["error"]
+    assert code == 400 and "bad source" in body["error"]
 
 
 def test_install_requires_a_source(live):
     assert _json(live, "POST", "/api/artifacts/install", {})[0] == 400
+
+
+def test_install_accepts_a_local_folder(live, tmp_path):
+    """The panel takes the same sources the CLI does — a path on disk included."""
+    pkg = tmp_path / "greet"
+    pkg.mkdir()
+    (pkg / "tool.py").write_text(
+        "from lesysbot.mcp import tool\n\n\n"
+        '@tool(description="hi")\n'
+        "async def greet() -> str:\n    return 'hi'\n"
+    )
+    code, body = _json(live, "POST", "/api/artifacts/install", {"source": str(pkg)})
+    assert code == 202 and body["job"]
+
+
+# -- secrets & the Messaging form ----------------------------------------------
+TG_TOKEN = "123456789:AAFakeTokenForTestsOnly_abcdefghijk"
+DC_TOKEN = "MTAxMjM0NTY3ODkwMTIzNDU2.GabcDE.fake-discord-token-for-tests_123"
+
+_CFG = f"""\
+messaging:
+  provider: telegram  # cli | telegram | discord
+
+  telegram:
+    token: "{TG_TOKEN}"
+    allowed_user_ids: [111]  # Empty = allow everyone
+
+  discord:
+    token: "${{DISCORD_TOKEN}}"
+    allowed_user_ids: []
+
+llm:
+  model: m
+  api_key: "sk-proj-0123456789abcdef"  # real key
+"""
+
+
+@pytest.fixture
+def cfg_live(tmp_path, monkeypatch):
+    """A live panel whose config.yaml holds real-looking secrets."""
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path))
+    monkeypatch.setenv("LESYSBOT_SKIP_SERVICE", "1")
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(_CFG)
+    s = _make_settings(tmp_path)
+    s._config_path = cfg
+    live = _Live(s)
+    yield live, cfg
+    live.stop()
+
+
+def test_config_editor_never_sends_secrets(cfg_live):
+    live, cfg = cfg_live
+    code, body = live.req("GET", "/api/config")
+    assert code == 200
+    assert TG_TOKEN.encode() not in body and b"sk-proj-0123456789abcdef" not in body
+    text = json.loads(body)["yaml"]
+    assert 'token: "<hidden>"' in text
+    assert "${DISCORD_TOKEN}" in text          # a reference is not a secret
+    assert "# real key" in text                # comments survive masking
+
+    # saving the masked text back keeps the saved secrets, byte for byte
+    code, _ = live.req("POST", "/api/config", {"yaml": text.replace("model: m", "model: n")})
+    assert code == 200
+    assert cfg.read_text() == _CFG.replace("model: m", "model: n")
+
+
+def test_config_editor_can_replace_a_hidden_secret(cfg_live):
+    live, cfg = cfg_live
+    text = json.loads(live.req("GET", "/api/config")[1])["yaml"]
+    text = text.replace('token: "<hidden>"', 'token: "999:new"', 1)
+    assert live.req("POST", "/api/config", {"yaml": text})[0] == 200
+    assert 'token: "999:new"' in cfg.read_text()
+
+
+def test_hidden_without_a_saved_value_is_rejected(cfg_live):
+    live, cfg = cfg_live
+    cfg.write_text("llm:\n  model: m\n")                 # no token saved anywhere
+    code, body = live.req("POST", "/api/config",
+                          {"yaml": 'messaging:\n  telegram:\n    token: "<hidden>"\n'})
+    assert code == 400 and "type the value" in json.loads(body)["error"]
+    assert cfg.read_text() == "llm:\n  model: m\n"
+
+
+def test_messaging_view_describes_tokens_without_them(cfg_live):
+    live, _ = cfg_live
+    code, body = live.req("GET", "/api/messaging")
+    assert code == 200 and TG_TOKEN.encode() not in body
+    d = json.loads(body)
+    assert d["provider"] == "telegram" and d["running_provider"] == "cli"
+    assert d["telegram"]["token"] == {"state": "set", "hint": TG_TOKEN[-4:]}
+    assert d["telegram"]["allowed_user_ids"] == [111]
+    assert d["discord"]["token"]["state"] == "env"
+    assert d["discord"]["token"]["env_var"] == "DISCORD_TOKEN"
+    assert d["restart_needed"] is True
+    assert d["service"] == {"installed": False}
+
+
+def test_messaging_save_keeps_comments_and_untyped_tokens(cfg_live):
+    live, cfg = cfg_live
+    code, body = live.req("POST", "/api/messaging", {
+        "provider": "discord",
+        "telegram": {"allowed_user_ids": "111, 222"},          # no token → keep
+        "discord": {"token": DC_TOKEN, "allowed_user_ids": [333]},
+        "startup_notice": {"enabled": False, "notify": "", "speedtest": True,
+                           "speedtest_mb": 2},
+    })
+    assert code == 200, body
+    text = cfg.read_text()
+    data = yaml.safe_load(text)
+    assert data["messaging"]["provider"] == "discord"
+    assert data["messaging"]["telegram"] == {"token": TG_TOKEN, "allowed_user_ids": [111, 222]}
+    assert data["messaging"]["discord"] == {"token": DC_TOKEN, "allowed_user_ids": [333]}
+    assert data["messaging"]["startup_notice"]["enabled"] is False
+    assert data["messaging"]["startup_notice"]["speedtest_mb"] == 2.0
+    assert "# cli | telegram | discord" in text and "# real key" in text
+    assert data["llm"]["api_key"] == "sk-proj-0123456789abcdef"
+
+
+def test_messaging_save_validates(cfg_live):
+    live, cfg = cfg_live
+    before = cfg.read_text()
+    for form, msg in [
+        ({"provider": "slack"}, "provider must be one of"),
+        ({"telegram": {"allowed_user_ids": "me"}}, "not a numeric id"),
+        ({"provider": "telegram", "telegram": {"token": ""}}, "needs a bot token"),
+        ({"telegram": {"token": "<hidden>"}}, "type the token"),
+    ]:
+        code, body = live.req("POST", "/api/messaging", form)
+        assert code == 400 and msg in json.loads(body)["error"], (form, body)
+    assert cfg.read_text() == before
+
+
+def test_token_test_uses_the_saved_token_when_none_typed(cfg_live, monkeypatch):
+    from lesysbot.management import messaging
+
+    seen = {}
+
+    def fake_get(url, headers):
+        seen["url"] = url
+        return {"ok": True, "result": {"username": "my_bot", "first_name": "Bot"}}
+
+    monkeypatch.setattr(messaging, "_get_json", fake_get)
+    live, _ = cfg_live
+    code, body = live.req("POST", "/api/messaging/test", {"provider": "telegram", "token": ""})
+    assert code == 200 and json.loads(body) == {"ok": True, "bot": "@my_bot", "name": "Bot"}
+    assert TG_TOKEN in seen["url"] and TG_TOKEN.encode() not in body
+
+
+def test_restart_service_queues_without_blocking():
+    from lesysbot.management.server import restart_service
+
+    calls = []
+
+    class R:
+        def __init__(self, rc):
+            self.returncode, self.stderr = rc, b""
+
+    def runner(cmd, **_kw):
+        calls.append(cmd)
+        return R(0)
+
+    import os
+    old = os.environ.pop("LESYSBOT_SKIP_SERVICE", None)
+    try:
+        import shutil
+        if not shutil.which("systemctl"):
+            pytest.skip("no systemctl")
+        assert restart_service(runner)["ok"] is True
+    finally:
+        if old is not None:
+            os.environ["LESYSBOT_SKIP_SERVICE"] = old
+    assert calls[-1] == ["systemctl", "--user", "--no-block", "restart", "lesysbot"]

@@ -247,3 +247,44 @@ async def test_enable_disable_from_another_process_applies_live(tmp_path, monkey
     assert not agent.registry.is_enabled("pingy"), "the agent never picked up the change"
     # ...and it's genuinely gone, not just flagged: the LLM can no longer see it.
     assert agent.registry.get_openai_schemas() == []
+
+
+async def test_a_folder_copied_into_the_tools_dir_registers_live(tmp_path, monkeypatch) -> None:
+    """The copy-paste install path, end to end.
+
+    "A tool is a folder — put it in ~/.lesysbot/tools/ and it works" is the first
+    thing the docs tell people, and hot reload is the whole reason it is true
+    without a restart. Nothing else pinned it.
+    """
+    import asyncio
+    import shutil
+
+    from lesysbot.core.config import resolve_paths
+
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / ".lesysbot"))
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tools").mkdir()
+
+    # A package prepared somewhere else entirely — a download, a USB stick, a
+    # folder a colleague sent.
+    elsewhere = tmp_path / "elsewhere" / "pingy"
+    elsewhere.mkdir(parents=True)
+    (elsewhere / "tool.py").write_text(TOGGLE_TOOL)
+
+    settings = Settings.load()
+    resolve_paths(settings)
+    agent = Agent(settings)
+    await agent.setup()
+    await asyncio.sleep(0.5)          # let the watcher attach before we copy
+    assert agent.registry.get_tool_meta("pingy") is None
+
+    shutil.copytree(elsewhere, Path(settings.mcp.tools_dir) / "pingy")
+
+    for _ in range(60):
+        await asyncio.sleep(0.25)
+        if agent.registry.get_tool_meta("pingy") is not None:
+            break
+    assert agent.registry.get_tool_meta("pingy") is not None, \
+        "hot reload never saw the folder"
+    assert any(s["function"]["name"] == "pingy"
+               for s in agent.registry.get_openai_schemas())

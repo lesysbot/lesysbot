@@ -193,7 +193,7 @@ common commands:
   lesysbot chat             chat in this terminal
   lesysbot setup            change the model, Telegram/Discord, or startup
   lesysbot list             see installed tools
-  lesysbot install SOURCE   add tools from GitHub or `lesysbot search`
+  lesysbot install PATH     add a tool folder (or owner/repo from GitHub)
 
 docs: https://lesysbot.github.io
 """

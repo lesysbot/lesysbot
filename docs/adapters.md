@@ -1,7 +1,9 @@
 # Telegram & Discord
 
 Chat with your machine from your phone. You need two things from the chat app —
-a **bot token** and **your user ID** — then give them to `lesysbot setup`.
+a **bot token** and **your user ID** — then give them to `lesysbot setup`, or
+paste them into the **Messaging** tab of the [control panel](management-ui.md)
+at `http://127.0.0.1:8700` and press **Save**, then **Restart service**.
 
 Everything in [Everyday use](usage.md) works the same here.
 
@@ -61,7 +63,8 @@ channels it only answers when mentioned.
 
 Only the user IDs you entered. Anyone else gets `Unauthorized.`
 
-To add someone, edit `~/.lesysbot/config.yaml` and restart the service:
+To add someone, add their ID in the control panel's **Messaging** tab, or edit
+`~/.lesysbot/config.yaml`, then restart the service:
 
 ```yaml
 messaging:

@@ -49,7 +49,7 @@ dropped straight in `tools/` also still works for quick local tools.)
    tool, handle `ImportError`, and list them in the package's `requirements.txt`.
 
 4. **Write `README.md`** with frontmatter mirroring the code (for humans, the
-   catalog, and the artifact CLI — `lesysbot list/info` display it)
+   installer, and the artifact CLI — `lesysbot list/info` display it)
    and a short usage blurb:
 
    ```markdown
@@ -82,7 +82,7 @@ dropped straight in `tools/` also still works for quick local tools.)
 - Files starting with `_` are ignored by the loader — helpers only.
 - A new tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in `tools/` (e.g. `system-info/`, `speedtest/`).
-- Add a row to `tools/README.md` (the catalog table).
+- Add a row to the table in `tools/README.md`.
 - The same folder shape is what `lesysbot install owner/repo` downloads,
   so a package pushed to its own GitHub repo is installable as-is (and the
   bundled ones install via `lesysbot install lesysbot/lesysbot/tools/<name>`)
@@ -94,4 +94,4 @@ dropped straight in `tools/` also still works for quick local tools.)
 - Run `lesysbot --provider cli`, then `/help` (tool listed; gated tools show a "⚠ unavailable here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up saves.
 - If logic is non-trivial, add a test under `tests/` (registries are built over temp tool dirs — see `tests/test_registry.py`; `asyncio_mode=auto` means async tests need no decorator).
 
-Full reference: [docs/writing-tools.md](../../../docs/writing-tools.md), the catalog [tools/README.md](../../../tools/README.md), and the tool-registry/decorator notes in [CLAUDE.md](../../../CLAUDE.md).
+Full reference: [docs/writing-tools.md](../../../docs/writing-tools.md), the package list [tools/README.md](../../../tools/README.md), and the tool-registry/decorator notes in [CLAUDE.md](../../../CLAUDE.md).

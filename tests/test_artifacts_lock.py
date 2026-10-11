@@ -22,22 +22,16 @@ TOOL_PY = 'from lesysbot.mcp import tool\n\n@tool(description="hi")\nasync def h
 
 # -- drop ----------------------------------------------------------------------
 
-def test_drop_removes_one_kind_when_told(tmp_path):
+def test_drop_retired_forgets_kinds_no_longer_installed(tmp_path):
+    """An older release recorded dashboards; this one only installs tools."""
     lock = ArtifactLock(tmp_path / "lesysbot.lock.json")
-    lock.put(ArtifactKind.TOOL, "pg", {"name": "pg", "kind": "tool"})
-    lock.put(ArtifactKind.DASHBOARD, "pg", {"name": "pg", "kind": "dashboard"})
-
-    assert drop_entries(tmp_path / "lesysbot.lock.json", ["pg"], ArtifactKind.TOOL) == ["pg"]
-    assert set(lock.load()) == {"dashboard:pg"}
-
-
-def test_drop_without_a_kind_removes_every_match(tmp_path):
-    lock = ArtifactLock(tmp_path / "lesysbot.lock.json")
-    lock.put(ArtifactKind.TOOL, "pg", {"name": "pg", "kind": "tool"})
-    lock.put(ArtifactKind.DASHBOARD, "pg", {"name": "pg", "kind": "dashboard"})
-
-    assert drop_entries(tmp_path / "lesysbot.lock.json", ["pg"]) == ["pg", "pg"]
-    assert lock.load() == {}
+    lock.save({
+        "tool:pg": {"name": "pg", "kind": "tool"},
+        "dashboard:pg": {"name": "pg", "kind": "dashboard"},
+    })
+    assert lock.drop_retired() == ["dashboard:pg"]
+    assert set(lock.load()) == {"tool:pg"}
+    assert lock.drop_retired() == []
 
 
 def test_drop_reports_only_what_was_present(tmp_path):

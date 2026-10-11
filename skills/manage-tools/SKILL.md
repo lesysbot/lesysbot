@@ -36,12 +36,26 @@ lesysbot remove gpu_temp      # DELETE its folder/.py (asks y/N; --yes skips)
   the confirm). Installed packages also get their `tools.lock.json` entry
   cleaned. Hot-reload drops it from a running bot immediately. Prefer
   *disable* if the tool might be wanted back.
-- `list`/`info` show provenance: `owner/repo@commit7` for installed packages,
-  `local` for hand-written ones.
+- `list`/`info` show provenance: `owner/repo@commit7` for packages fetched from
+  GitHub, `local` for hand-copied ones and for `lesysbot install <path>`.
 
-## Installing from GitHub
+## Installing
 
-Installs are **by GitHub link only** — no registry or catalog:
+A tool is a **folder**. There is no registry or catalog. Three ways in, in
+descending order of how often you want them:
+
+```bash
+cp -r my-tool ~/.lesysbot/tools/             # just copy it; hot reload sees it
+lesysbot install ./my-tool                   # same, plus checks + pip deps
+lesysbot install ~/my-tool.zip               # a .zip of one folder
+```
+
+`install` stats its argument first, so **a real path always wins** over reading
+the same string as `owner/repo`. `--ref` with a local path is refused. A local
+install records `path` (not `repo`) in the lock, so `lesysbot update` skips it —
+re-run `lesysbot install <path>` to update one.
+
+Or fetch from GitHub:
 
 ```bash
 lesysbot install owner/repo                  # whole repo (HEAD)

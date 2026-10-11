@@ -112,6 +112,7 @@ LESYSBOT_SETUP_TELEGRAM_ALLOWED_IDS=123456789 \
 | `LESYSBOT_SETUP_AUTOSTART` | `1` (start at boot) |
 | `LESYSBOT_SETUP_GRAFANA_USER` | `admin` |
 | `LESYSBOT_SETUP_GRAFANA_PASSWORD` | generated |
+| `LESYSBOT_SETUP_GRAFANA_PORT` | `3000`, or the next free port if that's taken |
 
 A missing required value stops the install and names the variable. To replace
 an existing config this way, run `lesysbot setup --yes --reconfigure`.

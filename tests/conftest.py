@@ -22,3 +22,18 @@ from lesysbot.artifacts import deps
 @pytest.fixture(autouse=True)
 def _no_real_pip_installs(monkeypatch):
     monkeypatch.setenv(deps.SKIP_ENV, "1")
+
+
+@pytest.fixture(autouse=True)
+def _ports_are_free(monkeypatch):
+    """Every port reads as free unless a test says otherwise.
+
+    The setup wizard moves Grafana off a taken port, and whether 3000 is taken
+    depends on the developer's machine — so without this the wizard's prompts
+    (and thus every scripted wizard test) would change with what happens to be
+    running. Tests of the port logic patch ``port_in_use`` again, or import it
+    at module level (before this fixture swaps the attribute) to get the real one.
+    """
+    from lesysbot.core import grafana
+
+    monkeypatch.setattr(grafana, "port_in_use", lambda port, host="127.0.0.1": False)

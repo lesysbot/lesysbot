@@ -140,6 +140,12 @@ locally.
 | Problem | Fix |
 |---|---|
 | Grafana doesn't open | Start it: `lesysbot dashboard start`. Needs Docker — see [Dashboards](dashboards.md). |
+| Can't log in to Grafana | The password is in `~/.lesysbot/grafana.env`. If it's refused, run `lesysbot setup` again — see [Forgot the password?](dashboards.md#forgot-the-password). |
+| The right password is refused too | After 5 wrong tries Grafana locks that user for 5 minutes. Wait, then try once. |
+| Grafana isn't on port 3000 | Another program had 3000, so it moved — `lesysbot dashboard start` prints the new address. Choose one with `--grafana-port 3300`. |
+| "Dashboard not found", or the LeSysBot folder is empty | Run `lesysbot dashboard start`. If you made your own copy, it may not be valid JSON — `lesysbot dashboard reset` goes back to the automatic one. |
+| A change made in Grafana disappeared | Grafana's own edits are lost on the next start. Save them into your copy instead — see [Change it](dashboards.md#change-it). |
+| Old extra dashboards (Network Traffic, GPU Detail) still show | Run `lesysbot setup` again, then `lesysbot dashboard start`. LeSysBot now has one dashboard. |
 | Every panel is empty | Wait a minute for data. Still empty? Prometheus isn't running — check `http://localhost:9090/targets`. |
 | No temperature row | The machine exposes no sensors (normal in a VM). On real hardware, `lesysbot dashboard start` prints the `modprobe` to run. |
 | No GPU row | NVIDIA needs `nvidia-smi` installed and working. |
